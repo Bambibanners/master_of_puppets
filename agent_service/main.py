@@ -63,10 +63,37 @@ class ResultReport(BaseModel):
     success: bool
 
 # --- DB Helpers ---
+def init_db():
+    conn = get_db_connection()
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS jobs (
+                guid TEXT PRIMARY KEY,
+                task_type TEXT NOT NULL DEFAULT 'web_task',
+                status TEXT NOT NULL,
+                priority INTEGER DEFAULT 0,
+                payload TEXT NOT NULL,
+                result TEXT,
+                error_details TEXT,
+                lineage_log TEXT,
+                node_id TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+# --- Helpers ---
 def get_db_connection():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     return conn
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 # --- Endpoints ---
 
@@ -103,8 +130,8 @@ async def create_job(job: JobCreate):
     
     try:
         cursor.execute(
-            "INSERT INTO jobs (guid, status, priority, payload, lineage_log) VALUES (?, ?, ?, ?, ?)",
-            (guid, "PENDING", job.priority, json.dumps(job.payload), json.dumps([{"event": "CREATED", "timestamp": "now"}]))
+            "INSERT INTO jobs (guid, task_type, status, priority, payload, lineage_log) VALUES (?, ?, ?, ?, ?, ?)",
+            (guid, job.task_type, "PENDING", job.priority, json.dumps(job.payload), json.dumps([{"event": "CREATED", "timestamp": "now"}]))
         )
         conn.commit()
     except Exception as e:

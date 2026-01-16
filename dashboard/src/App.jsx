@@ -49,6 +49,38 @@ function App() {
         }
     };
 
+    const createScriptJob = async () => {
+        setLoading(true);
+        try {
+            await fetch('https://localhost:8000/submit_intent', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-KEY': 'master-secret-key'
+                },
+                body: JSON.stringify({
+                    task_type: 'python_script',
+                    payload: {
+                        script_content: `import os\nprint("Hello from Remote Script!")\nprint(f"Secret: {os.environ.get('TEST_SECRET', 'NOT FOUND')}")\nprint(f"CWD: {os.getcwd()}")`,
+                        requirements: [
+                            { "type": "dir_exists", "path": "." }
+                        ],
+                        secrets: {
+                            "TEST_SECRET": "TOP_SECRET_VALUE_123"
+                        }
+                    },
+                    priority: 10
+                })
+            });
+            setTimeout(fetchJobs, 500);
+        } catch (e) {
+            console.error("Failed to create script job:", e);
+            alert("Failed to submit script");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="container">
             <header className="header">
@@ -66,6 +98,14 @@ function App() {
                         disabled={loading}
                     >
                         {loading ? 'Submitting...' : '+ New Intent'}
+                    </button>
+                    <button
+                        className="btn-primary"
+                        style={{ marginLeft: '10px', backgroundColor: '#e91e63' }}
+                        onClick={createScriptJob}
+                        disabled={loading}
+                    >
+                        {loading ? 'Submitting...' : '+ Test Script'}
                     </button>
                 </div>
 

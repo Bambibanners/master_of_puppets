@@ -9,7 +9,7 @@ app = FastAPI(title="Model Service", description="Defines the logic and intent (
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,7 +43,7 @@ async def submit_intent(intent: IntentRequest, api_key: str = Depends(verify_api
     Submits a new intent (task) to the Agent Service.
     """
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(
                 f"{AGENT_SERVICE_URL}/jobs",
                 json={
@@ -51,8 +51,7 @@ async def submit_intent(intent: IntentRequest, api_key: str = Depends(verify_api
                     "priority": intent.priority,
                     "task_type": intent.task_type # Agent service might filter or route based on this
                 },
-                headers={API_KEY_NAME: API_KEY},
-                verify=False # Self-signed certs for local dev
+                headers={API_KEY_NAME: API_KEY}
             )
             response.raise_for_status()
             return {"status": "submitted", "agent_response": response.json()}
