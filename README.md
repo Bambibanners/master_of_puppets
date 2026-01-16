@@ -4,7 +4,7 @@
 > **Current Version**: 0.4.0 (Secure Secrets)
 
 ## Overview
-"Master of Puppets" is a scalable, secure, and resilient orchestration framework designed to bridge the gap between AI Intent (Model) and Execution (Nodes). It employs a pull-based architecture with strict Zero-Trust security principles, ensuring that code execution is authenticated, authorized, and ephemeral.
+"Master of Puppets" is a scalable, secure, and resilient orchestration framework designed to execute defined automation tasks on a strict schedule. It employs a pull-based architecture with strict Zero-Trust security principles, ensuring that code execution is authenticated, authorized, and ephemeral.
 
 ## System Architecture
 
@@ -12,7 +12,7 @@
 1.  **Agent Service (`agent_service`)**: The central Hub. Manages job queues, state, and node registration.
     *   *Port*: `8001` (HTTPS)
     *   *Database*: SQLite (`jobs.db`) with Fernet Encryption.
-2.  **Model Service (`model_service`)**: The "Brain". Translates intent into structured tasks.
+2.  **Model Service (`model_service`)**: The "Scheduler". Defines tasks and schedules their execution.
     *   *Port*: `8000` (HTTPS)
 3.  **Environment Node (`environment_service`)**: The Worker. Polls for work and executes tasks in isolated processes.
     *   *Dynamic ID*: Auto-enrolled via ACME.

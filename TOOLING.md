@@ -1,8 +1,8 @@
 # Tooling & Architecture Decisions
 
 ## Core Architecture: Three-Service Pull-Model
-**Rationale**: Decoupling the logic (Model) from the coordination (Agent) and the execution (Environment) allows for independent scaling and failure isolation.
-- **Model Service**: Pure logic. Can be versioned independently.
+**Rationale**: Decoupling the logic (Scheduler) from the coordination (Agent) and the execution (Environment) allows for independent scaling and failure isolation.
+- **Model Service (Scheduler)**: Defines schedules and tasks. Can be versioned independently.
 - **Agent Service**: The stable coordinator. Manages state and resource constraints.
 - **Environment Service**: The volatile worker. Can be restarted or replaced without affecting the core state.
 
