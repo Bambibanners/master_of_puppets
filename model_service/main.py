@@ -5,7 +5,30 @@ import uuid
 import httpx
 import os
 
-app = FastAPI(title="Model Service", description="Defines the logic and intent (The What).")
+app = FastAPI(title="Model Service", description="The Automation Scheduler.")
+
+# --- Scheduler ---
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
+from typing import Optional, List, Dict
+
+scheduler = AsyncIOScheduler()
+
+# In-memory storage for schedule metadata (in prod, use DB job store)
+scheduled_jobs = {} 
+
+class ScheduleRequest(BaseModel):
+    name: str # e.g. "Daily Cleanup"
+    task_type: str
+    payload: Dict
+    interval_seconds: Optional[int] = None
+    cron_expr: Optional[str] = None # e.g. "*/5 * * * *"
+
+class ScheduleResponse(BaseModel):
+    id: str
+    name: str
+    next_run: Optional[str] = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,37 +51,115 @@ async def verify_api_key(x_api_key: str = Header(...)):
         raise HTTPException(status_code=403, detail="Invalid API Key")
     return x_api_key
 
-class IntentRequest(BaseModel):
+class TaskRequest(BaseModel):
     task_type: str
     payload: dict
     priority: int = 0
 
-@app.get("/")
-async def health_check():
-    return {"status": "healthy", "service": "Model Service"}
+@app.on_event("startup")
+def start_scheduler():
+    scheduler.start()
 
-@app.post("/submit_intent")
-async def submit_intent(intent: IntentRequest, api_key: str = Depends(verify_api_key)):
+@app.on_event("shutdown")
+def shutdown_scheduler():
+    scheduler.shutdown()
+
+@app.post("/submit_task")
+async def submit_task(task: TaskRequest, api_key: str = Depends(verify_api_key)):
     """
-    Submits a new intent (task) to the Agent Service.
+    Submits a task to the Agent Service (Immediate Execution).
     """
     try:
         async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(
                 f"{AGENT_SERVICE_URL}/jobs",
                 json={
-                    "payload": intent.payload,
-                    "priority": intent.priority,
-                    "task_type": intent.task_type # Agent service might filter or route based on this
+                    "payload": task.payload,
+                    "priority": task.priority,
+                    "task_type": task.task_type
                 },
                 headers={API_KEY_NAME: API_KEY}
             )
             response.raise_for_status()
-            return {"status": "submitted", "agent_response": response.json()}
+            data = response.json()
+            return {"status": "submitted", "guid": data["guid"], "agent_response": data}
+            
     except httpx.RequestError as e:
         raise HTTPException(status_code=503, detail=f"Agent Service unavailable: {e}")
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"Agent refused job: {e.response.text}")
+
+# Backward compatibility alias
+@app.post("/submit_intent")
+async def submit_intent(intent: TaskRequest, api_key: str = Depends(verify_api_key)):
+    return await submit_task(intent, api_key)
+
+# --- Schedule Endpoints ---
+
+async def _job_wrapper(task: TaskRequest):
+    # Wrapper helper to submit task from scheduler
+    # We need a way to inject API KEY or bypass auth for internal calls.
+    # For now, we'll replicate the logic or call the function directly if possible?
+    # Actually, calling the function directly is hard due to Dependency injection.
+    # Better to just use httpx to call Agent directly, or re-use logic.
+    print(f"Executing Scheduled Task: {task.task_type}")
+    try:
+        async with httpx.AsyncClient(verify=False) as client:
+             await client.post(
+                f"{AGENT_SERVICE_URL}/jobs",
+                json={
+                    "payload": task.payload,
+                    "priority": task.priority,
+                    "task_type": task.task_type
+                },
+                headers={API_KEY_NAME: API_KEY}
+            )
+    except Exception as e:
+        print(f"Scheduled Job Failed: {e}")
+
+@app.post("/schedules", response_model=ScheduleResponse)
+async def add_schedule(req: ScheduleRequest, api_key: str = Depends(verify_api_key)):
+    job_id = str(uuid.uuid4())
+    
+    trigger = None
+    if req.interval_seconds:
+        trigger = IntervalTrigger(seconds=req.interval_seconds)
+    elif req.cron_expr:
+        trigger = CronTrigger.from_crontab(req.cron_expr)
+    else:
+        raise HTTPException(status_code=400, detail="Must provide interval_seconds or cron_expr")
+        
+    task_req = TaskRequest(task_type=req.task_type, payload=req.payload)
+    
+    job = scheduler.add_job(
+        _job_wrapper,
+        trigger=trigger,
+        args=[task_req],
+        id=job_id,
+        name=req.name
+    )
+    
+    scheduled_jobs[job_id] = {
+        "id": job_id,
+        "name": req.name,
+        "spec": req.dict()
+    }
+    
+    return {"id": job_id, "name": req.name, "next_run": str(job.next_run_time)}
+
+@app.get("/schedules")
+async def list_schedules():
+    return list(scheduled_jobs.values())
+
+@app.delete("/schedules/{job_id}")
+async def remove_schedule(job_id: str, api_key: str = Depends(verify_api_key)):
+    try:
+        scheduler.remove_job(job_id)
+        if job_id in scheduled_jobs:
+            del scheduled_jobs[job_id]
+        return {"status": "deleted"}
+    except Exception:
+        raise HTTPException(status_code=404, detail="Schedule not found")
 
 if __name__ == "__main__":
     import uvicorn

@@ -3,6 +3,7 @@ import './index.css';
 
 function App() {
     const [jobs, setJobs] = useState([]);
+    const [schedules, setSchedules] = useState([]);
     const [loading, setLoading] = useState(false);
 
     const fetchJobs = async () => {
@@ -15,9 +16,25 @@ function App() {
         }
     };
 
+    const fetchSchedules = async () => {
+        try {
+            const res = await fetch('https://localhost:8000/schedules', {
+                headers: { 'X-API-KEY': 'master-secret-key' }
+            });
+            const data = await res.json();
+            setSchedules(data);
+        } catch (e) {
+            console.error("Failed to fetch schedules:", e);
+        }
+    };
+
     useEffect(() => {
         fetchJobs();
-        const interval = setInterval(fetchJobs, 2000); // Real-time polling
+        fetchSchedules();
+        const interval = setInterval(() => {
+            fetchJobs();
+            fetchSchedules();
+        }, 2000); // Real-time polling
         return () => clearInterval(interval);
     }, []);
 
@@ -81,6 +98,46 @@ function App() {
         }
     };
 
+    const createSchedule = async () => {
+        setLoading(true);
+        try {
+            await fetch('https://localhost:8000/schedules', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-KEY': 'master-secret-key'
+                },
+                body: JSON.stringify({
+                    name: `Heartbeat ${new Date().toLocaleTimeString()}`,
+                    task_type: 'python_script',
+                    interval_seconds: 10,
+                    payload: {
+                        script_content: 'import datetime\nprint(f"I am alive at {datetime.datetime.now()}")',
+                        requirements: []
+                    }
+                })
+            });
+            setTimeout(fetchSchedules, 500);
+        } catch (e) {
+            alert("Failed to create schedule");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const deleteSchedule = async (id) => {
+        if (!confirm("Delete schedule?")) return;
+        try {
+            await fetch(`https://localhost:8000/schedules/${id}`, {
+                method: 'DELETE',
+                headers: { 'X-API-KEY': 'master-secret-key' }
+            });
+            fetchSchedules();
+        } catch (e) {
+            alert("Delete failed");
+        }
+    };
+
     return (
         <div className="container">
             <header className="header">
@@ -106,8 +163,36 @@ function App() {
                         disabled={loading}
                     >
                         {loading ? 'Submitting...' : '+ Test Script'}
+                        {loading ? 'Submitting...' : '+ Test Script'}
+                    </button>
+                    <button
+                        className="btn-primary"
+                        style={{ marginLeft: '10px', backgroundColor: '#4caf50' }}
+                        onClick={createSchedule}
+                        disabled={loading}
+                    >
+                        + Add Heartbeat (10s)
                     </button>
                 </div>
+
+                <div className="section-title">Active Schedules</div>
+                <div className="job-grid">
+                    {schedules.length === 0 && <p className="empty-state">No active schedules.</p>}
+                    {schedules.map(sch => (
+                        <div key={sch.id} className="job-card status-scheduled" style={{ borderColor: '#4caf50' }}>
+                            <div className="card-header">
+                                <span className="guid">{sch.name}</span>
+                                <button className="btn-sm" onClick={() => deleteSchedule(sch.id)}>🗑</button>
+                            </div>
+                            <div className="card-body">
+                                <small>Next: {sch.next_run || 'Calculating...'}</small>
+                                <pre>{JSON.stringify(sch.spec, null, 2)}</pre>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="section-title">Job History</div>
 
                 <div className="job-grid">
                     {jobs.length === 0 && <p className="empty-state">No active jobs.</p>}
