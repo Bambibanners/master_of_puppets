@@ -26,21 +26,30 @@
 26: 
 27: ## Security: Zero-Trust & ACME (Internal CA)
 28: **Rationale**: 
-29: - **Zero-Trust**: No implicit trust. Nodes must authenticate dynamically.
-30: - **ACME (Automated Certificate Management Environment)**: Automates certificate issuance and renewal, replacing brittle static keys.
-31: - **Tooling**: `step-ca` (Smallstep) acts as a lightweight, internal "Let's Encrypt".
-32: - **Workflow**:
-33:   1. Node has a shared `client_secret`.
-34:   2. Node calls Agent `/auth/register` to get a one-time enrollment token.
-35:   3. Node uses `step` CLI to bind the token for a certificate from `step-ca`.
-36: 
-37: ## Dependencies
+
+## Security: Zero-Trust & ACME (Internal CA)
+**Rationale**: 
+- **Zero-Trust**: No implicit trust. Nodes must authenticate dynamically.
+- **ACME (Automated Certificate Management Environment)**: Automates certificate issuance and renewal, replacing brittle static keys.
+- **Tooling**: `step-ca` (Smallstep) acts as a lightweight, internal "Let's Encrypt".
+- **Workflow**:
+  1. Node has a shared `client_secret`.
+  2. Node calls Agent `/auth/register` to get a one-time enrollment token.
+  3. Node uses `step` CLI to bind the token for a certificate from `step-ca`.
+
+## Secret Management: Encryption & Redaction
+**Rationale**:
+- **Requirement**: "Hide all secrets... plain text nowhere."
+- **Encryption at Rest**: `Fernet` (AES-128) used for `jobs.db`. Hardcoded key for dev, env var for prod.
+- **Redaction**: API masking (`******`) ensures secrets don't leak to UI/Logs.
+- **Ephemeral Injection**: Secrets are decrypted only at the Node and injected into `subprocess` environment variables.
+
+## Dependencies
 ### Python 3.12+
 - `fastapi`: Web framework.
 - `uvicorn`: ASGI server.
 - `httpx`: Async HTTP client for the Nodes.
 - `pydantic`: Data validation and settings management.
-- `sqlite3`: Standard library, no extra install needed (for now).
 
 ## Development Tooling
 - **Git**: Version control. "Little and often" strategy.
