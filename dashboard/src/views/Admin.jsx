@@ -7,12 +7,18 @@ const Admin = () => {
 
     // Generate Token
     const generateToken = async () => {
-        const res = await authenticatedFetch('https://localhost:8001/admin/generate-token', { method: 'POST' });
-        if (res.ok) {
-            const data = await res.json();
-            setJoinToken(data.token);
-        } else {
-            alert('Failed to generate token (Requires Admin/Operator Role)');
+        try {
+            const res = await authenticatedFetch('https://localhost:8001/admin/generate-token', { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                setJoinToken(data.token);
+            } else {
+                const err = await res.text();
+                alert(`Failed: ${res.status} ${res.statusText}\n${err}`);
+            }
+        } catch (error) {
+            console.error(error);
+            alert(`Network Error: ${error.message}\n(Did you accept the new Server Certificate?)`);
         }
     };
 
@@ -49,7 +55,7 @@ const Admin = () => {
                     {joinToken && (
                         <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#222', border: '1px solid #4caf50', borderRadius: '4px' }}>
                             <div style={{ color: '#888', marginBottom: '5px' }}>NEW TOKEN GENERATED:</div>
-                            <code style={{ color: '#4caf50', fontSize: '1.2rem' }}>{joinToken}</code>
+                            <code style={{ color: '#4caf50', fontSize: '1.2rem', wordBreak: 'break-all' }}>{joinToken}</code>
                             <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#aaa' }}>
                                 Use this token in the Installer Wizard or Environment Variables.
                             </div>
