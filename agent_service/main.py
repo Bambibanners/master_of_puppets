@@ -444,17 +444,42 @@ async def register_node(req: RegisterRequest, db: AsyncSession = Depends(get_db)
 
 # --- Admin Endpoints ---
 
+from . import pki
+import base64
+
+# Initialize PKI
+ca_authority = pki.CertificateAuthority(ca_dir="secrets/ca")
+
+async def on_startup():
+    await init_db()
+    
+    # Bootstrap Admin
+    # ... existing admin bootstrap ...
+
 @app.post("/admin/generate-token")
-async def generate_join_token(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Generates a new Join Token for a Node. RBAC: Admin/Operator."""
+async def generate_token(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Generates a new Join Token (v0.8) with embedded Root CA."""
     if current_user.role not in ["admin", "operator"]:
          raise HTTPException(status_code=403, detail="Insufficient Permissions")
          
-    token = uuid.uuid4().hex
-    new_token = Token(token=token)
-    db.add(new_token)
+    # Generate DB Token
+    token_str = uuid.uuid4().hex
+    token_entry = Token(token=token_str)
+    db.add(token_entry)
     await db.commit()
-    return {"token": token}
+    
+    # Bundle with CA
+    ca_pem = ca_authority.get_root_cert_pem()
+    
+    payload = {
+        "t": token_str,
+        "ca": ca_pem
+    }
+    
+    # Base64 Encode
+    b64_token = base64.b64encode(json.dumps(payload).encode()).decode()
+    
+    return {"token": b64_token}
 
 @app.post("/admin/upload-key")
 async def upload_public_key(req: object, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -489,7 +514,16 @@ async def generate_compose(token: str, mounts: Optional[str] = None):
                 normalized_mounts.append(f"- {m}")
     
     mounts_yaml = "\n      ".join(normalized_mounts)
-    volumes_block = f"    volumes:\n      {mounts_yaml}" if normalized_mounts else ""
+    
+    # Default volumes
+    volumes_list = []
+    if normalized_mounts:
+        volumes_list.extend(normalized_mounts)
+    
+    # Mount the bootstrap CA
+    volumes_list.append("- ./bootstrap_ca.crt:/app/secrets/root_ca.crt:ro")
+    
+    volumes_block = "    volumes:\n      " + "\n      ".join(volumes_list)
 
     yaml_content = f"""
 version: "3"
@@ -499,6 +533,7 @@ services:
     environment:
       - AGENT_URL=https://host.containers.internal:8001
       - JOIN_TOKEN={token}
+      - ROOT_CA_PATH=/app/secrets/root_ca.crt
       - PYTHONUNBUFFERED=1
     network_mode: host
 {volumes_block}
@@ -510,10 +545,19 @@ services:
 
 if __name__ == "__main__":
     import uvicorn
+    
+    # Ensure Certs Exist BEFORE starting Uvicorn (SSL Context Load)
+    ca_authority.ensure_root_ca()
+    ca_authority.issue_server_cert(
+        "secrets/server.key", 
+        "secrets/server.crt", 
+        sans=["localhost", "127.0.0.1", "host.containers.internal", "master-of-puppets-server"]
+    )
+    
     uvicorn.run(
         app, 
         host="0.0.0.0", 
         port=8001,
-        ssl_keyfile="secrets/agent.key",
-        ssl_certfile="secrets/agent.crt"
+        ssl_keyfile="secrets/server.key",
+        ssl_certfile="secrets/server.crt"
     )
