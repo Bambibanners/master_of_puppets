@@ -130,7 +130,18 @@ class Node:
                  # Check Signature (Simplified logic for now, similar to before)
                  if os.path.exists(self.verify_key_path) and signature:
                      # ... verify logic ...
-                     pass
+                     try:
+                         with open(self.verify_key_path, "rb") as f:
+                             public_key_bytes = f.read()
+                             public_key = serialization.load_pem_public_key(public_key_bytes)
+                             
+                         sig_bytes = base64.b64decode(signature)
+                         public_key.verify(sig_bytes, script.encode('utf-8'))
+                         print(f"[{self.node_id}] ✅ Signature Verified for Job {guid}")
+                     except Exception as e:
+                         print(f"[{self.node_id}] ❌ Signature Verification FAILED: {e}")
+                         await self.report_result(guid, False, {"error": "Signature Verification Failed"})
+                         return
                  
                  exec_result = self.run_python_script(guid, script, secrets)
                  result_data = exec_result
@@ -169,6 +180,8 @@ def main():
     
     if not VERIFY_SSL:
         print("⚠️  WARNING: Running with SSL Verification DISABLED")
+    else:
+        print(f"🔒 Secure Mode Active. Trust Root: {VERIFY_SSL}")
 
     # Start Heartbeat Thread
     hb_thread = threading.Thread(target=heartbeat_loop, daemon=True)
