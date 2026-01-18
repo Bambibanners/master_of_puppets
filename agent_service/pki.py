@@ -123,3 +123,56 @@ class CertificateAuthority:
 
         with open(output_cert_path, "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
+
+    def sign_csr(self, csr_pem: str, common_name: str) -> str:
+        """Signs a CSR with the Root CA."""
+        print(f"Signing CSR for: {common_name}")
+        
+        # Load Root Key/Cert
+        with open(self.key_path, "rb") as f:
+            root_key = serialization.load_pem_private_key(f.read(), password=None)
+        with open(self.cert_path, "rb") as f:
+            root_cert = x509.load_pem_x509_certificate(f.read())
+            
+        # Load CSR
+        csr = x509.load_pem_x509_csr(csr_pem.encode())
+        
+        # Verify CSR Signature (Security Best Practice)
+        if not csr.is_signature_valid:
+             raise ValueError("Example: CSR Signature Invalid")
+             
+        # Build Client Cert
+        builder = x509.CertificateBuilder().subject_name(
+            csr.subject
+        ).issuer_name(
+            root_cert.subject
+        ).public_key(
+            csr.public_key()
+        ).serial_number(
+            x509.random_serial_number()
+        ).not_valid_before(
+            datetime.datetime.utcnow()
+        ).not_valid_after(
+            datetime.datetime.utcnow() + datetime.timedelta(days=365)
+        ).add_extension(
+            x509.BasicConstraints(ca=False, path_length=None), critical=True,
+        ).add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                key_encipherment=True, # For RSA
+                content_commitment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False
+            ),
+            critical=True
+        ).add_extension(
+             x509.ExtendedKeyUsage([x509.OID_CLIENT_AUTH]), critical=True
+        )
+
+        signed_cert = builder.sign(root_key, hashes.SHA256())
+        
+        return signed_cert.public_bytes(serialization.Encoding.PEM).decode()

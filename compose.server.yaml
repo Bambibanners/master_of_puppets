@@ -17,7 +17,7 @@ services:
       retries: 5
 
   agent:
-    image: master-of-puppets-server
+    image: localhost/master-of-puppets-server:latest
     command: python -m agent_service.main
     restart: always
     environment:
@@ -31,7 +31,7 @@ services:
         condition: service_healthy
 
   model:
-    image: master-of-puppets-server
+    image: localhost/master-of-puppets-server:latest
     command: uvicorn model_service.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile secrets/key.pem --ssl-certfile secrets/cert.pem
     restart: always
     environment:
@@ -48,7 +48,7 @@ services:
         condition: service_started
 
   dashboard:
-    image: master_of_puppets_dashboard
+    image: localhost/master-of-puppets-dashboard:latest
     ports:
       - "5173:80"
     restart: always
