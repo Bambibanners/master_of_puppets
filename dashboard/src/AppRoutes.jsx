@@ -4,6 +4,7 @@ import Dashboard from './views/Dashboard';
 import Nodes from './views/Nodes';
 import Jobs from './views/Jobs';
 import Admin from './views/Admin';
+import Docs from './views/Docs';
 import MainLayout from './layouts/MainLayout';
 import { getUser } from './auth';
 
@@ -22,6 +23,7 @@ const AppRoutes = () => {
                 <Route path="nodes" element={<Nodes />} />
                 <Route path="jobs" element={<Jobs />} />
                 <Route path="admin" element={<Admin />} />
+                <Route path="docs" element={<Docs />} /> {/* Added Docs route */}
             </Route>
         </Routes>
     );

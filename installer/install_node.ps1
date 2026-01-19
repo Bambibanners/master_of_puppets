@@ -2,10 +2,10 @@
 param(
     [string]$ServerUrl = "https://localhost:8001",
     [string]$JoinToken,
-    [string]$Mounts
+    [int]$Count = 1
 )
 
-Write-Host "Bootstrapping Environment Node (Podman)..." -ForegroundColor Cyan
+Write-Host "Bootstrapping Environment Node (Podman) x$Count..." -ForegroundColor Cyan
 
 if (-not (Get-Command podman -ErrorAction SilentlyContinue)) {
     Write-Error "Podman is not installed."
@@ -117,6 +117,6 @@ if (-not (Get-Command podman-compose -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-podman-compose -f node-compose.yaml up -d
+podman-compose -f node-compose.yaml up -d --scale node=$Count
 
 Write-Host "Node Started!" -ForegroundColor Green

@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { authenticatedFetch } from '../auth';
+import AddNodeModal from '../components/AddNodeModal';
+import ManageMountsModal from '../components/ManageMountsModal';
 
 const Nodes = () => {
     const [nodes, setNodes] = useState([]);
+    const [showAdd, setShowAdd] = useState(false);
+    const [showMounts, setShowMounts] = useState(false);
 
     const fetchNodes = async () => {
         try {
@@ -35,7 +39,16 @@ const Nodes = () => {
 
     return (
         <div>
-            <h1>Environment Nodes</h1>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h1>Environment Nodes</h1>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button className="btn" onClick={() => setShowMounts(true)}>📂 Network Mounts</button>
+                    <button className="btn primary" onClick={() => setShowAdd(true)}>+ Add Node</button>
+                </div>
+            </div>
+
+            {showAdd && <AddNodeModal onClose={() => setShowAdd(false)} />}
+            {showMounts && <ManageMountsModal onClose={() => setShowMounts(false)} />}
             <div className="job-grid">
                 {nodes.map(node => (
                     <div key={node.node_id} className="job-card" style={{ borderColor: getStatusColor(node) }}>

@@ -3,6 +3,7 @@ import AppRoutes from './AppRoutes';
 import './index.css';
 
 function App() {
+    console.log("[DEBUG] App.jsx: Rendering App Component");
     return (
         <BrowserRouter>
             <AppRoutes />

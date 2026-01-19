@@ -15,6 +15,7 @@ const MainLayout = () => {
                     <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}>📊 Dashboard</Link>
                     <Link to="/nodes" className={`nav-link ${location.pathname === '/nodes' ? 'active' : ''}`}>🖥 Nodes</Link>
                     <Link to="/jobs" className={`nav-link ${location.pathname === '/jobs' ? 'active' : ''}`}>⚡ Jobs</Link>
+                    <Link to="/docs" className={`nav-link ${location.pathname === '/docs' ? 'active' : ''}`}>📚 Docs</Link>
                     {user?.role === 'admin' && (
                         <Link to="/admin" className={`nav-link ${location.pathname === '/admin' ? 'active' : ''}`}>⚙ Admin</Link>
                     )}

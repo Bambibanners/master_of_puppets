@@ -25,7 +25,8 @@ COPY model_service/ model_service/
 COPY secrets/ secrets/
 COPY ca/ ca/
 
-# Creating installer dir for static serving
-RUN mkdir installer
+# Copy Installer Scripts for static serving
+COPY installer/ installer/
+COPY docs/ docs/
 
 # Entrypoints done via command in compose

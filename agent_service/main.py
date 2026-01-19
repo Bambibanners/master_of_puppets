@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request, Depends, Header, status
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -19,7 +20,7 @@ from .auth import verify_password, get_password_hash, create_access_token, ACCES
 
 load_dotenv()
 
-app = FastAPI(title="Agent Service (v0.7)", description="Orchestrator with RBAC and Observability.")
+app = FastAPI(title="Master of Puppets v0.8", description="Orchestrator (v0.8) - Security & Mounts")
 
 app.add_middleware(
     CORSMiddleware,
@@ -683,8 +684,103 @@ services:
 
 {top_level_volumes}
 """
-    from fastapi.responses import Response
-    return Response(content=yaml_content, media_type="application/x-yaml")
+@app.get("/api/installer")
+async def get_installer():
+    """Serves the latest install_node.ps1 script."""
+    # Robust Path Resolution
+    # main.py is in /app/agent_service/main.py (container) or Repo/agent_service/main.py (local)
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    # Try container/production structure first
+    # Structure: /app/installer/install_node.ps1
+    path_prod = os.path.join(base_dir, "installer", "install_node.ps1")
+    
+    # Try dev structure (if different, though usually same relative path)
+    # Structure: Repo/installer/install_node.ps1
+    # which is same as above if base_dir is Repo root.
+    
+    file_path = path_prod
+    
+    if not os.path.exists(file_path):
+         print(f"[ERROR] Installer not found at {file_path}. CWD: {os.getcwd()}")
+         raise HTTPException(status_code=404, detail=f"Installer script not found at {file_path}")
+
+    with open(file_path, "r") as f:
+        content = f.read()
+        
+    return Response(content=content, media_type="text/plain", headers={"Content-Disposition": "attachment; filename=install_node.ps1"})
+
+
+# Documentation Endpoints
+@app.get("/api/docs")
+async def list_docs():
+    """Returns a list of available documentation files."""
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Try container path first (/app/docs), then local repo path (../docs)
+    possible_paths = [
+        os.path.join(base_dir, "docs"),       # Container
+        os.path.join(base_dir, "../docs")     # Local Dev
+    ]
+    
+    docs_dir = "/app/docs" # Default fallback
+    for p in possible_paths:
+        if os.path.exists(p) and os.path.isdir(p):
+            docs_dir = p
+            break
+            
+    if not os.path.exists(docs_dir):
+        return []
+
+    files = []
+    for f in os.listdir(docs_dir):
+        if f.endswith(".md"):
+            # Simple title extraction: Read first line
+            title = f
+            try:
+                with open(os.path.join(docs_dir, f), "r") as md_file:
+                    first_line = md_file.readline().strip()
+                    if first_line.startswith("#"):
+                        title = first_line.lstrip("# ").strip()
+            except:
+                pass
+            
+            files.append({
+                "filename": f,
+                "title": title
+            })
+    return files
+
+@app.get("/api/docs/{filename}")
+async def get_doc_content(filename: str):
+    """Serves specific markdown content."""
+    # Sanitize filename (basic check)
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    possible_paths = [
+        os.path.join(base_dir, "docs"),
+        os.path.join(base_dir, "../docs")
+    ]
+    
+    docs_dir = None
+    for p in possible_paths:
+        if os.path.exists(p) and os.path.isdir(p):
+            docs_dir = p
+            break
+            
+    if not docs_dir:
+        raise HTTPException(status_code=404, detail="Docs directory not found")
+
+    file_path = os.path.join(docs_dir, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    with open(file_path, "r") as f:
+        content = f.read()
+        
+    return {"content": content}
+
 
 
 if __name__ == "__main__":
