@@ -28,6 +28,28 @@ class Job(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    scheduled_job_id: Mapped[Optional[str]] = mapped_column(String, nullable=True) # FK to ScheduledJob.id
+
+class Signature(Base):
+    __tablename__ = "signatures"
+    id: Mapped[str] = mapped_column(String, primary_key=True) # UUID
+    name: Mapped[str] = mapped_column(String, unique=True)
+    public_key: Mapped[str] = mapped_column(Text) # PEM
+    uploaded_by: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class ScheduledJob(Base):
+    __tablename__ = "scheduled_jobs"
+    id: Mapped[str] = mapped_column(String, primary_key=True) # UUID
+    name: Mapped[str] = mapped_column(String, unique=True)
+    script_content: Mapped[str] = mapped_column(Text)
+    signature_id: Mapped[str] = mapped_column(String) # FK to Signature.id
+    signature_payload: Mapped[str] = mapped_column(Text) # Base64 Signature
+    schedule_cron: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Cron Expression
+    target_node_id: Mapped[Optional[str]] = mapped_column(String, nullable=True) # specific node or 'all'? Plan said nullable target_node_id
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 class Token(Base):
     __tablename__ = "tokens"

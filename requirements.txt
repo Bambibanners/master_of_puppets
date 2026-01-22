@@ -5,7 +5,6 @@ cryptography
 python-dotenv
 apscheduler
 pydantic
-psycopg2-binary
 asyncpg
 sqlalchemy
 passlib

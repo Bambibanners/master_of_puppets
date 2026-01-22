@@ -13,9 +13,12 @@ from cryptography.fernet import Fernet
 import time
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives import serialization
 from sqlalchemy.future import select
 from sqlalchemy import update, desc, func
-from .db import init_db, get_db, Job, Token, Config, User, Node, AsyncSession
+from .db import init_db, get_db, Job, Token, Config, User, Node, AsyncSession, Signature, ScheduledJob
 from .auth import verify_password, get_password_hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 
 load_dotenv()
@@ -98,6 +101,35 @@ async def verify_client_cert(request: Request):
     # OR (since we are using Uvicorn directly):
     
     # NOTE: Uvicorn does not expose client cert details in ASGI scope easily without quirks.
+    pass
+
+@app.get("/api/verification-key")
+async def get_verification_key():
+    """Serves the Public Verification Key for Code Signing."""
+    key_path = "secrets/verification.key"
+    if not os.path.exists(key_path):
+        raise HTTPException(status_code=404, detail="Verification Key not configured on Server")
+    
+    with open(key_path, "r") as f:
+        return Response(content=f.read(), media_type="text/plain")
+
+@app.get("/api/installer")
+async def get_installer_ps1():
+    """Serves the Universal PowerShell Installer (One-Liner)."""
+    file_path = "installer/install_universal.ps1"
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Installer not found")
+    with open(file_path, "r") as f:
+        return Response(content=f.read(), media_type="text/plain")
+
+@app.get("/api/installer.sh")
+async def get_installer_sh():
+    """Serves the Universal Bash Installer."""
+    file_path = "installer/install_universal.sh"
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Installer not found")
+    with open(file_path, "r") as f:
+        return Response(content=f.read(), media_type="text/plain")
     # We will assume mTLS is enforced at connection level if configured.
     # To be stricter, we'd inspect `request.scope.get('extensions', {}).get('tls', {})` if supported.
     
@@ -444,8 +476,7 @@ async def register_node(req: RegisterRequest, db: AsyncSession = Depends(get_db)
     token_entry = result.scalar_one_or_none()
     
     if not token_entry:
-         if req.client_secret != "enrollment-secret": # Fallback for dev
-            raise HTTPException(status_code=403, detail="Invalid Join Token")
+         raise HTTPException(status_code=403, detail="Invalid Join Token")
 
     try:
         # Sign CSR using Internal PKI
@@ -465,10 +496,55 @@ from . import pki
 import base64
 
 # Initialize PKI
+# Initialize PKI
 ca_authority = pki.CertificateAuthority(ca_dir="secrets/ca")
 
+# Initialize Scheduler
+scheduler = AsyncIOScheduler()
+
+# --- Pydantic Models for Signatures & Jobs ---
+class SignatureCreate(BaseModel):
+    name: str
+    public_key: str # PEM
+
+class SignatureResponse(BaseModel):
+    id: str
+    name: str
+    public_key: str
+    uploaded_by: str
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class JobDefinitionCreate(BaseModel):
+    name: str
+    script_content: str
+    signature: str # Base64
+    signature_id: str # UUID of key
+    schedule_cron: Optional[str] = None
+    target_node_id: Optional[str] = None
+
+class JobDefinitionResponse(BaseModel):
+    id: str
+    name: str
+    is_active: bool
+    schedule_cron: Optional[str]
+    target_node_id: Optional[str]
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+@app.on_event("startup")
 async def on_startup():
     await init_db()
+    try:
+        scheduler.start()
+        print("🕒 Scheduler Started")
+        await sync_scheduler()
+    except Exception as e:
+        print(f"⚠️ Scheduler Failed to Start: {e}")
     
     # Bootstrap Admin
     # ... existing admin bootstrap ...
@@ -511,8 +587,7 @@ async def get_public_key(x_join_token: str = Header(None), db: AsyncSession = De
     # Validate Token
     result = await db.execute(select(Token).where(Token.token == x_join_token))
     if not result.scalar_one_or_none():
-         if x_join_token != "enrollment-secret":
-             raise HTTPException(status_code=403, detail="Invalid Join Token")
+         raise HTTPException(status_code=403, detail="Invalid Join Token")
 
     result = await db.execute(select(Config).where(Config.key == "signing_public_key"))
     row = result.scalar_one_or_none()
@@ -546,8 +621,7 @@ async def get_network_mounts(
              is_valid_token = True
              
     if not (is_admin or is_valid_token):
-        if x_join_token != "enrollment-secret": # Dev backdoor
-             raise HTTPException(status_code=403, detail="Not Authorized")
+         raise HTTPException(status_code=403, detail="Not Authorized")
 
     result = await db.execute(select(Config).where(Config.key == "global_network_mounts"))
     row = result.scalar_one_or_none()
@@ -584,7 +658,7 @@ async def update_network_mounts(config: MountsConfig, current_user: User = Depen
 
 
 @app.get("/api/node/compose")
-async def generate_compose(token: str, mounts: Optional[str] = None, platform: str = "Podman", db: AsyncSession = Depends(get_db)):
+async def generate_compose(token: str, platform: str = "Podman", db: AsyncSession = Depends(get_db)):
     # 1. Parse Client-Side Mounts (Legacy Removed)
     client_volumes = []
     client_env_vars = []
@@ -629,12 +703,173 @@ async def generate_compose(token: str, mounts: Optional[str] = None, platform: s
     except Exception as e:
         print(f"Error loading network mounts: {e}")
 
-    # Combine Volumes
-    service_volumes = client_volumes + network_mount_lines
+# --- Scheduler Logic ---
+
+async def execute_scheduled_job(scheduled_job_id: str):
+    """Callback for APScheduler. Creates an Execution Job from the Definition."""
+    print(f"⏰ Triggering Scheduled Job: {scheduled_job_id}")
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(ScheduledJob).where(ScheduledJob.id == scheduled_job_id))
+        s_job = result.scalar_one_or_none()
+        
+        if not s_job or not s_job.is_active:
+             print(f"⚠️ Job {scheduled_job_id} not found or inactive.")
+             return
+
+        # Load Signature
+        sig_res = await db.execute(select(Signature).where(Signature.id == s_job.signature_id))
+        sig = sig_res.scalar_one_or_none()
+        if not sig:
+             print(f"⚠️ Signature {s_job.signature_id} missing for job {s_job.name}")
+             return
+
+        # Construct Execution Payload
+        # Pass-Through: We rely on the signature stored in ScheduledJob
+        execution_guid = uuid.uuid4().hex
+        
+        payload_dict = {
+            "script_content": s_job.script_content,
+            "signature": s_job.signature_payload, # Base64 Signature
+            "secrets": {} # TODO: Secret attachment UI?
+        }
+        
+        payload_json = json.dumps(payload_dict)
+        
+        # Create Job
+        new_job = Job(
+            guid=execution_guid,
+            task_type="python_script",
+            payload=payload_json,
+            status="PENDING",
+            node_id=s_job.target_node_id,
+            scheduled_job_id=s_job.id
+        )
+        db.add(new_job)
+        await db.commit()
+        print(f"✅ Job {execution_guid} created for scheduled task {s_job.name}")
+
+async def sync_scheduler():
+    """Syncs DB ScheduledJobs with APScheduler."""
+    print("🔄 Syncing Scheduler...")
+    scheduler.remove_all_jobs()
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(ScheduledJob).where(ScheduledJob.is_active == True))
+        jobs = result.scalars().all()
+        count = 0
+        for j in jobs:
+            if j.schedule_cron:
+                 # TODO: Parse Cron string simpler? Pydantic validation handles format?
+                 # APScheduler standard: "minute hour day month day_of_week"
+                 # We assume the string is compatible with triggers.CronTrigger.from_crontab
+                 try:
+                     parts = j.schedule_cron.split()
+                     if len(parts) == 5:
+                         scheduler.add_job(
+                             execute_scheduled_job, 
+                             'cron', 
+                             args=[j.id], 
+                             minute=parts[0], hour=parts[1], day=parts[2], month=parts[3], day_of_week=parts[4],
+                             id=j.id
+                         )
+                         count += 1
+                 except Exception as e:
+                     print(f"❌ Failed to schedule {j.name}: {e}")
+    print(f"✅ Scheduler Synced: {count} jobs active.")
+
+# --- Signature Registry API ---
+
+@app.post("/signatures", response_model=SignatureResponse)
+async def upload_signature(sig: SignatureCreate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin Only")
     
-    volumes_block = ""
-    if service_volumes:
-        volumes_block = "    volumes:\n      " + "\n      ".join(service_volumes)
+    # Check Duplicate
+    res = await db.execute(select(Signature).where(Signature.name == sig.name))
+    if res.scalar_one_or_none():
+         raise HTTPException(status_code=400, detail="Signature name exists")
+    
+    new_sig = Signature(
+        id=uuid.uuid4().hex,
+        name=sig.name,
+        public_key=sig.public_key,
+        uploaded_by=current_user.username
+    )
+    db.add(new_sig)
+    await db.commit()
+    return new_sig
+
+@app.get("/signatures", response_model=List[SignatureResponse])
+async def list_signatures(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Signature))
+    return result.scalars().all()
+
+@app.delete("/signatures/{id}")
+async def delete_signature(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin Only")
+    
+    result = await db.execute(select(Signature).where(Signature.id == id))
+    sig = result.scalar_one_or_none()
+    if not sig:
+        raise HTTPException(status_code=404, detail="Signature not found")
+    
+    await db.delete(sig)
+    await db.commit()
+    return {"status": "deleted"}
+
+# --- Job Definitions API ---
+
+@app.post("/jobs/definitions", response_model=JobDefinitionResponse)
+async def create_job_definition(def_req: JobDefinitionCreate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Creates a new Scheduled Job. VALIDATES SIGNATURE First."""
+    
+    # 1. Load Signature
+    res = await db.execute(select(Signature).where(Signature.id == def_req.signature_id))
+    sig = res.scalar_one_or_none()
+    if not sig:
+        raise HTTPException(status_code=404, detail="Signature ID not found")
+        
+    # 2. Verify Signature (Server acts as Notary)
+    try:
+        public_key = serialization.load_pem_public_key(sig.public_key.encode())
+        if not isinstance(public_key, ed25519.Ed25519PublicKey):
+             # Maybe support RSA too? Node supports whatever cryptography supports, but pki.py generated Ed25519.
+             # Strict check for now.
+             pass 
+             
+        # Ed25519 Verify
+        sig_bytes = base64.b64decode(def_req.signature)
+        public_key.verify(sig_bytes, def_req.script_content.encode('utf-8'))
+        print(f"✅ Signature Validated for new job: {def_req.name}")
+    except Exception as e:
+        print(f"❌ Signature Validation Failed: {e}")
+        raise HTTPException(status_code=403, detail=f"Invalid Signature: {str(e)}")
+
+    # 3. Store Definition
+    new_def = ScheduledJob(
+        id=uuid.uuid4().hex,
+        name=def_req.name,
+        script_content=def_req.script_content,
+        signature_id=def_req.signature_id,
+        signature_payload=def_req.signature, # Store for Pass-Through
+        schedule_cron=def_req.schedule_cron,
+        target_node_id=def_req.target_node_id,
+        created_by=current_user.username
+    )
+    db.add(new_def)
+    await db.commit()
+    
+    # 4. Update Scheduler
+    if new_def.is_active and new_def.schedule_cron:
+        await sync_scheduler()
+    
+    return new_def
+
+@app.get("/jobs/definitions", response_model=List[JobDefinitionResponse])
+async def list_job_definitions(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ScheduledJob))
+    return result.scalars().all()
+
 
     # Combine Env Vars
     final_env_vars = client_env_vars + network_env_vars
@@ -780,10 +1015,13 @@ if __name__ == "__main__":
     # Ensure Certs Exist BEFORE starting Uvicorn (SSL Context Load)
     ca_authority.ensure_root_ca()
     ca_authority.issue_server_cert(
-        "secrets/server.key", 
+        "secrets/server.key",
         "secrets/server.crt", 
         sans=["localhost", "127.0.0.1", "host.containers.internal", "master-of-puppets-server"]
     )
+    
+    # Ensure Code Signing Keys exist
+    ca_authority.ensure_signing_key("secrets")
     
     uvicorn.run(
         app, 

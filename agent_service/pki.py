@@ -6,7 +6,7 @@ from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import rsa, ed25519
 
 class CertificateAuthority:
     def __init__(self, ca_dir="ca"):
@@ -193,3 +193,34 @@ class CertificateAuthority:
         signed_cert = builder.sign(root_key, hashes.SHA256())
         
         return signed_cert.public_bytes(serialization.Encoding.PEM).decode()
+
+    def ensure_signing_key(self, secrets_dir="secrets"):
+        """Generates Ed25519 Signing Key (Private) and Verification Key (Public) if missing."""
+        signing_key_path = os.path.join(secrets_dir, "signing.key")
+        verify_key_path = os.path.join(secrets_dir, "verification.key")
+        os.makedirs(secrets_dir, exist_ok=True)
+        
+        if os.path.exists(signing_key_path) and os.path.exists(verify_key_path):
+            print("Loading existing Code Signing Keys...")
+            return
+
+        print("Generating new Ed25519 Code Signing Keys...")
+        private_key = ed25519.Ed25519PrivateKey.generate()
+        public_key = private_key.public_key()
+        
+        # Save Private Key
+        with open(signing_key_path, "wb") as f:
+            f.write(private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption()
+            ))
+            
+        # Save Public Key
+        with open(verify_key_path, "wb") as f:
+            f.write(public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ))
+        
+        print(f"✅ Code Signing Keys generated in {secrets_dir}")

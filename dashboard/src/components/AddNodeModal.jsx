@@ -27,13 +27,6 @@ const AddNodeModal = ({ onClose }) => {
         genToken();
     }, []);
 
-    const handleCopy = () => {
-        const snippet = `.\\install_node.ps1 -ServerUrl "https://host.containers.internal:8001" -JoinToken "${token}" -Count ${count}`;
-        navigator.clipboard.writeText(snippet);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-
     const handleDownload = () => {
         // Direct download link to the API
         window.location.href = "https://localhost:8001/api/installer";

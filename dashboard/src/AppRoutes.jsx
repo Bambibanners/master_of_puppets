@@ -3,6 +3,8 @@ import Login from './views/Login';
 import Dashboard from './views/Dashboard';
 import Nodes from './views/Nodes';
 import Jobs from './views/Jobs';
+import JobDefinitions from './views/JobDefinitions';
+import Signatures from './views/Signatures';
 import Admin from './views/Admin';
 import Docs from './views/Docs';
 import MainLayout from './layouts/MainLayout';
@@ -22,6 +24,8 @@ const AppRoutes = () => {
                 <Route index element={<Dashboard />} />
                 <Route path="nodes" element={<Nodes />} />
                 <Route path="jobs" element={<Jobs />} />
+                <Route path="scheduled-jobs" element={<JobDefinitions />} />
+                <Route path="signatures" element={<Signatures />} />
                 <Route path="admin" element={<Admin />} />
                 <Route path="docs" element={<Docs />} /> {/* Added Docs route */}
             </Route>

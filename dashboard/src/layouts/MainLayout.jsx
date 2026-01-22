@@ -14,10 +14,14 @@ const MainLayout = () => {
                 <nav style={{ flex: 1 }}>
                     <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}>📊 Dashboard</Link>
                     <Link to="/nodes" className={`nav-link ${location.pathname === '/nodes' ? 'active' : ''}`}>🖥 Nodes</Link>
-                    <Link to="/jobs" className={`nav-link ${location.pathname === '/jobs' ? 'active' : ''}`}>⚡ Jobs</Link>
+                    <Link to="/jobs" className={`nav-link ${location.pathname === '/jobs' ? 'active' : ''}`}>⚡ History</Link>
+                    <Link to="/scheduled-jobs" className={`nav-link ${location.pathname === '/scheduled-jobs' ? 'active' : ''}`}>📅 Scheduled Jobs</Link>
                     <Link to="/docs" className={`nav-link ${location.pathname === '/docs' ? 'active' : ''}`}>📚 Docs</Link>
                     {user?.role === 'admin' && (
-                        <Link to="/admin" className={`nav-link ${location.pathname === '/admin' ? 'active' : ''}`}>⚙ Admin</Link>
+                        <>
+                            <Link to="/signatures" className={`nav-link ${location.pathname === '/signatures' ? 'active' : ''}`}>🔐 Signatures</Link>
+                            <Link to="/admin" className={`nav-link ${location.pathname === '/admin' ? 'active' : ''}`}>⚙ Admin</Link>
+                        </>
                     )}
                 </nav>
 

@@ -243,10 +243,18 @@ class Node:
 
             if not script:
                  result_data = {"error": "No script_content provided"}
+            elif not signature:
+                 print(f"[{self.node_id}] ❌ CRITICAL: Unsigned Job Rejected. Signature is MANDATORY.")
+                 await self.report_result(guid, False, {"error": "Security Check Failed: Signature Missing (Mandatory)"})
+                 return
             else:
-                 # Check Signature (Simplified logic for now, similar to before)
-                 if os.path.exists(self.verify_key_path) and signature:
-                     # ... verify logic ...
+                 # Check Signature
+                 if signature:
+                     if not os.path.exists(self.verify_key_path):
+                         print(f"[{self.node_id}] ❌ CRITICAL: Verification Key missing. Cannot verify signature.")
+                         await self.report_result(guid, False, {"error": "Security Check Failed: Verification Key missing"})
+                         return
+                         
                      try:
                          with open(self.verify_key_path, "rb") as f:
                              public_key_bytes = f.read()

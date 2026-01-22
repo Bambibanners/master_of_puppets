@@ -2,7 +2,7 @@ version: "3"
 
 services:
   db:
-    image: postgres:15-alpine
+    image: docker.io/library/postgres:15-alpine
     restart: always
     environment:
       POSTGRES_USER: puppet
@@ -21,8 +21,8 @@ services:
     command: python -m agent_service.main
     restart: always
     environment:
-      - DATABASE_URL=postgresql+asyncpg://puppet:masterpassword@db/puppet_db
-      - API_KEY=master-secret-key
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-puppet}:${POSTGRES_PASSWORD:-masterpassword}@db/${POSTGRES_DB:-puppet_db}
+      - API_KEY=${API_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
     ports:
       - "8001:8001"
@@ -38,10 +38,10 @@ services:
     command: uvicorn model_service.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile secrets/key.pem --ssl-certfile secrets/cert.pem
     restart: always
     environment:
-      - DATABASE_URL=postgresql+asyncpg://puppet:masterpassword@db/puppet_db
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-puppet}:${POSTGRES_PASSWORD:-masterpassword}@db/${POSTGRES_DB:-puppet_db}
       - AGENT_URL=https://agent:8001
       - ROOT_CA_PATH=ca/certs/root_ca.crt
-      - API_KEY=master-secret-key
+      - API_KEY=${API_KEY}
     volumes:
       - ca_data:/app/ca
       - secrets_data:/app/secrets

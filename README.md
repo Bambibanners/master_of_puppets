@@ -1,7 +1,7 @@
 # Master of Puppets - Orchestration Toolkit
 
 > **Status**: Industrial-Grade / Containerized / Zero-Trust
-> **Current Version**: 0.8.0 (Security & Network Mounts)
+> **Current Version**: 1.2.0 (Job Scheduling & Signatures)
 
 ## Overview
 "Master of Puppets" is a secure, scalable, and containerized orchestration framework designed for executing defined automation tasks with strict security and observability. It features a Pull-based architecture, Zero-Trust security (mTLS/JWT), a comprehensive React Dashboard, and is fully deployable via Podman Containers.
@@ -77,7 +77,13 @@ iex (irm https://localhost:8001/api/installer) -Role Node -Token "..." -Count 3
 
 ## Release Notes
 
-### v0.9: Hardening & Isolation (Current)
+### v1.2: Job Scheduling & Signature Management (Pass-Through Security)
+*   **APScheduler Integration**: Native scheduling of jobs (Cron).
+*   **Signature Registry**: Centralized management of trusted Ed25519 Public Keys.
+*   **Security (Pass-Through)**: Nodes verify the *Original Developer Signature* against trusted keys (fetched via mTLS), ensuring zero tamper potential by the Orchestrator.
+*   **Observability**: Sparkline visualization for Job History.
+
+### v0.9: Hardening & Isolation
 *   **Network Hardening**: Database and Model ports are now locked down (Internal-Only).
 *   **Node Isolation**: Nodes run in **Bridge Mode** (no longer Host mode) but maintain SMB/DrvFS mount capabilities.
 *   **SSL Hardening**:
@@ -91,12 +97,8 @@ iex (irm https://localhost:8001/api/installer) -Role Node -Token "..." -Count 3
 *   **Native mTLS**: Nodes generate their own keys and request certs (CSR) from the Agent.
 *   **Trust Bootstrapping**: Zero-config deployment; Token carries the Root CA.
 
-### v0.7: Observability & Containers
-*   **PostgreSQL**: Replaced SQLite for production-grade storage.
-*   **Containerization**: Full support for Podman/Docker.
-*   **RBAC**: Added User/Role models and JWT authentication.
-
 ## Next Steps / Roadmap
-1.  **Cross-Platform Validation**: Verify stack on Docker Desktop (in progress).
-2.  **Orchestration**: Deploy to Kubernetes (Helm Charts).
+1.  **Kubernetes Support**: Helm Charts for k8s deployment.
+2.  **Secret Rotation**: Automated rotation of mTLS certs and Signing Keys.
+
 

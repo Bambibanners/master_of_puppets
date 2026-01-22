@@ -1,7 +1,8 @@
-# Master of Puppets - Universal Installer (v0.9)
+# Master of Puppets - Universal Installer (v1.0)
 # Usage:
 #   iex (irm https://server:8001/api/installer) -Role Node -Token "eyJ..."
 #   ./install_universal.ps1 -Role Node -Token "eyJ..." -Count 3
+#   ./install_universal.ps1 -Platform Docker  # Force Docker
 
 param(
     [Parameter(Mandatory = $false)]
@@ -18,8 +19,8 @@ param(
     [int]$Count = 1,
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("Podman", "Docker")]
-    [string]$Platform = "Podman"
+    [ValidateSet("Podman", "Docker", "")]
+    [string]$Platform = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,11 +30,46 @@ function Write-Log {
     Write-Host "[Installer] $Message" -ForegroundColor $Color
 }
 
+# --- Platform Detection ---
+$HasDocker = [bool](Get-Command docker -ErrorAction SilentlyContinue)
+$HasPodman = [bool](Get-Command podman -ErrorAction SilentlyContinue)
+
+if ($Platform -eq "") {
+    # Auto-detect
+    if (-not $HasDocker -and -not $HasPodman) {
+        Write-Error "Neither Docker nor Podman found. Please install one first."
+    }
+    elseif ($HasDocker -and $HasPodman) {
+        Write-Host ""
+        Write-Host "Both Docker and Podman detected. Please choose:" -ForegroundColor Yellow
+        Write-Host "  [1] Docker" -ForegroundColor Cyan
+        Write-Host "  [2] Podman" -ForegroundColor Cyan
+        $Choice = Read-Host "Select runtime [1/2]"
+        if ($Choice -eq "2") {
+            $Platform = "Podman"
+        }
+        else {
+            $Platform = "Docker"
+        }
+    }
+    elseif ($HasDocker) {
+        $Platform = "Docker"
+        Write-Log "Auto-detected: Docker" "Green"
+    }
+    else {
+        $Platform = "Podman"
+        Write-Log "Auto-detected: Podman" "Green"
+    }
+}
+else {
+    Write-Log "Using specified platform: $Platform" "Cyan"
+}
+
 Write-Log "Initializing Universal Installer ($Role on $Platform)..." "Cyan"
 
-# 0. Environment Checks
+# 0. Environment Checks (Validate selected platform)
 if ($Platform -eq "Podman") {
-    if (-not (Get-Command podman -ErrorAction SilentlyContinue)) {
+    if (-not $HasPodman) {
         Write-Error "Podman is not installed. Please install Podman first."
     }
     if (-not (Get-Command podman-compose -ErrorAction SilentlyContinue)) {
@@ -53,7 +89,7 @@ if ($Platform -eq "Podman") {
     }
 }
 elseif ($Platform -eq "Docker") {
-    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    if (-not $HasDocker) {
         Write-Error "Docker is not installed."
     }
     # Check for 'docker compose' (plugin) or 'docker-compose' (standalone)
@@ -125,6 +161,25 @@ if ($Role -eq "Node") {
     }
     
     Write-Log "✅ node-compose.yaml downloaded." "Green"
+
+    # Fetch Verification Key
+    Write-Log "Fetching Validation Key..." "Cyan"
+    $KeyUrl = "$ServerUrl/api/verification-key"
+    Set-Content -Path "$PWD/verification.key" -Value "" # Create Empty
+    
+    # We use curl because Invoke-WebRequest with strict SSL on custom CA can be tricky in older PS
+    $KeyCurlArgs = @("--ssl-no-revoke", "--fail", "-s", "$KeyUrl", "-o", "verification.key")
+    & curl.exe @KeyCurlArgs
+
+    if (Test-Path "$PWD/verification.key") {
+        $KeyContent = Get-Content "$PWD/verification.key"
+        if ($KeyContent.Length -gt 10) {
+            Write-Log "✅ Verification Key downloaded." "Green"
+        }
+        else {
+            Write-Log "Warning: Verification Key seems empty or missing on server." "Yellow"
+        }
+    }
 }
 elseif ($Role -eq "Agent") {
     Write-Log "Agent (Server) deployment not yet fully automated via script (Use git clone + podman-compose)." "Yellow"

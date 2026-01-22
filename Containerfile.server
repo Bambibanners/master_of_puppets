@@ -14,7 +14,10 @@ RUN apk add --no-cache \
 
 # Install Step CLI (for Agent to issue tokens)
 # Using generic linux install
-RUN curl -L https://dl.step.sm/gh-release/cli/gh-release-header/v0.24.4/step_linux_0.24.4_amd64.tar.gz | tar -xz -C /tmp \
+# Architecture Detection & Step CLI
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ]; then STEP_ARCH="arm64"; else STEP_ARCH="amd64"; fi && \
+    curl -L "https://dl.step.sm/gh-release/cli/gh-release-header/v0.24.4/step_linux_0.24.4_${STEP_ARCH}.tar.gz" | tar -xz -C /tmp \
     && mv /tmp/step_0.24.4/bin/step /usr/local/bin/step
 
 # Copy Deps
