@@ -1,11 +1,13 @@
-import { jwtDecode } from "jwt-decode"; // Correct named import for v4
+import { jwtDecode } from "jwt-decode";
 
-export const login = async (username, password) => {
+const API_URL = import.meta.env.VITE_API_URL || 'https://localhost:8001';
+
+export const login = async (username: string, password: string): Promise<any> => {
     const formData = new FormData();
     formData.append('username', username);
     formData.append('password', password);
 
-    const res = await fetch('https://localhost:8001/auth/login', {
+    const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         body: formData
     });
@@ -34,12 +36,16 @@ export const getUser = () => {
     }
 };
 
-export const authenticatedFetch = async (url, options = {}) => {
+export const authenticatedFetch = async (endpoint: string, options: RequestInit = {}): Promise<Response> => {
     const token = getToken();
     const headers = {
         ...options.headers,
         'Authorization': `Bearer ${token}`
     };
+
+    // endpoint should be partial path like '/nodes' or full url?
+    // Let's assume partial path if it starts with /
+    const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
 
     const res = await fetch(url, { ...options, headers });
     if (res.status === 401) {

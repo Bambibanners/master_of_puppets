@@ -78,6 +78,13 @@ class Node(Base):
     status: Mapped[str] = mapped_column(String) # ONLINE, OFFLINE
     stats: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON: cpu, ram
 
+class Ping(Base):
+    __tablename__ = "pings"
+    id: Mapped[str] = mapped_column(String, primary_key=True) # UUID
+    node_id: Mapped[str] = mapped_column(String)
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

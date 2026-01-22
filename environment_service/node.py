@@ -56,7 +56,7 @@ def heartbeat_loop():
                 client.post(
                     f"{AGENT_URL}/heartbeat", 
                     json=stats, 
-                    headers={"X-Node-ID": NODE_ID},
+                    headers={"X-Node-ID": NODE_ID, API_KEY_NAME: API_KEY},
                     timeout=5.0
                 )
             except Exception as e:
@@ -112,19 +112,40 @@ class Node:
                 # Update Globals/Members
                 global ROOT_CA_PATH, VERIFY_SSL
                 ROOT_CA_PATH = os.path.abspath(root_ca_dest)
+                
+                # STRICT mTLS: Always verify against Bootstrap CA
                 VERIFY_SSL = ROOT_CA_PATH
+                print(f"[{self.node_id}] 🔒 Strict mTLS Active. CA: {ROOT_CA_PATH}")
                 
                 # 2. Extract Real Token
                 self.join_token = payload["t"]
                 
                 print(f"[{self.node_id}] ✅ Trust Bootstrapped to {ROOT_CA_PATH}")
             else:
-                print(f"[{self.node_id}] Token payload missing 't' or 'ca'")
-                
+                 print(f"[{self.node_id}] Token payload missing 't' or 'ca'")
+                 
+            # 3. Fetch Verification Key (Public Key) for Code Signing
+            self.fetch_verification_key()
+                 
         except Exception as e:
             # Not an enhanced token or parsing failed. safely ignore.
             print(f"[{self.node_id}] DEBUG: Token parse failed, assuming legacy/simple token: {e}")
             pass
+            
+    def fetch_verification_key(self):
+        """Fetches the Public Verification Key from the Server."""
+        try:
+            # We can use the generic client (trusting Root CA)
+            with httpx.Client(verify=VERIFY_SSL) as client:
+                resp = client.get(f"{self.agent_url}/api/verification-key", timeout=10)
+                if resp.status_code == 200:
+                    with open(self.verify_key_path, "wb") as f:
+                        f.write(resp.content)
+                    print(f"[{self.node_id}] 🔑 Verification Key updated.")
+                else:
+                    print(f"[{self.node_id}] ⚠️ Failed to fetch Verification Key: {resp.status_code}")
+        except Exception as e:
+             print(f"[{self.node_id}] ⚠️ Error fetching Verification Key: {e}")
         
     def ensure_identity(self):
         """Checks for Client Cert/Key. If missing, registers with Server via CSR."""
@@ -182,7 +203,8 @@ class Node:
                 verify=VERIFY_SSL, 
                 cert=(self.cert_file, self.key_file)
             ) as client:
-                resp = await client.post(f"{self.agent_url}/work/pull", timeout=10.0)
+                headers = {API_KEY_NAME: API_KEY}
+                resp = await client.post(f"{self.agent_url}/work/pull", headers=headers, timeout=10.0)
                 if resp.status_code == 200:
                     data = resp.json()
                     if data:
@@ -244,9 +266,12 @@ class Node:
             if not script:
                  result_data = {"error": "No script_content provided"}
             elif not signature:
-                 print(f"[{self.node_id}] ❌ CRITICAL: Unsigned Job Rejected. Signature is MANDATORY.")
-                 await self.report_result(guid, False, {"error": "Security Check Failed: Signature Missing (Mandatory)"})
-                 return
+                 if INSECURE_NODE:
+                     print(f"[{self.node_id}] ⚠️ Unsigned Job Allowed (Insecure Mode)")
+                 else:
+                     print(f"[{self.node_id}] ❌ CRITICAL: Unsigned Job Rejected. Signature is MANDATORY.")
+                     await self.report_result(guid, False, {"error": "Security Check Failed: Signature Missing (Mandatory)"})
+                     return
             else:
                  # Check Signature
                  if signature:
@@ -288,7 +313,8 @@ class Node:
             ) as client:
                 await client.post(
                     f"{self.agent_url}/work/{guid}/result",
-                    json={"success": success, "result": result}
+                    json={"success": success, "result": result},
+                    headers={API_KEY_NAME: API_KEY}
                 )
             print(f"[{self.node_id}] Reported result for {guid}")
         except Exception as e:

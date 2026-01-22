@@ -27,8 +27,8 @@ services:
     ports:
       - "8001:8001"
     volumes:
-      - ca_data:/app/ca
-      - secrets_data:/app/secrets
+      - ./ca:/app/ca
+      - ./secrets:/app/secrets
     depends_on:
       db:
         condition: service_healthy
@@ -43,8 +43,8 @@ services:
       - ROOT_CA_PATH=ca/certs/root_ca.crt
       - API_KEY=${API_KEY}
     volumes:
-      - ca_data:/app/ca
-      - secrets_data:/app/secrets
+      - ./ca:/app/ca
+      - ./secrets:/app/secrets
     depends_on:
       db:
         condition: service_healthy
@@ -53,11 +53,12 @@ services:
 
   dashboard:
     image: localhost/master-of-puppets-dashboard:latest
+    build:
+      context: ./dashboard
+      dockerfile: Containerfile
     ports:
       - "5173:80"
     restart: always
 
 volumes:
   pgdata:
-  ca_data:
-  secrets_data:

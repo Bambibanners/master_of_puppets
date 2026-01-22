@@ -18,7 +18,7 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization
 from sqlalchemy.future import select
 from sqlalchemy import update, desc, func
-from .db import init_db, get_db, Job, Token, Config, User, Node, AsyncSession, Signature, ScheduledJob
+from .db import init_db, get_db, Job, Token, Config, User, Node, AsyncSession, Signature, ScheduledJob, Ping
 from .auth import verify_password, get_password_hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 
 load_dotenv()
@@ -106,9 +106,14 @@ async def verify_client_cert(request: Request):
 @app.get("/api/verification-key")
 async def get_verification_key():
     """Serves the Public Verification Key for Code Signing."""
-    key_path = "secrets/verification.key"
+    """Serves the Public Verification Key for Code Signing."""
+    key_path = "/app/secrets/verification.key"
     if not os.path.exists(key_path):
-        raise HTTPException(status_code=404, detail="Verification Key not configured on Server")
+        # Fallback to relative if not found (dev env)
+        if os.path.exists("secrets/verification.key"):
+            key_path = "secrets/verification.key"
+        else:
+            raise HTTPException(status_code=404, detail="Verification Key not configured on Server")
     
     with open(key_path, "r") as f:
         return Response(content=f.read(), media_type="text/plain")
@@ -596,6 +601,29 @@ async def get_public_key(x_join_token: str = Header(None), db: AsyncSession = De
     return {"public_key": row.value}
 
 
+# --- Test/Verification Endpoints ---
+
+class PingRequest(BaseModel):
+    node_id: str
+    message: str
+
+@app.post("/api/test/ping")
+async def receive_ping(req: PingRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Dev Mode Only: Allows nodes to 'check in' via signed jobs to verify Execution -> Network -> DB pipeline.
+    """
+    if os.getenv("DEVELOPMENT_MODE", "false").lower() != "true":
+        raise HTTPException(status_code=403, detail="Development Mode Disabled")
+        
+    new_ping = Ping(
+        id=uuid.uuid4().hex,
+        node_id=req.node_id,
+        message=req.message
+    )
+    db.add(new_ping)
+    await db.commit()
+    return {"status": "recorded", "id": new_ping.id}
+
 # --- Configuration Endpoints ---
 
 class NetworkMount(BaseModel):
@@ -1017,7 +1045,7 @@ if __name__ == "__main__":
     ca_authority.issue_server_cert(
         "secrets/server.key",
         "secrets/server.crt", 
-        sans=["localhost", "127.0.0.1", "host.containers.internal", "master-of-puppets-server"]
+        sans=["localhost", "127.0.0.1", "host.containers.internal", "master-of-puppets-server", "host.docker.internal", "192.168.50.128"]
     )
     
     # Ensure Code Signing Keys exist
