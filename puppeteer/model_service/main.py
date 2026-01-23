@@ -16,11 +16,11 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from typing import Optional, List, Dict
-import httpx
 
 # Sync driver for APScheduler (psycopg2)
-# We convert asyncpg url (postgresql+asyncpg) to sync (postgresql+psycopg2) if needed
-# But for simplicity, we expect DATABASE_URL_SYNC env var or just modify the string.
+# APScheduler's SQLAlchemyJobStore requires a synchronous driver.
+# We convert asyncpg url (postgresql+asyncpg) to sync (postgresql+psycopg2).
+# This requires 'psycopg2-binary' to be installed.
 DB_URL = os.getenv("DATABASE_URL", "sqlite:///jobs.db").replace("+asyncpg", "+psycopg2")
 
 jobstores = {

@@ -25,9 +25,10 @@ const Admin = () => <div className="p-10">Admin Placeholder</div>;
 
 const PrivateRoute = ({ children }: { children: JSX.Element }) => {
     // const user = getUser();
-    // For Dev/Demo, if no user, maybe allow? Nah, strict.
-    // return user ? children : <Navigate to="/login" />;
-    return children; // BYPASS AUTH FOR DEV/DEMO to show the UI immediately
+    // TODO: Actually implement getUser() from auth.ts or context
+    // For now, checks localStorage directly as a simple verify
+    const token = localStorage.getItem('token');
+    return token ? children : <Login />;
 };
 
 const AppRoutes = () => {
