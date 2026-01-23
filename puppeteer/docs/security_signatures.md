@@ -10,17 +10,17 @@ Master of Puppets v1.2 introduces a **Pass-Through Security Model** for job exec
 
 ## Pass-Through Verification Flow
 
-The Server (Agent) acts as a **Notary**, but not the final arbiter of trust for code content.
+Puppeteer acts as a **Notary**, but not the final arbiter of trust for code content.
 
 1.  **Authoring**: A developer writes a script and signs it with their Private Key (Ed25519).
-2.  **Definition**: The Script + Signature is uploaded to the Agent.
-    *   *The Agent validates the signature against the Registry to prevent bad uploads, but this is just a gatekeeper.*
-3.  **Scheduling**: The Agent schedules the job.
-4.  **Dispatch**: When the job triggers, the Agent sends the **Original Script** + **Original Signature** + **Key ID** to the Node.
-5.  **Execution (Node-Side)**:
-    *   The Node receives the payload.
-    *   The Node fetches the Public Key from the Agent (via secure mTLS endpoint `/api/verification-key` or similar, or local cache).
-    *   **CRITICAL**: The Node cryptographically verifies `Ed25519_Verify(Unmodified_Script, Signature, Public_Key)`.
+2.  **Definition**: The Script + Signature is uploaded to Puppeteer.
+    *   *Puppeteer validates the signature against the Registry to prevent bad uploads, but this is just a gatekeeper.*
+3.  **Scheduling**: Puppeteer schedules the job.
+4.  **Dispatch**: When the job triggers, Puppeteer sends the **Original Script** + **Original Signature** + **Key ID** to the Puppet.
+5.  **Execution (Puppet-Side)**:
+    *   The Puppet receives the payload.
+    *   The Puppet fetches the Public Key from Puppeteer (via secure mTLS endpoint `/api/verification-key` or similar, or local cache).
+    *   **CRITICAL**: The Puppet cryptographically verifies `Ed25519_Verify(Unmodified_Script, Signature, Public_Key)`.
     *   If valid, the script executes. If invalid, it is rejected immediately.
 
 ## Why this matters?

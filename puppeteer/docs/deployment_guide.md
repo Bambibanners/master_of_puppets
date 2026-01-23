@@ -1,6 +1,6 @@
 # Automated Deployment Guide (OAuth2 / API)
 
-This guide details how to use the Master of Puppets API for automated deployments (CI/CD pipelines).
+This guide details how to use the **Puppeteer API** for automated deployments (CI/CD pipelines).
 
 ## Authentication (OAuth2)
 
