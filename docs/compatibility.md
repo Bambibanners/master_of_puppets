@@ -1,14 +1,14 @@
 # Script Compatibility Contract
 
 ## Overview
-When writing Python scripts to be executed by **Master of Puppets** Nodes, you must adhere to specific path and environment conventions to ensure cross-platform compatibility (Windows Host -> Linux Node).
+When writing Python scripts to be executed by **Puppets**, you must adhere to specific path and environment conventions to ensure cross-platform compatibility (Windows Host -> Linux Puppet).
 
 ## 1. Path Handling
-Nodes run as **Linux Containers**. Windows paths (e.g., `C:\Data`) do not exist natively. However, the system provides **Managed Network Mounts** to bridge this gap.
+Puppets run as **Linux Containers**. Windows paths (e.g., `C:\Data`) do not exist natively. However, the system provides **Managed Network Mounts** to bridge this gap.
 
 ### Best Practices
 *   **Do NOT hardcode paths** like `C:\`.
-*   **Use Environment Variables**: The Agent injects mapped paths as environment variables.
+*   **Use Environment Variables**: Puppeteer injects mapped paths as environment variables.
 
 ### Global Mounts
 If you configure a Global Mount named `projects` pointing to `\\server\share`:

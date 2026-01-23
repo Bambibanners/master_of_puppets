@@ -45,7 +45,7 @@ const MainLayout = () => {
                     <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase">
                         Monitoring
                     </div>
-                    <NavItem to="/nodes" icon={Server} label="Health Centre" />
+                    <NavItem to="/nodes" icon={Server} label="Puppets" />
                     <NavItem to="/jobs" icon={Cpu} label="Orchestration" />
 
                     <Separator className="my-2" />

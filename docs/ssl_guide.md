@@ -3,10 +3,10 @@
 ## default Security (Internal PKI)
 Master of Puppets defaults to a "Secure by Default" architecture using an Internal Certificate Authority (CA).
 
-1.  **Bootstrap**: On first run, the Server generates a Root CA (`ca/certs/root_ca.crt`).
+1.  **Bootstrap**: On first run, Puppeteer generates a Root CA (`ca/certs/root_ca.crt`).
 2.  **Server Cert**: It issues a leaf certificate for `localhost`, `127.0.0.1`, `host.containers.internal`.
 3.  **Trust Distribution**:
-    *   **Nodes**: The Join Token contains the Root CA. Nodes trust it automatically.
+    *   **Puppets**: The Join Token contains the Root CA. Puppets trust it automatically.
     *   **Admins**: Run `installer/install_ca.ps1` (or use the Universal Installer) to import the Root CA into your Windows Trust Store.
 
 ## Hardening (Production/External Certs)

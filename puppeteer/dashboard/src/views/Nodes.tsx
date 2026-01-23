@@ -146,9 +146,9 @@ const Nodes = () => {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold tracking-tight">Health Centre</h2>
+                    <h2 className="text-2xl font-bold tracking-tight">Puppet Mesh</h2>
                     <p className="text-muted-foreground">
-                        Real-time telemetry and control plane for {nodes?.length || 0} active nodes.
+                        Real-time telemetry and control plane for {nodes?.length || 0} active puppets.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -158,7 +158,7 @@ const Nodes = () => {
                     </Button>
                     <Button>
                         <Server className="mr-2 h-4 w-4" />
-                        Provision Node
+                        Provision Puppet
                     </Button>
                 </div>
             </div>

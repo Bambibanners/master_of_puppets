@@ -56,7 +56,7 @@ const Dashboard = () => {
             {/* KPI Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
                 <div className="card kpi">
-                    <h3>Active Nodes</h3>
+                    <h3>Active Puppets</h3>
                     <div className="value">{stats.activeNodes}</div>
                 </div>
                 <div className="card kpi">
