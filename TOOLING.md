@@ -51,12 +51,14 @@
 - `httpx`: Async HTTP client for the Nodes.
 - `pydantic`: Data validation and settings management.
 
-## Operational Scripts (v1.2)
+## Operational Scripts (v1.3 - Puppeteer/Puppet)
+
+All scripts are now located in the `scripts/` directory.
 
 ### Deployment
-- `deploy_server_update.py`: Main entry point for backend deployment. Updates code, secrets, and restarts services remotely.
-- `deploy_dashboard.py`: Builds and deploys the frontend React app.
-- `sync_and_rebuild.py`: Forces a node cluster rebuild and trust update.
+- `deploy_server_update.py`: Main entry point for **Puppeteer** deployment. Updates code, secrets, and restarts services remotely.
+- `deploy_dashboard.py`: Builds and deploys the frontend React app to the Puppeteer.
+- `sync_and_rebuild.py`: Forces a **Puppet** cluster rebuild and trust update.
 
 ### Diagnostics & Verification
 - `diagnostic_v2.py`: The primary health check tool. Fetches logs and container status.

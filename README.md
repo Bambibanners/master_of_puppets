@@ -8,21 +8,23 @@
 
 ## System Architecture
 
-### 1. Control Plane (`agent_service`)
+### 1. The Puppeteer (Control Plane)
+*   **Directory**: `/puppeteer`
 *   **Port**: `8001` (HTTPS, mTLS Required)
-*   **Tech**: FastAPI, SQLAlchemy (Async), PostgreSQL.
+*   **Components**: Agent Service, Model Service, Database, Dashboard.
 *   **Role**: The brain. Manages Job Queue, Node Registration, Authentication (JWT), PKI (CA), and State.
 *   **Security**: Enforces strict mutual TLS. Rejects any connection without a valid client certificate signed by the internal Root CA.
 
-### 2. Environment Node (`environment_service`)
-*   **Tech**: Python, httpx, psutil.
-*   **Role**: The efficient worker. Proactively heartbeats (stats) and polls for work. Executes tasks in isolated subprocesses.
+### 2. The Puppet (Execution Node)
+*   **Directory**: `/puppets`
+*   **Role**: The efficient worker. Proactively heartbeats (stats) and polls for work from the Puppeteer. Executes tasks in isolated subprocesses.
 *   **Security**: 
     *   **Self-Bootstrapping**: Bootstraps trust via a secure `JOIN_TOKEN` (embedded Root CA).
     *   **Signature Verification**: Verifies digital signatures (RSA-2048) of all jobs before execution.
-    *   **Strict mTLS**: Refuses to connect to an unverified server.
+    *   **Strict mTLS**: Refuses to connect to an unverified Puppeteer.
 
-### 3. Dashboard Health Centre (`dashboard`)
+### 3. Dashboard Health Centre
+*   **Directory**: `/puppeteer/dashboard` (Built into Puppeteer stack)
 *   **Port**: `5173` (HTTP)
 *   **Tech**: React, Vite, TypeScript, TanStack Query, Recharts, Shadcn/ui.
 *   **Role**: Real-time telemetry and control.
@@ -37,27 +39,27 @@
 *   **Python 3.12+** (for automation scripts)
 *   **SSH Access** to the target server (e.g., `speedy_mini`).
 
-### 1. Server Deployment
-Deploys the backend services (Agent, Model, DB) and updates the dashboard.
+### 1. Puppeteer (Server) Deployment
+Deploys the central brain (Agent, Model, DB) and updates the dashboard.
 ```bash
-python deploy_server_update.py
+python scripts/deploy_server_update.py
 ```
-*   Updates codebase.
+*   Updates codebase in `/puppeteer`.
 *   Regenerates/Uploads Certificates (Server Certs, Verification Keys).
 *   Restarts the Docker stack remotely.
 
 ### 2. Dashboard Deployment
-Builds the frontend and deploys the static assets.
+Builds the frontend and deploys the static assets to the Puppeteer.
 ```bash
-python deploy_dashboard.py
+python scripts/deploy_dashboard.py
 ```
 *   Builds React app (Vite).
 *   Deploys to Nginx container.
 
-### 3. Node Cluster Deployment
+### 3. Puppet (Node) Cluster Deployment
 Updates the worker nodes with the latest trust anchors.
 ```bash
-python sync_and_rebuild.py
+python scripts/sync_and_rebuild.py
 ```
 
 ## Verification
@@ -65,13 +67,13 @@ python sync_and_rebuild.py
 ### Quick Health Check
 Run diagnostics to check container status and logs.
 ```bash
-python diagnostic_v2.py
+python scripts/diagnostic_v2.py
 ```
 
 ### End-to-End Test (Signed Job)
 Dispatch a real, cryptographically signed job to the cluster.
 ```bash
-python run_signed_job.py
+python scripts/run_signed_job.py
 ```
 *   **Success**: Returns HTTP 200 and confirms execution in logs.
 *   **Failure**: HTTP 403/401 or Signature Verification Error (if keys mismatch).
@@ -82,10 +84,14 @@ python run_signed_job.py
 3.  **Execution**: Jobs are signed by the Developer/Admin (Private Key) and verified by the Node (Public Key). The Server is a pass-through and cannot forge jobs.
 
 ## Development
-- **Backend**: `agent_service/`
-- **Frontend**: `dashboard/`
-- **Nodes**: `environment_service/`
-- **Tooling**: Root directory scripts (`deploy_*.py`, `check_*.py`).
+## Development Structure
+- **Puppeteer (Central)**: `puppeteer/`
+    - Backend: `puppeteer/agent_service`
+    - Dashboard: `puppeteer/dashboard`
+- **Puppets (Nodes)**: `puppets/`
+    - Installer: `puppets/installer`
+- **Tooling**: `scripts/` (Deployment `deploy_*.py` & Verification `verify_*.py`).
+- **Agent Context**: `.agent/`
 
 ### Local Dev Setup
 1.  `pip install -r requirements.txt`
