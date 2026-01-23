@@ -13,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 // Bundling approach (simplest for "within orchestration server"):
 // Note: Vite can import as string with ?raw suffix
-import userGuideMd from '../../../docs/UserGuide.md?raw';
+import userGuideMd from '../assets/UserGuide.md?raw';
 
 const Docs = () => {
     const [content, setContent] = useState('');

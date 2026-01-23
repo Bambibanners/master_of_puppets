@@ -10,4 +10,12 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    fs: {
+      allow: [
+        // Search up for workspace root
+        path.resolve(__dirname, '../../..'),
+      ],
+    },
+  },
 })

@@ -39,7 +39,7 @@ def zip_dashboard():
         os.remove(output_filename)
         
     with zipfile.ZipFile(output_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk("dashboard"):
+        for root, dirs, files in os.walk("puppeteer/dashboard"):
             if "node_modules" in dirs:
                 dirs.remove("node_modules")
             if "dist" in dirs:
@@ -47,9 +47,9 @@ def zip_dashboard():
             
             for file in files:
                 file_path = os.path.join(root, file)
-                # Archive name should be relative to "dashboard" folder
-                # e.g. dashboard/src/App.tsx -> src/App.tsx
-                arcname = os.path.relpath(file_path, "dashboard")
+                # Archive name should be relative to "puppeteer/dashboard" folder
+                # e.g. puppeteer/dashboard/src/App.tsx -> src/App.tsx
+                arcname = os.path.relpath(file_path, "puppeteer/dashboard")
                 zipf.write(file_path, arcname)
     return output_filename
 
@@ -80,14 +80,14 @@ def deploy():
         
         # Upload Compose File too
         print("Uploading compose.server.yaml...")
-        sftp.put("compose.server.yaml", f"{REMOTE_DIR}/compose.server.yaml")
+        sftp.put("puppeteer/compose.server.yaml", f"{REMOTE_DIR}/puppeteer/compose.server.yaml")
         
         sftp.close()
         
         # Unzip
         print("Unzipping remote...")
         # Ensure dashboard dir exists (it should from git checkout or previous runs)
-        run_command(client, f"mkdir -p {REMOTE_DIR}/dashboard")
+        run_command(client, f"mkdir -p {REMOTE_DIR}/puppeteer/dashboard")
         # Install unzip if missing? Alpine usually needs apk add unzip.
         # But speedy_mini is Linux (Ubuntu/Debian?). Paramiko defaults to shell.
         # Assuming unzip exists. If not, we might fail.
@@ -100,15 +100,15 @@ def deploy():
             # run_command(client, "sudo apt-get install -y unzip") # requires sudo pass?
             # Or use python to unzip remotely?
             # Let's try python unzip one-liner
-            cmd_unzip = f"python3 -c \"import zipfile; zipfile.ZipFile('{remote_zip}', 'r').extractall('{REMOTE_DIR}/dashboard')\""
+            cmd_unzip = f"python3 -c \"import zipfile; zipfile.ZipFile('{remote_zip}', 'r').extractall('{REMOTE_DIR}/puppeteer/dashboard')\""
             run_command(client, cmd_unzip)
         else:
-            run_command(client, f"unzip -o {remote_zip} -d {REMOTE_DIR}/dashboard")
+            run_command(client, f"unzip -o {remote_zip} -d {REMOTE_DIR}/puppeteer/dashboard")
             
         # Build & Restart
         print("--- Rebuilding Dashboard ---")
-        run_command(client, f"cd {REMOTE_DIR} && docker compose -f compose.server.yaml build dashboard")
-        run_command(client, f"cd {REMOTE_DIR} && docker compose -f compose.server.yaml up -d dashboard --force-recreate")
+        run_command(client, f"cd {REMOTE_DIR}/puppeteer && docker compose -f compose.server.yaml build dashboard")
+        run_command(client, f"cd {REMOTE_DIR}/puppeteer && docker compose -f compose.server.yaml up -d dashboard --force-recreate")
         
         print("Deployment Complete.")
 

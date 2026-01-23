@@ -2,7 +2,7 @@ import paramiko
 import time
 
 REMOTE_DIR = "/home/speedy/master_of_puppets"
-LOCAL_PATH = "environment_service/node.py"
+LOCAL_PATH = "puppets/environment_service/node.py"
 
 def read_secrets():
     secrets = {}
@@ -55,7 +55,13 @@ def sync_and_rebuild():
         print("--- Uploading Patched node.py ---")
         sftp = client.open_sftp()
         # Upload using same relative path
-        sftp.put(LOCAL_PATH, f"{REMOTE_DIR}/environment_service/node.py")
+        run_command(client, f"mkdir -p {REMOTE_DIR}/puppets/environment_service")
+        sftp.put(LOCAL_PATH, f"{REMOTE_DIR}/puppets/environment_service/node.py")
+        
+        print("--- Uploading Node Build Files ---")
+        sftp.put("puppets/Containerfile.node", f"{REMOTE_DIR}/puppets/Containerfile.node")
+        sftp.put("puppets/requirements.txt", f"{REMOTE_DIR}/puppets/requirements.txt")
+        
         sftp.close()
         
         print("--- Overwriting Remote Compose Config ---")
@@ -64,7 +70,7 @@ def sync_and_rebuild():
         import json
         import base64
         
-        with open("secrets/ca/root_ca.crt", "r") as f:
+        with open("puppeteer/secrets/ca/root_ca.crt", "r") as f:
             ca_pem = f.read()
             
         # Token "t" value - reusing the one we had or a known valid one
@@ -103,15 +109,15 @@ def sync_and_rebuild():
         
         # Write back
         sftp = client.open_sftp()
-        with sftp.file(f"{REMOTE_DIR}/node-compose-scale.yaml", "w") as f:
+        with sftp.file(f"{REMOTE_DIR}/puppets/node-compose-scale.yaml", "w") as f:
             f.write(compose_content)
         sftp.close()
         
         print("--- Rebuilding Node Image ---")
-        run_command(client, f"cd {REMOTE_DIR} && docker build --no-cache -t localhost/master-of-puppets-node:latest -f Containerfile.node .")
+        run_command(client, f"cd {REMOTE_DIR}/puppets && docker build --no-cache -t localhost/master-of-puppets-node:latest -f Containerfile.node .")
         
         print("--- Redeploying ---")
-        run_command(client, f"cd {REMOTE_DIR} && docker compose -f node-compose-scale.yaml up -d --force-recreate")
+        run_command(client, f"cd {REMOTE_DIR}/puppets && docker compose -f node-compose-scale.yaml up -d --force-recreate")
         
         print("Waiting 15s...")
         time.sleep(15)

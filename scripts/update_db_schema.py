@@ -2,6 +2,8 @@ import asyncio
 import os
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
+import sys
+sys.path.append(os.path.join(os.getcwd(), 'puppeteer'))
 from agent_service.db import Base, DATABASE_URL
 
 async def migrate():

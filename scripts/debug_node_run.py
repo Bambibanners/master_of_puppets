@@ -81,7 +81,7 @@ def debug_run():
             f"--add-host host.docker.internal:host-gateway "
             f"-e AGENT_URL=https://host.docker.internal:8001 "
             f"-e JOIN_TOKEN='{join_token}' "
-            f"-e ROOT_CA_PATH=/app/secrets/root_ca.crt "
+            f"-e ROOT_CA_PATH=/app/puppeteer/secrets/root_ca.crt "
             f"-e PYTHONUNBUFFERED=1 "
             f"localhost/master-of-puppets-node:latest"
         )

@@ -123,7 +123,7 @@ def deploy_docker_synced():
         
         # 5. Run Cleanup & Build
         print("--- Stopping Docker Stack ---")
-        run_command(client, f"cd {REMOTE_DIR} && docker compose -f compose.server.yaml down")
+        run_command(client, f"cd {REMOTE_DIR}/puppeteer && docker compose -f compose.server.yaml down")
 
         print("--- Pruning Old Images ---")
         # Optional: Prune to free space and ensure no cache collision
@@ -131,15 +131,15 @@ def deploy_docker_synced():
 
         print("--- Building Dashboard Image ---")
         # Build Dashboard specifically since we changed it massively
-        res, _ = run_command(client, f"cd {REMOTE_DIR}/dashboard && docker build -t localhost/master-of-puppets-dashboard:latest -f Containerfile .")
+        res, _ = run_command(client, f"cd {REMOTE_DIR}/puppeteer/dashboard && docker build -t localhost/master-of-puppets-dashboard:latest -f Containerfile .")
         if not res: return 
 
         print("--- Building Server Image ---")
-        res, _ = run_command(client, f"cd {REMOTE_DIR} && docker build -t localhost/master-of-puppets-server:latest -f Containerfile.server .")
+        res, _ = run_command(client, f"cd {REMOTE_DIR}/puppeteer && docker build -t localhost/master-of-puppets-server:latest -f Containerfile.server .")
         if not res: return
 
         print("--- Starting Stack ---")
-        run_command(client, f"cd {REMOTE_DIR} && docker compose -f compose.server.yaml up -d")
+        run_command(client, f"cd {REMOTE_DIR}/puppeteer && docker compose -f compose.server.yaml up -d")
 
         print("Waiting for health (20s)...")
         time.sleep(20)

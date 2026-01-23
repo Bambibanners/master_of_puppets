@@ -59,7 +59,7 @@ def diagnostic():
         run_command(client, "docker network ls")
 
         print("\n--- Inspect Node Compose ---")
-        run_command(client, f"cat {REMOTE_DIR}/node-compose-scale.yaml")
+        run_command(client, f"cat {REMOTE_DIR}/puppets/node-compose-scale.yaml")
 
         print("\n--- Docker PS (All) ---")
         run_command(client, "docker ps -a")

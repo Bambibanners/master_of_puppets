@@ -1,6 +1,10 @@
 import os
 import sys
 import shutil
+
+# Ensure we can import from puppeteer directory
+sys.path.append(os.path.join(os.getcwd(), 'puppeteer'))
+
 from agent_service import pki
 
 # Valid SANs for Server
@@ -16,7 +20,7 @@ def regenerate():
     print(f"Regenerating Server Certs with SANs: {SANS}")
     
     # Paths
-    secrets_dir = "secrets"
+    secrets_dir = os.path.join("puppeteer", "secrets")
     ca_dir = os.path.join(secrets_dir, "ca")
     server_key = os.path.join(secrets_dir, "server.key")
     server_cert = os.path.join(secrets_dir, "server.crt")

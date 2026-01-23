@@ -43,8 +43,8 @@ def deploy_compose_fix():
 
     try:
         sftp = client.open_sftp()
-        local_path = "compose.server.yaml"
-        remote_path = f"{REMOTE_DIR}/compose.server.yaml"
+        local_path = "puppeteer/compose.server.yaml"
+        remote_path = f"{REMOTE_DIR}/puppeteer/compose.server.yaml"
         sftp.put(local_path, remote_path)
         sftp.close()
         
@@ -53,7 +53,7 @@ def deploy_compose_fix():
         # docker compose up -d will see changed config.
         
         print("--- Restarting Server ---")
-        run_command(client, f"cd {REMOTE_DIR} && docker compose -f compose.server.yaml up -d --force-recreate")
+        run_command(client, f"cd {REMOTE_DIR}/puppeteer && docker compose -f compose.server.yaml up -d --force-recreate")
         
         print("Waiting 15s...")
         time.sleep(15)

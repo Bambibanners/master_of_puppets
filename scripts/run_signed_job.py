@@ -4,7 +4,7 @@ import time
 import os
 import sys
 # Import signing tool logic
-sys.path.append(os.path.join(os.getcwd(), "tools"))
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 try:
     from sign_job import sign_content
 except ImportError:
@@ -13,7 +13,7 @@ except ImportError:
     from cryptography.hazmat.primitives.asymmetric import padding
     import base64
     
-    SECRETS_DIR = "secrets"
+    SECRETS_DIR = "puppeteer/secrets"
     SIGNING_KEY_PATH = os.path.join(SECRETS_DIR, "signing.key")
 
     def sign_content(content: str) -> str:
@@ -29,13 +29,14 @@ except ImportError:
 # Config
 SERVER_URL = "https://192.168.50.128:8001"
 # We need to trust the Root CA for this connection too (or ignore for quick test)
-ROOT_CA = "secrets/ca/root_ca.crt"
+ROOT_CA = "puppeteer/secrets/ca/root_ca.crt"
 
 def run_test():
     print(f"--- Preparing Signed Ping Job ---")
     
     # 1. Read Script
-    with open("verify_ping.py", "r") as f:
+    script_path = os.path.join(os.path.dirname(__file__), "verify_ping.py")
+    with open(script_path, "r") as f:
         script_content = f.read()
         
     # 2. Sign
