@@ -34,49 +34,29 @@
 
 ## Deployment & Operations
 
-### Prerequisites
-*   **Docker** (or Podman)
-*   **Python 3.12+** (for automation scripts)
-*   **SSH Access** to the target server (e.g., `speedy_mini`).
-
 ### 1. Puppeteer (Server) Deployment
-Deploys the central brain (Agent, Model, DB) and updates the dashboard.
-```bash
-python scripts/deploy_server_update.py
-```
-*   Updates codebase in `/puppeteer`.
-*   Regenerates/Uploads Certificates (Server Certs, Verification Keys).
-*   Restarts the Docker stack remotely.
+The control plane is designed to be run as a containerized stack.
+*   **Location**: `/puppeteer`
+*   **Deployment**: Use `docker compose -f compose.server.yaml up -d` to launch the Agent, Model, and Database services.
+*   **Configuration**: Ensure `secrets.env` (see `.env.example`) and necessary certificates are present in `/puppeteer/secrets`.
 
-### 2. Dashboard Deployment
-Builds the frontend and deploys the static assets to the Puppeteer.
-```bash
-python scripts/deploy_dashboard.py
-```
-*   Builds React app (Vite).
-*   Deploys to Nginx container.
+### 2. Dashboard
+The dashboard is a React/Vite application that integrates with the Agent Service.
+*   **Location**: `/puppeteer/dashboard`
+*   **Build**: `npm run build` from the dashboard directory.
+*   **Serve**: Assets are served via Nginx in the Puppeteer stack.
 
-### 3. Puppet (Node) Cluster Deployment
-Updates the worker nodes with the latest trust anchors.
-```bash
-python scripts/sync_and_rebuild.py
-```
+### 3. Puppet (Node) Deployment
+Nodes are deployed on target execution environments.
+*   **Location**: `/puppets`
+*   **Deployment**: Use the provided installers in `/puppets/installer` or run via `docker compose -f node-compose.yaml up -d`.
 
-## Verification
+## Verification & Health
 
-### Quick Health Check
-Run diagnostics to check container status and logs.
-```bash
-python scripts/diagnostic_v2.py
-```
-
-### End-to-End Test (Signed Job)
-Dispatch a real, cryptographically signed job to the cluster.
-```bash
-python scripts/run_signed_job.py
-```
-*   **Success**: Returns HTTP 200 and confirms execution in logs.
-*   **Failure**: HTTP 403/401 or Signature Verification Error (if keys mismatch).
+The system provides several endpoints and logs for verification:
+*   **Health Check**: Access `https://<puppeteer-ip>:8001/health` (requires mTLS).
+*   **Dashboard**: Access the UI on port `5173` (or via Nginx proxy).
+*   **Logs**: Monitor container logs for secure handshake and job execution events.
 
 ## Security Architecture (Zero-Trust)
 1.  **Transport**: All communication is TLS 1.3.
@@ -84,13 +64,12 @@ python scripts/run_signed_job.py
 3.  **Execution**: Jobs are signed by the Developer/Admin (Private Key) and verified by the Node (Public Key). The Server is a pass-through and cannot forge jobs.
 
 ## Development
-## Development Structure
+- **Development Structure**
 - **Puppeteer (Central)**: `puppeteer/`
     - Backend: `puppeteer/agent_service`
     - Dashboard: `puppeteer/dashboard`
 - **Puppets (Nodes)**: `puppets/`
     - Installer: `puppets/installer`
-- **Tooling**: `scripts/` (Deployment `deploy_*.py` & Verification `verify_*.py`).
 - **Agent Context**: `.agent/`
 
 ### Local Dev Setup
