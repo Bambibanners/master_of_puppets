@@ -76,59 +76,65 @@ const ManageMountsModal = ({ onClose }) => {
     if (loading) return <div className="modal-overlay">Loading...</div>;
 
     return (
-        <div className="modal-overlay">
-            <div className="modal" style={{ maxWidth: '700px' }}>
-                <h2>Network Mounts</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-2xl p-6">
+                <h2 className="text-xl font-bold mb-4">Network Mounts</h2>
 
-                <div className="alert-box warning" style={{ marginBottom: '15px', padding: '10px', background: '#fff3cd', color: '#856404', borderRadius: '4px' }}>
+                <div className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 p-3 rounded mb-4 text-sm">
                     ⚠️ <b>Warning:</b> Adding or Removing mounts requires re-running the Installer on all Nodes.
                 </div>
 
-                {error && <div style={{ color: 'red', marginBottom: '10px' }}>{error}</div>}
+                {error && <div className="text-red-500 mb-2">{error}</div>}
 
-                <table style={{ width: '100%', marginBottom: '20px', borderCollapse: 'collapse' }}>
-                    <thead>
-                        <tr style={{ background: '#eee' }}>
-                            <th style={{ padding: '8px', textAlign: 'left' }}>Name (Internal)</th>
-                            <th style={{ padding: '8px', textAlign: 'left' }}>Path (UNC/Host)</th>
-                            <th style={{ padding: '8px' }}>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {mounts.map(m => (
-                            <tr key={m.name} style={{ borderBottom: '1px solid #ddd' }}>
-                                <td style={{ padding: '8px' }}>{m.name}</td>
-                                <td style={{ padding: '8px' }}>{m.path}</td>
-                                <td style={{ padding: '8px', textAlign: 'center' }}>
-                                    <button onClick={() => handleDelete(m.name)} className="btn danger small">🗑️</button>
-                                </td>
+                <div className="overflow-x-auto mb-6">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-gray-100 dark:bg-zinc-800">
+                            <tr>
+                                <th className="p-2">Name (Internal)</th>
+                                <th className="p-2">Path (UNC/Host)</th>
+                                <th className="p-2 text-center">Action</th>
                             </tr>
-                        ))}
-                        {mounts.length === 0 && <tr><td colSpan="3" style={{ padding: '10px', textAlign: 'center', fontStyle: 'italic' }}>No mounts configured.</td></tr>}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {mounts.map(m => (
+                                <tr key={m.name} className="border-b dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/50">
+                                    <td className="p-2">{m.name}</td>
+                                    <td className="p-2 font-mono text-xs">{m.path}</td>
+                                    <td className="p-2 text-center">
+                                        <button onClick={() => handleDelete(m.name)} className="text-red-500 hover:text-red-700">🗑️</button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {mounts.length === 0 && (
+                                <tr>
+                                    <td colSpan="3" className="p-4 text-center italic text-gray-500">No mounts configured.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
 
-                <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: '5px', marginBottom: '20px' }}>
-                    <h4>Add New Mount</h4>
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                <div className="bg-gray-50 dark:bg-zinc-800/50 p-4 rounded mb-6">
+                    <h4 className="font-semibold mb-2">Add New Mount</h4>
+                    <div className="flex gap-2">
                         <input
                             placeholder="Name (e.g. projects)"
                             value={newName}
                             onChange={e => setNewName(e.target.value)}
-                            style={{ flex: 1, padding: '8px' }}
+                            className="flex-1 p-2 border rounded dark:bg-zinc-900 dark:border-zinc-700"
                         />
                         <input
-                            placeholder="Host Path (e.g. \\server\share or C:\Data)"
+                            placeholder="Host Path (e.g. \\server\share)"
                             value={newPath}
                             onChange={e => setNewPath(e.target.value)}
-                            style={{ flex: 2, padding: '8px' }}
+                            className="flex-[2] p-2 border rounded dark:bg-zinc-900 dark:border-zinc-700"
                         />
-                        <button onClick={handleAdd} className="btn primary">Add</button>
+                        <button onClick={handleAdd} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Add</button>
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={onClose} className="btn">Close</button>
+                <div className="flex justify-end">
+                    <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white">Close</button>
                 </div>
             </div>
         </div>

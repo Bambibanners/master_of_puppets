@@ -15,12 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import userGuideMd from '../assets/UserGuide.md?raw';
 
 const Docs = () => {
-    const [content, setContent] = useState('');
-
-    useEffect(() => {
-        setContent(userGuideMd);
-    }, []);
-
+    // Content is imported at build time, no need for effect or state
     return (
         <div className="space-y-6">
             <Card>
@@ -30,7 +25,7 @@ const Docs = () => {
                 <CardContent>
                     <div className="prose prose-slate dark:prose-invert max-w-none">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {content}
+                            {userGuideMd}
                         </ReactMarkdown>
                     </div>
                 </CardContent>
