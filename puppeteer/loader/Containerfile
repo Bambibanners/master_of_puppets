@@ -1,0 +1,47 @@
+# Containerfile.loader
+# The "Matryoshka" Loader: Installs the Stack on the Host via Socket.
+
+FROM docker.io/library/python:3.12-alpine
+
+WORKDIR /app
+
+# Install Podman-Remote, Compose, and Utilities
+RUN apk add --no-cache \
+    podman-remote \
+    containers-common \
+    curl \
+    openssl \
+    git \
+    bash
+
+# Install podman-compose via pip
+RUN pip install --no-cache-dir podman-compose
+
+# Copy the Installer Logic
+COPY loader/loader.py /app/loader.py
+
+# Copy the Repo Manifests and Build Context files
+COPY compose.server.yaml /app/compose.server.yaml
+COPY Containerfile.server /app/Containerfile.server
+COPY requirements.txt /app/requirements.txt
+COPY cert-manager /app/cert-manager
+COPY dashboard /app/dashboard
+COPY agent_service /app/agent_service
+COPY model_service /app/model_service
+COPY ca /app/ca
+COPY secrets /app/secrets
+COPY installer /app/installer
+COPY docs /app/docs
+
+# Use the host socket
+ENV CONTAINER_HOST=unix:///run/podman/podman.sock
+ENV DOCKER_HOST=unix:///run/podman/podman.sock
+
+# Create a symlink so podman-compose finds 'podman'
+RUN ln -s /usr/bin/podman-remote /usr/bin/podman
+
+# Ensure seccomp.json is in all common locations
+RUN mkdir -p /usr/share/containers && \
+    cp /etc/containers/seccomp.json /usr/share/containers/seccomp.json || true
+
+CMD ["python", "loader.py"]
