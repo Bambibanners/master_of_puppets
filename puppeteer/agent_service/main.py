@@ -22,8 +22,17 @@ from .models import (
 )
 from .security import (
     encrypt_secrets, decrypt_secrets, mask_secrets, verify_api_key, 
-    verify_client_cert, API_KEY, ENCRYPTION_KEY, cipher_suite, oauth2_scheme
+    verify_client_cert, API_KEY, ENCRYPTION_KEY, cipher_suite, oauth2_scheme,
+    mask_pii
 )
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address)
+app = FastAPI(title="Master of Puppets v0.8", description="Orchestrator (v0.8) - Security & Mounts")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -38,7 +47,7 @@ from .services.job_service import JobService
 
 load_dotenv()
 
-app = FastAPI(title="Master of Puppets v0.8", description="Orchestrator (v0.8) - Security & Mounts")
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -173,7 +182,8 @@ async def on_startup():
 # --- Auth Endpoints ---
 
 @app.post("/auth/login", response_model=TokenResponse)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.username == form_data.username))
     user = result.scalar_one_or_none()
     if not user or not verify_password(form_data.password, user.password_hash):
@@ -259,6 +269,10 @@ async def receive_heartbeat(req: Request, hb: HeartbeatPayload, api_key: str = D
 async def report_result(guid: str, report: ResultReport, req: Request, api_key: str = Depends(verify_api_key), db: AsyncSession = Depends(get_db)):
     """Matches 'Environment -> Agent' reporting."""
     node_ip = req.client.host
+    # PII Masking
+    if report.result:
+        report.result = mask_pii(report.result)
+        
     updated = await JobService.report_result(guid, report, node_ip, db)
     if not updated:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -343,7 +357,8 @@ async def on_startup():
     # ... existing admin bootstrap ...
 
 @app.post("/admin/generate-token")
-async def generate_token(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def generate_token(request: Request, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Generates a new Join Token (v0.8) with embedded Root CA."""
     if current_user.role not in ["admin", "operator"]:
          raise HTTPException(status_code=403, detail="Insufficient Permissions")

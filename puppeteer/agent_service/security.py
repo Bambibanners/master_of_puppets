@@ -1,6 +1,7 @@
 import os
 import sys
-from typing import Dict
+import re
+from typing import Dict, Any
 from cryptography.fernet import Fernet
 from fastapi import Header, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
@@ -60,6 +61,24 @@ def mask_secrets(payload: Dict) -> Dict:
         new_payload["secrets"] = new_secrets
         return new_payload
     return payload
+
+def mask_pii(data: Any) -> Any:
+    """Recursively scans and masks common PII patterns (Email, SSN, etc)."""
+    # Patterns
+    EMAIL_REGEX = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
+    SSN_REGEX = r'\d{3}-\d{2}-\d{4}'
+    
+    if isinstance(data, dict):
+        return {k: mask_pii(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [mask_pii(v) for v in data]
+    elif isinstance(data, str):
+        # Mask Email
+        data = re.sub(EMAIL_REGEX, "[EMAIL_REDACTED]", data)
+        # Mask SSN
+        data = re.sub(SSN_REGEX, "[SSN_REDACTED]", data)
+        return data
+    return data
 
 async def verify_api_key(x_api_key: str = Header(None)):
     """Legacy/Service Auth via API Key."""
