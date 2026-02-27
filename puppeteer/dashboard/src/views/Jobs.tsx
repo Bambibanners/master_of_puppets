@@ -205,7 +205,7 @@ const Jobs = () => {
                                             </div>
                                         </TableCell>
                                         <TableCell className="pr-6 text-right">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-600 hover:text-white hover:bg-zinc-800 rounded-lg">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-600 hover:text-white hover:bg-zinc-800 rounded-lg" aria-label="Job actions">
                                                 <MoreHorizontal className="h-4 w-4" />
                                             </Button>
                                         </TableCell>

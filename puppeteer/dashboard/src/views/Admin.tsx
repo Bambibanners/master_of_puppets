@@ -106,6 +106,7 @@ const Admin = () => {
                                             variant="outline"
                                             className="h-12 w-12 border-zinc-800 bg-zinc-900 p-0"
                                             onClick={() => navigator.clipboard.writeText(joinToken || '')}
+                                            aria-label="Copy join token"
                                         >
                                             <Copy className="h-4 w-4 text-zinc-400" />
                                         </Button>
@@ -142,12 +143,13 @@ const Admin = () => {
                     <CardContent className="flex-1 space-y-4">
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <label className="text-2xs font-bold text-zinc-500 uppercase tracking-widest">Master Public Key (PEM)</label>
+                                <label htmlFor="master-public-key" className="text-2xs font-bold text-zinc-500 uppercase tracking-widest">Master Public Key (PEM)</label>
                                 <Badge variant="outline" className="h-5 px-1.5 text-2xs border-zinc-800 text-zinc-600">Rotation Required</Badge>
                             </div>
                             <div className="relative group/pk">
                                 <Terminal className="absolute top-3 left-3 h-4 w-4 text-zinc-600" />
                                 <Textarea
+                                    id="master-public-key"
                                     value={pubKey}
                                     onChange={e => setPubKey(e.target.value)}
                                     placeholder="-----BEGIN PUBLIC KEY-----"
