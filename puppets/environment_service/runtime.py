@@ -40,9 +40,9 @@ class ContainerRuntime:
             cmd.append("-i")
 
         # 1. Network Strategy (Sidecar Access)
-        if network_ref:
+        if network_ref and os.name != 'nt':
             cmd.extend([f"--network=container:{network_ref}"])
-        else:
+        elif os.name != 'nt':
             cmd.extend(["--network=host"])
 
         # 2. Namespace Mapping (Podman specific)

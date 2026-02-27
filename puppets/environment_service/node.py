@@ -151,7 +151,7 @@ class Node:
         try:
             # We can use the generic client (trusting Root CA)
             with httpx.Client(verify=VERIFY_SSL) as client:
-                resp = client.get(f"{self.agent_url}/api/verification-key", timeout=10)
+                resp = client.get(f"{self.agent_url}/verification-key", timeout=10)
                 if resp.status_code == 200:
                     with open(self.verify_key_path, "wb") as f:
                         f.write(resp.content)
@@ -325,7 +325,8 @@ class Node:
             try:
                 # Use python - to read from stdin
                 # Assuming same image for now or configurable
-                image = os.getenv("JOB_IMAGE", "localhost/master-of-puppets-node:latest")
+                default_img = "python:3.12-alpine" if os.name == 'nt' else "localhost/master-of-puppets-node:latest"
+                image = os.getenv("JOB_IMAGE", default_img)
                 
                 result = await self.runtime_engine.run(
                    image=image, 
