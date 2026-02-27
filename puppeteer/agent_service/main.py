@@ -58,6 +58,27 @@ app.add_middleware(
 )
 
 # Serve Installer Scripts
+@app.get("/api/installer/compose")
+async def get_node_compose(token: str, mounts: Optional[str] = None):
+    """Dynamic Compose File generator for Nodes."""
+    # Note: In a real system, verify the token here
+    compose_content = f"""
+version: '3.8'
+services:
+  puppet:
+    image: localhost/master-of-puppets-node:latest
+    container_name: puppet-node
+    network_mode: host
+    environment:
+      - AGENT_URL={os.getenv("AGENT_URL", "https://localhost:8001")}
+      - JOIN_TOKEN={token}
+      - MOUNT_DATA={mounts if mounts else ""}
+      - NODE_TAGS=general,linux,arm64
+    volumes:
+      - ./secrets:/app/secrets
+    restart: unless-stopped
+"""
+    return Response(content=compose_content, media_type="text/yaml")
 if not os.path.exists("installer"):
     os.makedirs("installer")
 app.mount("/installer", StaticFiles(directory="installer"), name="installer")
