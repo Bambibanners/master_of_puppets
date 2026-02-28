@@ -30,6 +30,8 @@ class Job(Base):
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     scheduled_job_id: Mapped[Optional[str]] = mapped_column(String, nullable=True) # FK to ScheduledJob.id
     target_tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON list of tags required
+    capability_requirements: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON dict of required capabilities
+    telemetry: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON string: per-job metrics
 
 
 class Signature(Base):
@@ -50,6 +52,7 @@ class ScheduledJob(Base):
     schedule_cron: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Cron Expression
     target_node_id: Mapped[Optional[str]] = mapped_column(String, nullable=True) # specific node
     target_tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON list of tags e.g. ["gpu", "secure"]
+    capability_requirements: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON dict of required capabilities
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -81,8 +84,38 @@ class Node(Base):
     status: Mapped[str] = mapped_column(String) # ONLINE, OFFLINE
     stats: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON: cpu, ram
     tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON list of tags e.g. ["linux", "prod"]
+    capabilities: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON dict of node capabilities
     concurrency_limit: Mapped[Integer] = mapped_column(Integer, default=5)
     job_memory_limit: Mapped[String] = mapped_column(String, default="512m")
+    machine_id: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Host-bound ID
+    node_secret_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Binding secret
+
+class Blueprint(Base):
+    __tablename__ = "blueprints"
+    id: Mapped[str] = mapped_column(String, primary_key=True) # UUID
+    type: Mapped[str] = mapped_column(String) # RUNTIME, NETWORK
+    name: Mapped[str] = mapped_column(String, unique=True)
+    definition: Mapped[str] = mapped_column(Text) # JSON blob
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class CapabilityMatrix(Base):
+    __tablename__ = "capability_matrix"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    base_os_family: Mapped[str] = mapped_column(String) # DEBIAN, ALPINE, etc.
+    tool_id: Mapped[str] = mapped_column(String) # e.g., python-3.11
+    injection_recipe: Mapped[str] = mapped_column(Text) # Dockerfile snippet
+    validation_cmd: Mapped[str] = mapped_column(String)
+
+class PuppetTemplate(Base):
+    __tablename__ = "puppet_templates"
+    id: Mapped[str] = mapped_column(String, primary_key=True) # UUID
+    friendly_name: Mapped[str] = mapped_column(String, unique=True)
+    runtime_blueprint_id: Mapped[str] = mapped_column(String) # FK to blueprints.id
+    network_blueprint_id: Mapped[str] = mapped_column(String) # FK to blueprints.id
+    canonical_id: Mapped[str] = mapped_column(String) # Hash of ingredients
+    current_image_uri: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 class Ping(Base):
     __tablename__ = "pings"

@@ -7,6 +7,7 @@ class JobCreate(BaseModel):
     payload: Dict
     priority: int = 0
     target_tags: Optional[List[str]] = None
+    capability_requirements: Optional[Dict[str, str]] = None
 
 class RegisterRequest(BaseModel):
     client_secret: str
@@ -16,6 +17,13 @@ class RegisterRequest(BaseModel):
 class RegisterResponse(BaseModel):
     client_cert_pem: str
     ca_url: str
+
+class EnrollmentRequest(BaseModel):
+    token: str
+    hostname: str
+    csr_pem: str
+    machine_id: str
+    node_secret_hash: str # Initial binding hash
 
 class JobResponse(BaseModel):
     guid: str
@@ -43,8 +51,12 @@ class TokenResponse(BaseModel):
     role: str
 
 class HeartbeatPayload(BaseModel):
+    node_id: str
+    hostname: str
     stats: Optional[Dict] = None
     tags: Optional[List[str]] = None
+    capabilities: Optional[Dict[str, str]] = None
+    job_telemetry: Optional[Dict[str, Dict]] = None # guid -> metrics
 
 class NodeConfig(BaseModel):
     concurrency_limit: int
@@ -85,6 +97,7 @@ class JobDefinitionCreate(BaseModel):
     schedule_cron: Optional[str] = None
     target_node_id: Optional[str] = None
     target_tags: Optional[List[str]] = None
+    capability_requirements: Optional[Dict[str, str]] = None
 
 class JobDefinitionResponse(BaseModel):
     id: str
@@ -108,3 +121,52 @@ class NetworkMount(BaseModel):
 
 class MountsConfig(BaseModel):
     mounts: List[NetworkMount]
+
+class ImageBuildRequest(BaseModel):
+    tag: str
+    capabilities: Dict[str, str]
+
+class ImageResponse(BaseModel):
+    tag: str
+    image_uri: str
+    status: str
+    created_at: datetime
+
+class BlueprintCreate(BaseModel):
+    type: str # RUNTIME, NETWORK
+    name: str
+    definition: Dict
+
+class BlueprintResponse(BaseModel):
+    id: str
+    type: str
+    name: str
+    definition: Dict
+    version: int
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class CapabilityMatrixEntry(BaseModel):
+    base_os_family: str
+    tool_id: str
+    injection_recipe: str
+    validation_cmd: str
+
+class PuppetTemplateCreate(BaseModel):
+    friendly_name: str
+    runtime_blueprint_id: str
+    network_blueprint_id: str
+
+class PuppetTemplateResponse(BaseModel):
+    id: str
+    friendly_name: str
+    runtime_blueprint_id: str
+    network_blueprint_id: str
+    canonical_id: str
+    current_image_uri: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
