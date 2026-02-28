@@ -14,6 +14,7 @@ import {
     XCircle,
     AlertTriangle,
     Timer,
+    Ban,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,7 @@ const getStatusVariant = (status: string) => {
     switch (status.toLowerCase()) {
         case 'completed': return 'success';
         case 'failed': return 'destructive';
+        case 'cancelled': return 'destructive';
         case 'assigned': return 'secondary';
         case 'pending': return 'outline';
         default: return 'outline';
@@ -68,8 +70,9 @@ const StatusIcon = ({ status }: { status: string }) => {
     }
 };
 
-const JobDetailPanel = ({ job, open, onClose }: { job: Job | null; open: boolean; onClose: () => void }) => {
+const JobDetailPanel = ({ job, open, onClose, onCancel }: { job: Job | null; open: boolean; onClose: () => void; onCancel: (guid: string) => void }) => {
     if (!job) return null;
+    const cancellable = job.status === 'PENDING' || job.status === 'ASSIGNED';
 
     const flightRecorder = job.result?.flight_recorder;
     const resultData = job.result
@@ -90,6 +93,16 @@ const JobDetailPanel = ({ job, open, onClose }: { job: Job | null; open: boolean
                 </SheetHeader>
 
                 <div className="space-y-6 pt-6">
+                    {cancellable && (
+                        <Button
+                            variant="outline"
+                            className="w-full border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                            onClick={() => { onCancel(job.guid); onClose(); }}
+                        >
+                            <Ban className="mr-2 h-4 w-4" /> Cancel Job
+                        </Button>
+                    )}
+
                     {/* Metadata */}
                     <section className="space-y-3">
                         <h3 className="text-2xs font-bold text-zinc-500 uppercase tracking-widest">Metadata</h3>
@@ -237,6 +250,15 @@ const Jobs = () => {
     const openDetail = (job: Job) => {
         setSelectedJob(job);
         setDetailOpen(true);
+    };
+
+    const cancelJob = async (guid: string) => {
+        try {
+            const res = await authenticatedFetch(`/jobs/${guid}/cancel`, { method: 'PATCH' });
+            if (res.ok) fetchJobs();
+        } catch (e) {
+            console.error(e);
+        }
     };
 
     const filteredJobs = filterText
@@ -406,7 +428,7 @@ const Jobs = () => {
                 </Card>
             </div>
 
-            <JobDetailPanel job={selectedJob} open={detailOpen} onClose={() => setDetailOpen(false)} />
+            <JobDetailPanel job={selectedJob} open={detailOpen} onClose={() => setDetailOpen(false)} onCancel={cancelJob} />
         </div>
     );
 };

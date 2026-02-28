@@ -16,13 +16,13 @@ import logging
 from contextlib import asynccontextmanager
 
 from .models import (
-    JobCreate, RegisterRequest, RegisterResponse, JobResponse, WorkResponse, 
-    ResultReport, TokenResponse, HeartbeatPayload, NodeConfig, PollResponse, 
-    NodeResponse, SignatureCreate, SignatureResponse, JobDefinitionCreate, 
+    JobCreate, RegisterRequest, RegisterResponse, JobResponse, WorkResponse,
+    ResultReport, TokenResponse, HeartbeatPayload, NodeConfig, PollResponse,
+    NodeResponse, SignatureCreate, SignatureResponse, JobDefinitionCreate,
     JobDefinitionResponse, PingRequest, NetworkMount, MountsConfig,
     ImageBuildRequest, ImageResponse, EnrollmentRequest,
     BlueprintCreate, BlueprintResponse, PuppetTemplateCreate, PuppetTemplateResponse,
-    CapabilityMatrixEntry
+    CapabilityMatrixEntry, UploadKeyRequest
 )
 from .security import (
     encrypt_secrets, decrypt_secrets, mask_secrets, verify_api_key, 
@@ -272,6 +272,21 @@ async def create_job(job_req: JobCreate, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.patch("/jobs/{guid}/cancel")
+async def cancel_job(guid: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if current_user.role not in ["admin", "operator"]:
+        raise HTTPException(status_code=403, detail="Insufficient Permissions")
+    result = await db.execute(select(Job).where(Job.guid == guid))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status not in ("PENDING", "ASSIGNED"):
+        raise HTTPException(status_code=409, detail=f"Cannot cancel a job with status {job.status}")
+    job.status = "CANCELLED"
+    job.completed_at = datetime.utcnow()
+    await db.commit()
+    return {"status": "cancelled", "guid": guid}
+
 @app.post("/work/pull", response_model=PollResponse)
 async def pull_work(request: Request, node_id: str = Depends(verify_node_secret), api_key: str = Depends(verify_api_key), db: AsyncSession = Depends(get_db)):
     node_ip = request.client.host
@@ -319,6 +334,19 @@ async def list_nodes(db: AsyncSession = Depends(get_db)):
             "job_memory_limit": n.job_memory_limit,
         })
     return resp
+
+@app.patch("/nodes/{node_id}")
+async def update_node_config(node_id: str, config: NodeConfig, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if current_user.role not in ["admin", "operator"]:
+        raise HTTPException(status_code=403, detail="Insufficient Permissions")
+    result = await db.execute(select(Node).where(Node.node_id == node_id))
+    node = result.scalar_one_or_none()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    node.concurrency_limit = config.concurrency_limit
+    node.job_memory_limit = config.job_memory_limit
+    await db.commit()
+    return {"status": "updated", "node_id": node_id, "concurrency_limit": config.concurrency_limit, "job_memory_limit": config.job_memory_limit}
 
 @app.post("/auth/register", response_model=RegisterResponse)
 async def register_node(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
@@ -587,9 +615,16 @@ async def create_enrollment_token(current_user: User = Depends(get_current_user)
     return {"token": token_str}
 
 @app.post("/admin/upload-key")
-async def upload_public_key(req: object, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def upload_public_key(req: UploadKeyRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin Only")
+    result = await db.execute(select(Config).where(Config.key == "signing_public_key"))
+    row = result.scalar_one_or_none()
+    if row:
+        row.value = req.key_content
+    else:
+        db.add(Config(key="signing_public_key", value=req.key_content))
+    await db.commit()
     return {"status": "stored"}
 
 @app.get("/config/public-key")

@@ -114,6 +114,9 @@ class JobDefinitionResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class UploadKeyRequest(BaseModel):
+    key_content: str  # PEM public key
+
 class PingRequest(BaseModel):
     node_id: str
     message: str

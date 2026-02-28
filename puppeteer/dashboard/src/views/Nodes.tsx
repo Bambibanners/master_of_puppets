@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Server,
     ShieldCheck,
@@ -7,10 +7,14 @@ import {
     Cpu,
     HardDrive,
     Network,
+    Settings2,
+    Check,
+    X,
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import AddNodeModal from '../components/AddNodeModal';
 import ManageMountsModal from '../components/ManageMountsModal';
@@ -51,14 +55,36 @@ const GaugeBar = ({ value, color }: { value: number; color: string }) => (
 );
 
 const NodeCard = ({ node }: { node: Node }) => {
+    const queryClient = useQueryClient();
     const isOnline = node.status === 'ONLINE';
     const cpu = node.stats?.cpu ?? 0;
     const ram = node.stats?.ram ?? 0;
 
     const cpuColor = cpu > 85 ? 'bg-red-500' : cpu > 60 ? 'bg-yellow-500' : 'bg-violet-500';
     const ramColor = ram > 85 ? 'bg-red-500' : ram > 60 ? 'bg-yellow-500' : 'bg-emerald-500';
-
     const capabilities = node.capabilities ? Object.entries(node.capabilities) : [];
+
+    const [editing, setEditing] = useState(false);
+    const [concurrency, setConcurrency] = useState(String(node.concurrency_limit ?? 5));
+    const [memLimit, setMemLimit] = useState(node.job_memory_limit ?? '512m');
+    const [saving, setSaving] = useState(false);
+
+    const saveConfig = async () => {
+        setSaving(true);
+        try {
+            const res = await authenticatedFetch(`/nodes/${node.node_id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ concurrency_limit: parseInt(concurrency) || 5, job_memory_limit: memLimit }),
+            });
+            if (res.ok) {
+                queryClient.invalidateQueries({ queryKey: ['nodes'] });
+                setEditing(false);
+            }
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
         <Card className="overflow-hidden bg-zinc-925 border-zinc-800/50">
@@ -66,11 +92,10 @@ const NodeCard = ({ node }: { node: Node }) => {
                 <div className="flex flex-col gap-1">
                     <CardTitle className="text-base font-medium flex items-center gap-2 text-white">
                         {node.hostname}
-                        {isOnline ? (
-                            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                        ) : (
-                            <div className="h-2 w-2 rounded-full bg-red-500" />
-                        )}
+                        {isOnline
+                            ? <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                            : <div className="h-2 w-2 rounded-full bg-red-500" />
+                        }
                     </CardTitle>
                     <CardDescription className="text-xs font-mono text-zinc-500">{node.ip}</CardDescription>
                 </div>
@@ -81,29 +106,20 @@ const NodeCard = ({ node }: { node: Node }) => {
             </CardHeader>
 
             <CardContent className="space-y-4">
-                {/* Tags */}
                 {node.tags && node.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                         {node.tags.map(tag => (
-                            <span key={tag} className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-medium border border-zinc-700 text-zinc-400">
-                                {tag}
-                            </span>
+                            <span key={tag} className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-medium border border-zinc-700 text-zinc-400">{tag}</span>
                         ))}
                     </div>
                 )}
-
-                {/* Capabilities */}
                 {capabilities.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                         {capabilities.map(([cap, ver]) => (
-                            <span key={cap} className="px-1.5 py-0.5 rounded bg-primary/10 text-[10px] font-mono border border-primary/20 text-primary/80">
-                                {cap}: {ver}
-                            </span>
+                            <span key={cap} className="px-1.5 py-0.5 rounded bg-primary/10 text-[10px] font-mono border border-primary/20 text-primary/80">{cap}: {ver}</span>
                         ))}
                     </div>
                 )}
-
-                {/* CPU / RAM gauges */}
                 <div className="space-y-3">
                     <div className="space-y-1.5">
                         <div className="flex items-center justify-between text-xs text-zinc-500">
@@ -123,9 +139,44 @@ const NodeCard = ({ node }: { node: Node }) => {
             </CardContent>
 
             <Separator className="bg-zinc-800" />
-            <CardFooter className="px-4 py-2 text-xs text-zinc-600 flex justify-between">
-                <span>{node.concurrency_limit ? `${node.concurrency_limit} workers · ${node.job_memory_limit}` : node.version || 'Unknown'}</span>
-                <span>{new Date(node.last_seen).toLocaleTimeString()}</span>
+            <CardFooter className="px-4 py-2 flex items-center justify-between gap-2">
+                {editing ? (
+                    <div className="flex items-center gap-1.5 w-full">
+                        <Input
+                            type="number"
+                            value={concurrency}
+                            onChange={e => setConcurrency(e.target.value)}
+                            className="h-7 w-14 bg-zinc-800 border-zinc-700 text-white text-xs px-2 font-mono"
+                            min={1} max={50}
+                            title="Max concurrent jobs"
+                        />
+                        <Input
+                            value={memLimit}
+                            onChange={e => setMemLimit(e.target.value)}
+                            className="h-7 w-16 bg-zinc-800 border-zinc-700 text-white text-xs px-2 font-mono"
+                            placeholder="512m"
+                            title="Memory limit per job"
+                        />
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-green-400 hover:bg-green-500/10 ml-auto" onClick={saveConfig} disabled={saving}>
+                            <Check className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-zinc-500 hover:bg-zinc-800" onClick={() => setEditing(false)}>
+                            <X className="h-3.5 w-3.5" />
+                        </Button>
+                    </div>
+                ) : (
+                    <>
+                        <span className="text-xs text-zinc-600">
+                            {node.concurrency_limit ? `${node.concurrency_limit} workers · ${node.job_memory_limit}` : node.version || 'Unknown'}
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-zinc-600">{new Date(node.last_seen).toLocaleTimeString()}</span>
+                            <Button size="icon" variant="ghost" className="h-6 w-6 text-zinc-600 hover:text-white hover:bg-zinc-800 rounded" onClick={() => setEditing(true)}>
+                                <Settings2 className="h-3 w-3" />
+                            </Button>
+                        </div>
+                    </>
+                )}
             </CardFooter>
         </Card>
     );
