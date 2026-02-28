@@ -3,9 +3,11 @@ import sys
 import re
 from typing import Dict, Any
 from cryptography.fernet import Fernet
-from fastapi import Header, HTTPException, Request
+from fastapi import Header, HTTPException, Request, Depends
 from fastapi.security import OAuth2PasswordBearer
 from dotenv import load_dotenv
+from sqlalchemy.future import select
+from .db import get_db, Node, AsyncSession
 
 load_dotenv()
 
@@ -95,3 +97,28 @@ async def verify_client_cert(request: Request):
     
     # NOTE: Uvicorn does not expose client cert details in ASGI scope easily without quirks.
     pass
+
+async def verify_node_secret(
+    request: Request,
+    x_node_id: str = Header(...),
+    x_machine_id: str = Header(...),
+    x_node_secret_hash: str = Header(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Verifies the host-bound secret hash against the stored value for the node.
+    This prevents 'lift-and-shift' attacks.
+    """
+    result = await db.execute(select(Node).where(Node.node_id == x_node_id))
+    node = result.scalar_one_or_none()
+    
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    
+    if node.machine_id and node.machine_id != x_machine_id:
+        raise HTTPException(status_code=403, detail="Machine ID Mismatch - Identity Binding Failure")
+
+    if node.node_secret_hash and node.node_secret_hash != x_node_secret_hash:
+        raise HTTPException(status_code=403, detail="Invalid Node Secret Hash - Identity Binding Failure")
+    
+    return x_node_id
