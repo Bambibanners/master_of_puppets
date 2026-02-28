@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import shutil
@@ -91,7 +92,7 @@ class FoundryService:
             f.write("\n".join(dockerfile))
 
         try:
-            # Detect Engine
+            # Detect Engine (fast sync check, not on hot path)
             engine = "docker"
             try:
                 subprocess.run(["podman", "--version"], check=True, capture_output=True)
@@ -101,15 +102,24 @@ class FoundryService:
 
             logger.info(f"🏗️  Building {image_tag} using {engine}...")
             build_cmd = [engine, "build", "-t", image_uri, "-f", os.path.join(build_dir, "Dockerfile"), build_dir]
-            res = subprocess.run(build_cmd, capture_output=True, text=True)
-            
-            if res.returncode != 0:
-                logger.error(f"❌ Build Failed Output:\n{res.stdout}\n{res.stderr}")
-                return ImageResponse(tag=image_tag, image_uri=image_uri, status=f"FAILED: See Logs", created_at=datetime.utcnow())
+            proc = await asyncio.create_subprocess_exec(
+                *build_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode != 0:
+                logger.error(f"❌ Build Failed:\n{stdout.decode()}\n{stderr.decode()}")
+                return ImageResponse(tag=image_tag, image_uri=image_uri, status="FAILED: See Logs", created_at=datetime.utcnow())
 
             # Push
-            push_cmd = [engine, "push", image_uri]
-            subprocess.run(push_cmd, capture_output=True, text=True)
+            push_proc = await asyncio.create_subprocess_exec(
+                engine, "push", image_uri,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await push_proc.communicate()
             
             # Update Template in DB
             tmpl.current_image_uri = image_uri

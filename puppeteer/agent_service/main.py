@@ -527,6 +527,37 @@ async def dashboard_foundry_build(req: dict, current_user: User = Depends(get_cu
         raise HTTPException(status_code=400, detail="Missing template_id in body")
     return await build_template(template_id, current_user, db)
 
+@app.delete("/api/blueprints/{id}")
+async def delete_blueprint(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin Only")
+    result = await db.execute(
+        select(PuppetTemplate).where(
+            (PuppetTemplate.runtime_blueprint_id == id) | (PuppetTemplate.network_blueprint_id == id)
+        )
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Blueprint is referenced by one or more templates")
+    result = await db.execute(select(Blueprint).where(Blueprint.id == id))
+    bp = result.scalar_one_or_none()
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    await db.delete(bp)
+    await db.commit()
+    return {"status": "deleted"}
+
+@app.delete("/api/templates/{id}")
+async def delete_template(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin Only")
+    result = await db.execute(select(PuppetTemplate).where(PuppetTemplate.id == id))
+    tmpl = result.scalar_one_or_none()
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    await db.delete(tmpl)
+    await db.commit()
+    return {"status": "deleted"}
+
 @app.get("/api/capability-matrix", response_model=List[CapabilityMatrixEntry])
 async def get_capability_matrix(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(CapabilityMatrix))
@@ -654,6 +685,35 @@ async def create_job_definition(def_req: JobDefinitionCreate, current_user: User
 @app.get("/jobs/definitions", response_model=List[JobDefinitionResponse])
 async def list_job_definitions(db: AsyncSession = Depends(get_db)):
     return await scheduler_service.list_job_definitions(db)
+
+@app.delete("/jobs/definitions/{id}")
+async def delete_job_definition(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if current_user.role not in ["admin", "operator"]:
+        raise HTTPException(status_code=403, detail="Insufficient Permissions")
+    result = await db.execute(select(ScheduledJob).where(ScheduledJob.id == id))
+    job_def = result.scalar_one_or_none()
+    if not job_def:
+        raise HTTPException(status_code=404, detail="Job definition not found")
+    try:
+        scheduler_service.scheduler.remove_job(id)
+    except Exception:
+        pass
+    await db.delete(job_def)
+    await db.commit()
+    return {"status": "deleted"}
+
+@app.patch("/jobs/definitions/{id}/toggle")
+async def toggle_job_definition(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if current_user.role not in ["admin", "operator"]:
+        raise HTTPException(status_code=403, detail="Insufficient Permissions")
+    result = await db.execute(select(ScheduledJob).where(ScheduledJob.id == id))
+    job_def = result.scalar_one_or_none()
+    if not job_def:
+        raise HTTPException(status_code=404, detail="Job definition not found")
+    job_def.is_active = not job_def.is_active
+    await db.commit()
+    await scheduler_service.sync_scheduler()
+    return {"id": id, "is_active": job_def.is_active}
 
 # --- Installer & Doc Endpoints ---
 

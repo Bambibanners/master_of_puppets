@@ -2,7 +2,10 @@ import {
     Terminal,
     Clock,
     ShieldCheck,
-    XCircle
+    XCircle,
+    Trash2,
+    PlayCircle,
+    PauseCircle,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import {
@@ -14,6 +17,7 @@ import {
     TableRow
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 interface JobDefinition {
     id: string;
@@ -32,9 +36,11 @@ interface Execution {
 interface JobDefinitionListProps {
     definitions: JobDefinition[];
     executions: Execution[];
+    onDelete: (id: string) => void;
+    onToggle: (id: string) => void;
 }
 
-const JobDefinitionList = ({ definitions, executions }: JobDefinitionListProps) => {
+const JobDefinitionList = ({ definitions, executions, onDelete, onToggle }: JobDefinitionListProps) => {
     const getSparklineData = (defId: string) => {
         return executions
             .filter(e => e.scheduled_job_id === defId)
@@ -73,7 +79,8 @@ const JobDefinitionList = ({ definitions, executions }: JobDefinitionListProps) 
                         <TableHead className="text-zinc-500 font-bold uppercase text-2xs tracking-widest">Cron Schedule</TableHead>
                         <TableHead className="text-zinc-500 font-bold uppercase text-2xs tracking-widest">Integrity</TableHead>
                         <TableHead className="text-zinc-500 font-bold uppercase text-2xs tracking-widest">Observation Feed (30d)</TableHead>
-                        <TableHead className="text-zinc-500 font-bold uppercase text-2xs tracking-widest pr-6 text-right">Last Sync</TableHead>
+                        <TableHead className="text-zinc-500 font-bold uppercase text-2xs tracking-widest">Last Sync</TableHead>
+                        <TableHead className="text-zinc-500 font-bold uppercase text-2xs tracking-widest pr-6 text-right">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -113,16 +120,41 @@ const JobDefinitionList = ({ definitions, executions }: JobDefinitionListProps) 
                                         {renderSparkline(getSparklineData(def.id))}
                                     </div>
                                 </TableCell>
-                                <TableCell className="text-right pr-6">
+                                <TableCell>
                                     <span className="text-xs text-zinc-500 font-mono">
                                         {new Date(def.created_at).toLocaleDateString()}
                                     </span>
+                                </TableCell>
+                                <TableCell className="text-right pr-6">
+                                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 text-zinc-500 hover:text-yellow-400 hover:bg-yellow-500/10 rounded-md"
+                                            onClick={() => onToggle(def.id)}
+                                            title={def.is_active ? 'Suspend' : 'Activate'}
+                                        >
+                                            {def.is_active
+                                                ? <PauseCircle className="h-3.5 w-3.5" />
+                                                : <PlayCircle className="h-3.5 w-3.5" />
+                                            }
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-md"
+                                            onClick={() => onDelete(def.id)}
+                                            title="Delete"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ))
                     ) : (
                         <TableRow>
-                            <TableCell colSpan={5} className="h-32 text-center text-zinc-600">
+                            <TableCell colSpan={6} className="h-32 text-center text-zinc-600">
                                 No signed definitions found in registry.
                             </TableCell>
                         </TableRow>

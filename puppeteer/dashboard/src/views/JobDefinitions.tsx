@@ -43,6 +43,24 @@ const JobDefinitions = () => {
         }
     };
 
+    const handleDelete = async (id: string) => {
+        try {
+            const res = await authenticatedFetch(`/jobs/definitions/${id}`, { method: 'DELETE' });
+            if (res.ok) loadData();
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const handleToggle = async (id: string) => {
+        try {
+            const res = await authenticatedFetch(`/jobs/definitions/${id}/toggle`, { method: 'PATCH' });
+            if (res.ok) loadData();
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -84,7 +102,7 @@ const JobDefinitions = () => {
                 </Button>
             </div>
 
-            <JobDefinitionList definitions={definitions} executions={executions} />
+            <JobDefinitionList definitions={definitions} executions={executions} onDelete={handleDelete} onToggle={handleToggle} />
 
             <JobDefinitionModal
                 isOpen={showModal}

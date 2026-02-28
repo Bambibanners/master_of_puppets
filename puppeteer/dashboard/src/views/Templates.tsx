@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Boxes, CheckCircle2, Clock, AlertCircle, Loader2, Plus, Cpu, Globe, Zap } from 'lucide-react';
+import { Boxes, CheckCircle2, Clock, AlertCircle, Loader2, Plus, Cpu, Globe, Zap, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { authenticatedFetch } from '../auth';
 import { CreateBlueprintDialog } from '../components/CreateBlueprintDialog';
 import { CreateTemplateDialog } from '../components/CreateTemplateDialog';
@@ -48,6 +49,17 @@ const TemplateCard = ({ template }: { template: Template }) => {
         onError: () => setBuildStatus('failed'),
     });
 
+    const deleteMutation = useMutation({
+        mutationFn: async () => {
+            const res = await authenticatedFetch(`/api/templates/${template.id}`, { method: 'DELETE' });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Delete failed');
+            }
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['templates'] }),
+    });
+
     return (
         <Card className="bg-zinc-925 border-zinc-800/50 hover:border-primary/30 transition-all flex flex-col shadow-none">
             <CardHeader className="pb-4">
@@ -84,11 +96,11 @@ const TemplateCard = ({ template }: { template: Template }) => {
                     </div>
                 )}
             </CardContent>
-            <CardFooter className="bg-white/[0.01] border-t border-zinc-800/50 pt-4">
+            <CardFooter className="bg-white/[0.01] border-t border-zinc-800/50 pt-4 gap-2">
                 <Button
                     onClick={() => buildMutation.mutate()}
                     disabled={buildStatus === 'building'}
-                    className="w-full h-9 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg transition-all"
+                    className="flex-1 h-9 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg transition-all"
                 >
                     {buildStatus === 'building' ? (
                         <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Building...</>
@@ -96,40 +108,94 @@ const TemplateCard = ({ template }: { template: Template }) => {
                         <><Zap className="mr-2 h-3.5 w-3.5 fill-current" /> Build Image</>
                     )}
                 </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg"
+                    onClick={() => deleteMutation.mutate()}
+                    disabled={deleteMutation.isPending}
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
             </CardFooter>
         </Card>
     );
 };
 
-const BlueprintItem = ({ blueprint }: { blueprint: Blueprint }) => (
-    <div className="group flex items-center justify-between p-4 bg-zinc-925 border border-zinc-800/50 rounded-xl hover:border-primary/20 transition-all">
-        <div className="flex items-center gap-4">
-            <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                blueprint.type === 'RUNTIME' ? 'bg-blue-500/10' : 'bg-green-500/10'
-            }`}>
-                {blueprint.type === 'RUNTIME' ? 
-                    <Cpu className={`h-5 w-5 ${blueprint.type === 'RUNTIME' ? 'text-blue-400' : 'text-green-400'}`} /> : 
-                    <Globe className="h-5 w-5 text-green-400" />
-                }
-            </div>
-            <div>
-                <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-bold text-white">{blueprint.name}</h4>
-                    <Badge variant="outline" className="text-[10px] h-4 px-1 border-zinc-800 text-zinc-500">v{blueprint.version}</Badge>
+const BlueprintItem = ({ blueprint }: { blueprint: Blueprint }) => {
+    const queryClient = useQueryClient();
+    const [jsonOpen, setJsonOpen] = useState(false);
+
+    const deleteMutation = useMutation({
+        mutationFn: async () => {
+            const res = await authenticatedFetch(`/api/blueprints/${blueprint.id}`, { method: 'DELETE' });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Delete failed');
+            }
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['blueprints'] }),
+    });
+
+    return (
+        <>
+            <div className="group flex items-center justify-between p-4 bg-zinc-925 border border-zinc-800/50 rounded-xl hover:border-primary/20 transition-all">
+                <div className="flex items-center gap-4">
+                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                        blueprint.type === 'RUNTIME' ? 'bg-blue-500/10' : 'bg-green-500/10'
+                    }`}>
+                        {blueprint.type === 'RUNTIME' ?
+                            <Cpu className={`h-5 w-5 ${blueprint.type === 'RUNTIME' ? 'text-blue-400' : 'text-green-400'}`} /> :
+                            <Globe className="h-5 w-5 text-green-400" />
+                        }
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-bold text-white">{blueprint.name}</h4>
+                            <Badge variant="outline" className="text-[10px] h-4 px-1 border-zinc-800 text-zinc-500">v{blueprint.version}</Badge>
+                        </div>
+                        <p className="text-xs text-zinc-500 mt-0.5">
+                            {blueprint.type === 'RUNTIME'
+                                ? `OS: ${blueprint.definition.base_os} | ${blueprint.definition.tools?.length || 0} tools`
+                                : `${blueprint.definition.egress_rules?.length || 0} egress rules | Mode: ${blueprint.definition.policy}`
+                            }
+                        </p>
+                    </div>
                 </div>
-                <p className="text-xs text-zinc-500 mt-0.5">
-                    {blueprint.type === 'RUNTIME' 
-                        ? `OS: ${blueprint.definition.base_os} | ${blueprint.definition.tools?.length || 0} tools`
-                        : `${blueprint.definition.egress_rules?.length || 0} egress rules | Mode: ${blueprint.definition.policy}`
-                    }
-                </p>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-zinc-500 hover:text-white"
+                        onClick={() => setJsonOpen(true)}
+                    >
+                        View JSON
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg"
+                        onClick={() => deleteMutation.mutate()}
+                        disabled={deleteMutation.isPending}
+                    >
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                </div>
             </div>
-        </div>
-        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button variant="ghost" size="sm" className="text-zinc-500 hover:text-white">View JSON</Button>
-        </div>
-    </div>
-);
+
+            <Dialog open={jsonOpen} onOpenChange={setJsonOpen}>
+                <DialogContent className="bg-zinc-900 border-zinc-800 max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-white">{blueprint.name} — Definition</DialogTitle>
+                    </DialogHeader>
+                    <pre className="text-xs text-green-400 font-mono bg-zinc-950 rounded-lg p-4 overflow-auto max-h-[60vh] whitespace-pre-wrap">
+                        {JSON.stringify(blueprint.definition, null, 2)}
+                    </pre>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+};
 
 const Templates = () => {
     const [activeTab, setActiveTab] = useState<'templates' | 'blueprints'>('templates');
@@ -162,14 +228,14 @@ const Templates = () => {
                     <p className="text-zinc-500 text-sm">Compose and build immutable agent environments from standardized blueprints.</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button 
-                        variant="outline" 
+                    <Button
+                        variant="outline"
                         className="bg-zinc-900 border-zinc-800 text-white h-10 px-4 rounded-xl"
                         onClick={() => setIsBlueprintOpen(true)}
                     >
                         <Plus className="mr-2 h-4 w-4" /> New Blueprint
                     </Button>
-                    <Button 
+                    <Button
                         className="bg-primary hover:bg-primary/90 text-white h-10 px-4 rounded-xl font-bold shadow-lg shadow-primary/10"
                         onClick={() => setIsTemplateOpen(true)}
                     >
@@ -179,7 +245,7 @@ const Templates = () => {
             </div>
 
             <div className="flex border-b border-zinc-800/50 gap-8">
-                <button 
+                <button
                     onClick={() => setActiveTab('templates')}
                     className={`pb-4 text-sm font-bold transition-all relative ${
                         activeTab === 'templates' ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'
@@ -188,7 +254,7 @@ const Templates = () => {
                     Templates ({templates.length})
                     {activeTab === 'templates' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />}
                 </button>
-                <button 
+                <button
                     onClick={() => setActiveTab('blueprints')}
                     className={`pb-4 text-sm font-bold transition-all relative ${
                         activeTab === 'blueprints' ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'
