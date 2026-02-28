@@ -23,3 +23,6 @@ dist-ssr
 # Docker/Podman
 *.log
 .docker_data/
+admin_token.txt
+join_token.txt
+puppets/token.txt
