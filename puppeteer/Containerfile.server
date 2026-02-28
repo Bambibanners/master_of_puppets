@@ -10,7 +10,7 @@ WORKDIR /app
 # Runtime deps: libpq (for postgres), curl, tar (for step cli)
 RUN apk add --no-cache \
     gcc musl-dev libffi-dev python3-dev postgresql-dev \
-    linux-headers curl tar
+    linux-headers curl tar docker-cli
 
 # Install Step CLI (for Agent to issue tokens)
 # Using generic linux install

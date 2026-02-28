@@ -1,0 +1,26 @@
+FROM docker.io/library/python:3.12-alpine
+
+WORKDIR /app/puppeteer
+
+RUN apk add --no-cache \
+    gcc musl-dev libffi-dev python3-dev postgresql-dev \
+    linux-headers curl tar
+
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt asyncpg sqlalchemy pytest pytest-asyncio anyio aiosqlite cryptography "python-jose[cryptography]" passlib bcrypt apscheduler slowapi python-dotenv
+
+# Copy Source and Tests into puppeteer/ subdirectory
+WORKDIR /app
+COPY agent_service/ puppeteer/agent_service/
+COPY model_service/ puppeteer/model_service/
+
+# Create secrets/ ca/ placeholders if needed
+RUN mkdir -p puppeteer/agent_service/secrets puppeteer/agent_service/ca
+
+# Mock Database URL for tests
+ENV DATABASE_URL=sqlite+aiosqlite:///test.db
+ENV API_KEY=test-api-key
+ENV PYTHONPATH=/app
+
+CMD ["python3", "-m", "pytest", "puppeteer/agent_service/tests/"]
