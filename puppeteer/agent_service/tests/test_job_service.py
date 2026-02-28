@@ -77,3 +77,34 @@ async def test_report_result(db_session):
     job = next(j for j in jobs if j["guid"] == guid)
     assert job["status"] == "COMPLETED"
     assert job["result"] == {"output": "success"}
+
+@pytest.mark.anyio
+async def test_receive_heartbeat(db_session):
+    from puppeteer.agent_service.models import HeartbeatPayload
+    
+    # 1. New node heartbeat
+    payload = HeartbeatPayload(
+        node_id="heartbeat_node",
+        hostname="heartbeat_host",
+        stats={"cpu": 10, "ram": 50},
+        tags=["linux"]
+    )
+    await JobService.receive_heartbeat("heartbeat_node", "192.168.1.10", payload, db_session)
+    
+    # Verify node created
+    from sqlalchemy.future import select
+    from puppeteer.agent_service.db import Node
+    res = await db_session.execute(select(Node).where(Node.node_id == "heartbeat_node"))
+    node = res.scalar_one()
+    assert node.hostname == "heartbeat_host"
+    assert node.ip == "192.168.1.10"
+    assert node.status == "ONLINE"
+    assert json.loads(node.tags) == ["linux"]
+
+    # 2. Update existing node
+    payload.stats = {"cpu": 20, "ram": 60}
+    await JobService.receive_heartbeat("heartbeat_node", "192.168.1.11", payload, db_session)
+    
+    await db_session.refresh(node)
+    assert node.ip == "192.168.1.11"
+    assert json.loads(node.stats) == {"cpu": 20, "ram": 60}

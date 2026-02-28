@@ -60,6 +60,7 @@ class JobService:
             status="PENDING",
             payload=json.dumps(encrypted_payload),
             target_tags=json.dumps(job_req.target_tags) if job_req.target_tags else None,
+            capability_requirements=json.dumps(job_req.capability_requirements) if job_req.capability_requirements else None,
             created_at=datetime.utcnow()
         )
         
@@ -124,6 +125,7 @@ class JobService:
         
         selected_job = None
         node_tags_list = json.loads(node.tags) if node and node.tags else []
+        node_caps_dict = json.loads(node.capabilities) if node and node.capabilities else {}
 
         for candidate in jobs:
             # Check Tags
@@ -133,6 +135,28 @@ class JobService:
                     if not isinstance(req_tags, list):
                          continue
                     if not all(t in node_tags_list for t in req_tags):
+                        continue
+                except:
+                    continue
+            
+            # Check Capabilities
+            if candidate.capability_requirements:
+                try:
+                    req_caps = json.loads(candidate.capability_requirements)
+                    if not isinstance(req_caps, dict):
+                         continue
+                    # Match: Node must have ALL required capabilities, 
+                    # and versions must be >= required (simple string comparison for now)
+                    match = True
+                    for cap_name, min_version in req_caps.items():
+                        if cap_name not in node_caps_dict:
+                            match = False
+                            break
+                        # Very simple version comparison (lexicographical)
+                        if node_caps_dict[cap_name] < min_version:
+                            match = False
+                            break
+                    if not match:
                         continue
                 except:
                     continue
@@ -154,6 +178,53 @@ class JobService:
         
         work_resp = WorkResponse(guid=selected_job.guid, task_type=selected_job.task_type, payload=payload)
         return PollResponse(job=work_resp, config=node_config)
+
+    @staticmethod
+    async def receive_heartbeat(node_id: str, node_ip: str, hb: HeartbeatPayload, db: AsyncSession) -> dict:
+        """Processes a heartbeat from a node."""
+        stats_json = json.dumps(hb.stats) if hb.stats else None
+        tags_json = json.dumps(hb.tags) if hb.tags else None
+        caps_json = json.dumps(hb.capabilities) if hb.capabilities else None
+
+        # Upsert
+        result = await db.execute(select(Node).where(Node.node_id == node_id))
+        node = result.scalar_one_or_none()
+        
+        if node:
+            node.last_seen = datetime.utcnow()
+            node.status = "ONLINE"
+            if stats_json:
+                node.stats = stats_json
+            if tags_json:
+                node.tags = tags_json
+            if caps_json:
+                node.capabilities = caps_json
+            # Check IP drift
+            if node.ip != node_ip: 
+                node.ip = node_ip
+        else:
+            node = Node(
+                node_id=node_id, 
+                hostname=hb.hostname if hb.hostname else node_id, 
+                ip=node_ip, 
+                status="ONLINE", 
+                stats=stats_json, 
+                tags=tags_json,
+                capabilities=caps_json
+            )
+            db.add(node)
+        
+        # Process Job Telemetry
+        if hb.job_telemetry:
+            for guid, metrics in hb.job_telemetry.items():
+                job_res = await db.execute(select(Job).where(Job.guid == guid))
+                job_obj = job_res.scalar_one_or_none()
+                if job_obj:
+                    # Update telemetry field (JSON string)
+                    job_obj.telemetry = json.dumps(metrics)
+
+        await db.commit()
+        return {"status": "ack"}
 
     @staticmethod
     async def report_result(guid: str, report: ResultReport, node_ip: str, db: AsyncSession) -> dict:
@@ -184,8 +255,47 @@ class JobService:
                 db.add(node)
 
         job.status = "COMPLETED" if report.success else "FAILED"
-        job.result = json.dumps(report.result) if report.result else None
+        result_payload = report.result or {}
+        
+        # Flight Recorder Logic for Failures
+        if not report.success:
+            error_info = report.error_details or {}
+            flight_report = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "node_ip": node_ip,
+                "error": error_info.get("message", "Unknown error"),
+                "exit_code": error_info.get("exit_code"),
+                "stack_trace": error_info.get("stack_trace"),
+                "analysis": "Automated Flight Recorder: Job failed during node execution."
+            }
+            result_payload["flight_recorder"] = flight_report
+            
+        job.result = json.dumps(result_payload)
         job.completed_at = datetime.utcnow()
 
         await db.commit()
         return {"status": "updated"}
+    @staticmethod
+    async def get_job_stats(db: AsyncSession) -> dict:
+        """Returns aggregated job statistics for the dashboard."""
+        # Count statuses
+        result = await db.execute(
+            select(Job.status, func.count(Job.guid))
+            .group_by(Job.status)
+        )
+        counts = {status: count for status, count in result.all()}
+        
+        # Ensure all standard statuses are present
+        for status in ["PENDING", "ASSIGNED", "COMPLETED", "FAILED"]:
+            if status not in counts:
+                counts[status] = 0
+                
+        # Calculate success rate
+        total_finished = counts["COMPLETED"] + counts["FAILED"]
+        success_rate = (counts["COMPLETED"] / total_finished * 100) if total_finished > 0 else 100
+        
+        return {
+            "counts": counts,
+            "success_rate": round(success_rate, 2),
+            "total_jobs": sum(counts.values())
+        }
