@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import { getToken } from './auth';
@@ -21,7 +21,7 @@ const Templates = lazy(() => import('./views/Templates'));
 
 // Views correctly imported above
 
-const PrivateRoute = ({ children }: { children: JSX.Element }) => {
+const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
     const token = getToken();
     return token ? children : <Login />;
 };

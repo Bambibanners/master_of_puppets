@@ -18,32 +18,56 @@ const Dashboard = () => {
 
     const loadData = async () => {
         try {
-            const [nodesRes, jobsRes] = await Promise.all([
+            const [nodesRes, jobsRes, statsRes] = await Promise.all([
                 authenticatedFetch('/nodes'),
-                authenticatedFetch('/jobs')
+                authenticatedFetch('/jobs'),
+                authenticatedFetch('/api/jobs/stats')
             ]);
 
-            if (nodesRes.ok && jobsRes.ok) {
+            if (nodesRes.ok && jobsRes.ok && statsRes.ok) {
                 const nodes = await nodesRes.json();
                 const jobs = await jobsRes.json();
+                const jobStats = await statsRes.json();
 
                 const onlineNodes = nodes.filter(n => n.status === 'ONLINE').length;
-                const runningJobs = jobs.filter(j => j.status === 'ASSIGNED' || j.status === 'PENDING').length;
-                const completed = jobs.filter(j => j.status === 'COMPLETED').length;
-                const failed = jobs.filter(j => j.status === 'FAILED').length;
+
+                // Use backend aggregated stats for precision
+                const runningJobs = jobStats.running || 0;
+                const completed = jobStats.completed || 0;
+                const failed = jobStats.failed || 0;
                 const total = completed + failed;
                 const rate = total > 0 ? Math.round((completed / total) * 100) : 100;
 
                 setStats({ activeNodes: onlineNodes, runningJobs, successRate: rate });
                 setRecentJobs(jobs.slice(0, 5));
 
-                setChartData([
-                    { name: 'Mon', failures: 2 },
-                    { name: 'Tue', failures: 0 },
-                    { name: 'Wed', failures: 1 },
-                    { name: 'Thu', failures: 5 },
-                    { name: 'Fri', failures: failed },
-                ]);
+                // Aggregate failure trend for the last 7 days
+                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                const trendMap: Record<string, number> = {};
+
+                // Initialize last 7 days
+                const now = new Date();
+                const trendData = [];
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date(now);
+                    d.setDate(d.getDate() - i);
+                    const dayLabel = days[d.getDay()];
+                    trendMap[dayLabel] = 0;
+                    trendData.push({ name: dayLabel, failures: 0, dateStr: d.toDateString() });
+                }
+
+                // Count failures by date
+                jobs.forEach((job: any) => {
+                    if (job.status === 'FAILED' && job.started_at) {
+                        const jobDate = new Date(job.started_at).toDateString();
+                        const match = trendData.find(t => t.dateStr === jobDate);
+                        if (match) {
+                            match.failures++;
+                        }
+                    }
+                });
+
+                setChartData(trendData.map(({ name, failures }) => ({ name, failures })));
             }
         } catch (e) {
             console.error(e);
