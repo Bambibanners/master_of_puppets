@@ -16,3 +16,4 @@ paramiko
 psycopg2-binary
 slowapi
 websockets
+packaging

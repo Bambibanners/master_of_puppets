@@ -78,7 +78,9 @@ def get_node_secret_hash() -> str:
         try:
             with open(NODE_SECRET_PATH, "r") as f:
                 secret = f.read().strip()
-                return hashes.Hash(hashes.SHA256()).update(secret.encode()).finalize().hex()
+                h = hashes.Hash(hashes.SHA256())
+                h.update(secret.encode())
+                return h.finalize().hex()
         except:
             pass
     return ""

@@ -158,7 +158,7 @@ const MyAccount = () => {
             const res = await authenticatedFetch('/auth/me', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password: newPw }),
+                body: JSON.stringify({ password: newPw, current_password: currentPw }),
             });
             if (!res.ok) {
                 const err = await res.json();

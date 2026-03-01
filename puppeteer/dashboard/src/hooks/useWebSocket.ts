@@ -24,9 +24,12 @@ export function useWebSocket(onMessage: WsHandler) {
         const origin = window.location.origin.replace(/^http/, 'ws');
         // The backend is at :8001 in dev (proxied via vite) or at same origin in prod
         const backendBase = import.meta.env.VITE_API_BASE ?? '';
-        const url = `${backendBase.replace(/^http/, 'ws')}/ws`.replace(/^\/ws/, `${origin}/ws`);
+        const base = `${backendBase.replace(/^http/, 'ws')}/ws`.replace(/^\/ws/, `${origin}/ws`);
+        const url = base.startsWith('ws') ? base : `${origin}/ws`;
 
-        const ws = new WebSocket(url.startsWith('ws') ? url : `${origin}/ws`);
+        // Pass JWT as query param — browsers don't support custom headers on WS upgrade
+        const token = getToken();
+        const ws = new WebSocket(token ? `${url}?token=${encodeURIComponent(token)}` : url);
         wsRef.current = ws;
 
         ws.onopen = () => {

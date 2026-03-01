@@ -103,8 +103,8 @@ async def lifespan(app: FastAPI):
             logger.info("🌱 Seeding Role Permissions...")
             OPERATOR_PERMS = [
                 "jobs:read", "jobs:write", "nodes:read", "nodes:write",
-                "definitions:read", "definitions:write", "foundry:read",
-                "signatures:read", "tokens:write",
+                "definitions:read", "definitions:write", "foundry:read", "foundry:write",
+                "signatures:read", "signatures:write", "tokens:write",
             ]
             VIEWER_PERMS = [
                 "jobs:read", "nodes:read", "definitions:read", "foundry:read", "signatures:read",
@@ -488,11 +488,16 @@ async def update_self(req: dict, current_user: User = Depends(get_current_user),
     new_password = req.get("password", "").strip()
     if not new_password or len(new_password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    # Require current password unless the account has a forced-change flag set
+    if not current_user.must_change_password:
+        current_password = req.get("current_password", "")
+        if not current_password or not verify_password(current_password, current_user.password_hash):
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
     current_user.password_hash = get_password_hash(new_password)
     current_user.must_change_password = False
     current_user.token_version = (current_user.token_version or 0) + 1
+    audit(db, current_user, "user:password_changed", detail={"username": current_user.username})
     await db.commit()
-    await audit(db, current_user.username, "user:password_changed", {"username": current_user.username})
     # Issue a new token for the current session (old tokens for other sessions are now invalid)
     new_token = create_access_token(
         data={"sub": current_user.username, "role": current_user.role, "tv": current_user.token_version},
@@ -548,6 +553,10 @@ async def cancel_job(guid: str, current_user: User = Depends(require_permission(
 @app.post("/work/pull", response_model=PollResponse)
 async def pull_work(request: Request, node_id: str = Depends(verify_node_secret), api_key: str = Depends(verify_api_key), db: AsyncSession = Depends(get_db)):
     node_ip = request.client.host
+    r = await db.execute(select(Node).where(Node.node_id == node_id))
+    n = r.scalar_one_or_none()
+    if n and n.status == "REVOKED":
+        raise HTTPException(status_code=403, detail="Node is revoked")
     return await JobService.pull_work(node_id, node_ip, db)
 
 @app.post("/heartbeat")
@@ -1033,7 +1042,7 @@ async def admin_reset_password(username: str, req: dict, current_user: User = De
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
     user.password_hash = get_password_hash(new_password)
     user.token_version = (user.token_version or 0) + 1  # invalidate all existing sessions
-    await audit(db, current_user.username, "user:password_reset", {"target": username, "by": current_user.username})
+    audit(db, current_user, "user:password_reset", detail={"target": username, "by": current_user.username})
     await db.commit()
     return {"status": "ok"}
 
@@ -1047,7 +1056,7 @@ async def admin_force_password_change(username: str, req: dict, current_user: Us
     enabled = bool(req.get("enabled", True))
     user.must_change_password = enabled
     action = "user:force_password_change_set" if enabled else "user:force_password_change_cleared"
-    await audit(db, current_user.username, action, {"target": username})
+    audit(db, current_user, action, detail={"target": username})
     await db.commit()
     return {"status": "ok", "must_change_password": enabled}
 
@@ -1230,11 +1239,30 @@ async def get_doc_content(filename: str, current_user: User = Depends(require_pe
 # --- WebSocket Live Feed ---
 
 @app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket):
-    await ws_manager.connect(ws)
+async def websocket_endpoint(ws: WebSocket, token: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+    """Live event feed. Requires a valid JWT passed as ?token=<jwt> query param."""
+    await ws.accept()
+    # Validate token
+    authed = False
+    if token:
+        try:
+            from jose import jwt as _jwt, JWTError
+            from .auth import SECRET_KEY, ALGORITHM
+            payload = _jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            username = payload.get("sub")
+            if username:
+                result = await db.execute(select(User).where(User.username == username))
+                user = result.scalar_one_or_none()
+                if user and payload.get("tv", 0) == user.token_version:
+                    authed = True
+        except Exception:
+            pass
+    if not authed:
+        await ws.close(code=1008)
+        return
+    ws_manager._connections.append(ws)
     try:
         while True:
-            # Keep alive — client sends pings; server echoes
             data = await ws.receive_text()
             if data == "ping":
                 await ws.send_text("pong")

@@ -54,6 +54,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str
     role: str
+    must_change_password: bool = False
 
 class HeartbeatPayload(BaseModel):
     node_id: str
