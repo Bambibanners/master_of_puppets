@@ -368,8 +368,11 @@ async def list_nodes(current_user: User = Depends(require_permission("nodes:read
 
     resp = []
     for n in nodes:
-        is_offline = (datetime.utcnow() - n.last_seen).total_seconds() > 60
-        status = "OFFLINE" if is_offline else "ONLINE"
+        if n.status == "REVOKED":
+            status = "REVOKED"
+        else:
+            is_offline = (datetime.utcnow() - n.last_seen).total_seconds() > 60
+            status = "OFFLINE" if is_offline else "ONLINE"
 
         stats = json.loads(n.stats) if n.stats else None
         tags = json.loads(n.tags) if n.tags else None
@@ -406,13 +409,37 @@ async def delete_node(node_id: str, current_user: User = Depends(require_permiss
     node = result.scalar_one_or_none()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
-    if (datetime.utcnow() - node.last_seen).total_seconds() <= 60:
-        raise HTTPException(status_code=409, detail="Cannot delete an ONLINE node")
+    if node.status != "REVOKED" and (datetime.utcnow() - node.last_seen).total_seconds() <= 60:
+        raise HTTPException(status_code=409, detail="Cannot delete an ONLINE node — revoke first")
     await db.execute(delete(NodeStats).where(NodeStats.node_id == node_id))
     await db.execute(delete(Ping).where(Ping.node_id == node_id))
     await db.delete(node)
     await db.commit()
     return Response(status_code=204)
+
+@app.post("/nodes/{node_id}/revoke")
+async def revoke_node(node_id: str, current_user: User = Depends(require_permission("nodes:write")), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Node).where(Node.node_id == node_id))
+    node = result.scalar_one_or_none()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if node.status == "REVOKED":
+        raise HTTPException(status_code=409, detail="Node is already revoked")
+    node.status = "REVOKED"
+    await db.commit()
+    return {"status": "revoked", "node_id": node_id}
+
+@app.post("/nodes/{node_id}/reinstate")
+async def reinstate_node(node_id: str, current_user: User = Depends(require_permission("nodes:write")), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Node).where(Node.node_id == node_id))
+    node = result.scalar_one_or_none()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if node.status != "REVOKED":
+        raise HTTPException(status_code=409, detail="Node is not revoked")
+    node.status = "OFFLINE"
+    await db.commit()
+    return {"status": "reinstated", "node_id": node_id}
 
 @app.post("/auth/register", response_model=RegisterResponse)
 async def register_node(req: RegisterRequest, db: AsyncSession = Depends(get_db)):

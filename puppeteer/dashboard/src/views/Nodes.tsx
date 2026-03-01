@@ -5,6 +5,8 @@ import {
     Server,
     ShieldCheck,
     AlertTriangle,
+    Ban,
+    RotateCcw,
     Cpu,
     HardDrive,
     Network,
@@ -37,7 +39,7 @@ interface Node {
     node_id: string;
     hostname: string;
     ip: string;
-    status: 'ONLINE' | 'OFFLINE' | 'BUSY';
+    status: 'ONLINE' | 'OFFLINE' | 'BUSY' | 'REVOKED';
     last_seen: string;
     stats?: NodeStats;
     version?: string;
@@ -98,6 +100,7 @@ const StatsSparkline = ({ history }: { history: StatPoint[] }) => {
 const NodeCard = ({ node }: { node: Node }) => {
     const queryClient = useQueryClient();
     const isOnline = node.status === 'ONLINE';
+    const isRevoked = node.status === 'REVOKED';
     const cpu = node.stats?.cpu ?? 0;
     const ram = node.stats?.ram ?? 0;
 
@@ -110,6 +113,7 @@ const NodeCard = ({ node }: { node: Node }) => {
     const [memLimit, setMemLimit] = useState(node.job_memory_limit ?? '512m');
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [revoking, setRevoking] = useState(false);
 
     const deleteNode = async () => {
         if (!confirm(`Remove ${node.hostname} from the mesh?`)) return;
@@ -119,6 +123,27 @@ const NodeCard = ({ node }: { node: Node }) => {
             queryClient.invalidateQueries({ queryKey: ['nodes'] });
         } finally {
             setDeleting(false);
+        }
+    };
+
+    const revokeNode = async () => {
+        if (!confirm(`Revoke ${node.hostname}? It will be blocked from all orchestrator communication immediately.`)) return;
+        setRevoking(true);
+        try {
+            await authenticatedFetch(`/nodes/${node.node_id}/revoke`, { method: 'POST' });
+            queryClient.invalidateQueries({ queryKey: ['nodes'] });
+        } finally {
+            setRevoking(false);
+        }
+    };
+
+    const reinstateNode = async () => {
+        setRevoking(true);
+        try {
+            await authenticatedFetch(`/nodes/${node.node_id}/reinstate`, { method: 'POST' });
+            queryClient.invalidateQueries({ queryKey: ['nodes'] });
+        } finally {
+            setRevoking(false);
         }
     };
 
@@ -139,23 +164,30 @@ const NodeCard = ({ node }: { node: Node }) => {
         }
     };
 
+    const statusDot = isOnline
+        ? <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+        : isRevoked
+            ? <div className="h-2 w-2 rounded-full bg-amber-500" />
+            : <div className="h-2 w-2 rounded-full bg-red-500" />;
+
+    const statusIcon = isOnline
+        ? <ShieldCheck className="h-4 w-4 text-green-500" />
+        : isRevoked
+            ? <Ban className="h-4 w-4 text-amber-500" />
+            : <AlertTriangle className="h-4 w-4 text-red-500" />;
+
     return (
-        <Card className="overflow-hidden bg-zinc-925 border-zinc-800/50">
+        <Card className={`overflow-hidden bg-zinc-925 border-zinc-800/50 ${isRevoked ? 'opacity-70' : ''}`}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="flex flex-col gap-1">
                     <CardTitle className="text-base font-medium flex items-center gap-2 text-white">
                         {node.hostname}
-                        {isOnline
-                            ? <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                            : <div className="h-2 w-2 rounded-full bg-red-500" />
-                        }
+                        {statusDot}
+                        {isRevoked && <span className="text-[10px] font-mono text-amber-500 border border-amber-500/30 rounded px-1">REVOKED</span>}
                     </CardTitle>
                     <CardDescription className="text-xs font-mono text-zinc-500">{node.ip}</CardDescription>
                 </div>
-                {isOnline
-                    ? <ShieldCheck className="h-4 w-4 text-green-500" />
-                    : <AlertTriangle className="h-4 w-4 text-red-500" />
-                }
+                {statusIcon}
             </CardHeader>
 
             <CardContent className="space-y-4">
@@ -225,10 +257,26 @@ const NodeCard = ({ node }: { node: Node }) => {
                         </span>
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-zinc-600">{new Date(node.last_seen).toLocaleTimeString()}</span>
-                            {!isOnline && (
-                                <Button size="icon" variant="ghost" className="h-6 w-6 text-red-700 hover:text-red-400 hover:bg-red-500/10 rounded" onClick={deleteNode} disabled={deleting} title="Remove node">
-                                    <Trash2 className="h-3 w-3" />
-                                </Button>
+                            {isRevoked ? (
+                                <>
+                                    <Button size="icon" variant="ghost" className="h-6 w-6 text-emerald-600 hover:text-emerald-400 hover:bg-emerald-500/10 rounded" onClick={reinstateNode} disabled={revoking} title="Reinstate node">
+                                        <RotateCcw className="h-3 w-3" />
+                                    </Button>
+                                    <Button size="icon" variant="ghost" className="h-6 w-6 text-red-700 hover:text-red-400 hover:bg-red-500/10 rounded" onClick={deleteNode} disabled={deleting} title="Remove node">
+                                        <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                </>
+                            ) : (
+                                <>
+                                    <Button size="icon" variant="ghost" className="h-6 w-6 text-zinc-600 hover:text-amber-400 hover:bg-amber-500/10 rounded" onClick={revokeNode} disabled={revoking} title="Revoke node access">
+                                        <Ban className="h-3 w-3" />
+                                    </Button>
+                                    {!isOnline && (
+                                        <Button size="icon" variant="ghost" className="h-6 w-6 text-red-700 hover:text-red-400 hover:bg-red-500/10 rounded" onClick={deleteNode} disabled={deleting} title="Remove node">
+                                            <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                    )}
+                                </>
                             )}
                             <Button size="icon" variant="ghost" className="h-6 w-6 text-zinc-600 hover:text-white hover:bg-zinc-800 rounded" onClick={() => setEditing(true)}>
                                 <Settings2 className="h-3 w-3" />
