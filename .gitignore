@@ -1,3 +1,7 @@
+# Agent instruction files
+CLAUDE.md
+GEMINI.md
+
 # Secrets and Environment
 .env
 secrets/
