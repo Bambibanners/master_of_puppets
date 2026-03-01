@@ -725,8 +725,10 @@ async def enroll_node(req: EnrollmentRequest, request: Request, db: AsyncSession
         
         result = await db.execute(select(Node).where(Node.node_id == node_id))
         node = result.scalar_one_or_none()
-        
+
         if node:
+            if node.status == "REVOKED":
+                raise HTTPException(status_code=403, detail="Node has been revoked and cannot re-enroll")
             node.node_secret_hash = req.node_secret_hash
             node.machine_id = req.machine_id
             node.ip = node_ip
@@ -876,6 +878,8 @@ async def list_templates(current_user: User = Depends(require_permission("foundr
 @app.post("/api/templates/{id}/build", response_model=ImageResponse)
 async def build_template(id: str, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
     result = await foundry_service.build_template(id, db)
+    if not result.status.startswith("SUCCESS"):
+        raise HTTPException(status_code=500, detail=result.status)
     audit(db, current_user, "template:build", id)
     await db.commit()
     return result

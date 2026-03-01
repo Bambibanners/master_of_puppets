@@ -146,10 +146,19 @@ class NetworkMount(BaseModel):
 class MountsConfig(BaseModel):
     mounts: List[NetworkMount]
 
+ALLOWED_ROLES = {"admin", "operator", "viewer"}
+
 class UserCreate(BaseModel):
     username: str
     password: str
     role: str = "viewer"
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        if v not in ALLOWED_ROLES:
+            raise ValueError(f"role must be one of {sorted(ALLOWED_ROLES)}")
+        return v
 
 class UserResponse(BaseModel):
     id: str
