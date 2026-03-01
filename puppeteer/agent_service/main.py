@@ -40,7 +40,8 @@ logger = logging.getLogger(__name__)
 from sqlalchemy.future import select
 from sqlalchemy import update, desc, func, delete
 from collections import defaultdict
-from .db import init_db, get_db, Job, Token, Config, User, Node, NodeStats, AsyncSession, Signature, ScheduledJob, Ping, AsyncSessionLocal, CapabilityMatrix, Blueprint, PuppetTemplate, RolePermission
+from cryptography import x509 as _x509
+from .db import init_db, get_db, Job, Token, Config, User, Node, NodeStats, AsyncSession, Signature, ScheduledJob, Ping, AsyncSessionLocal, CapabilityMatrix, Blueprint, PuppetTemplate, RolePermission, AuditLog, RevokedCert
 from .auth import verify_password, get_password_hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from .services.job_service import JobService
 from .services.signature_service import SignatureService
@@ -265,6 +266,15 @@ def require_permission(perm: str):
         return current_user
     return _check
 
+def audit(db: AsyncSession, user: User, action: str, resource_id: str = None, detail: dict = None):
+    """Append an audit entry to the current session. Caller must commit."""
+    db.add(AuditLog(
+        username=user.username,
+        action=action,
+        resource_id=resource_id,
+        detail=json.dumps(detail) if detail else None,
+    ))
+
 # --- Auth Endpoints ---
 
 @app.post("/auth/login", response_model=TokenResponse)
@@ -320,6 +330,7 @@ async def cancel_job(guid: str, current_user: User = Depends(require_permission(
         raise HTTPException(status_code=409, detail=f"Cannot cancel a job with status {job.status}")
     job.status = "CANCELLED"
     job.completed_at = datetime.utcnow()
+    audit(db, current_user, "job:cancel", guid)
     await db.commit()
     return {"status": "cancelled", "guid": guid}
 
@@ -413,6 +424,7 @@ async def delete_node(node_id: str, current_user: User = Depends(require_permiss
         raise HTTPException(status_code=409, detail="Cannot delete an ONLINE node — revoke first")
     await db.execute(delete(NodeStats).where(NodeStats.node_id == node_id))
     await db.execute(delete(Ping).where(Ping.node_id == node_id))
+    audit(db, current_user, "node:delete", node_id)
     await db.delete(node)
     await db.commit()
     return Response(status_code=204)
@@ -426,6 +438,13 @@ async def revoke_node(node_id: str, current_user: User = Depends(require_permiss
     if node.status == "REVOKED":
         raise HTTPException(status_code=409, detail="Node is already revoked")
     node.status = "REVOKED"
+    if node.client_cert_pem:
+        try:
+            parsed = _x509.load_pem_x509_certificate(node.client_cert_pem.encode())
+            db.add(RevokedCert(serial_number=str(parsed.serial_number), node_id=node_id))
+        except Exception:
+            pass
+    audit(db, current_user, "node:revoke", node_id)
     await db.commit()
     return {"status": "revoked", "node_id": node_id}
 
@@ -438,6 +457,7 @@ async def reinstate_node(node_id: str, current_user: User = Depends(require_perm
     if node.status != "REVOKED":
         raise HTTPException(status_code=409, detail="Node is not revoked")
     node.status = "OFFLINE"
+    audit(db, current_user, "node:reinstate", node_id)
     await db.commit()
     return {"status": "reinstated", "node_id": node_id}
 
@@ -488,6 +508,7 @@ async def enroll_node(req: EnrollmentRequest, request: Request, db: AsyncSession
             node.machine_id = req.machine_id
             node.ip = node_ip
             node.last_seen = datetime.utcnow()
+            node.client_cert_pem = signed_cert
         else:
             node = Node(
                 node_id=node_id,
@@ -495,7 +516,8 @@ async def enroll_node(req: EnrollmentRequest, request: Request, db: AsyncSession
                 ip=node_ip,
                 status="ONLINE",
                 machine_id=req.machine_id,
-                node_secret_hash=req.node_secret_hash
+                node_secret_hash=req.node_secret_hash,
+                client_cert_pem=signed_cert,
             )
             db.add(node)
             
@@ -630,7 +652,10 @@ async def list_templates(current_user: User = Depends(require_permission("foundr
 
 @app.post("/api/templates/{id}/build", response_model=ImageResponse)
 async def build_template(id: str, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
-    return await foundry_service.build_template(id, db)
+    result = await foundry_service.build_template(id, db)
+    audit(db, current_user, "template:build", id)
+    await db.commit()
+    return result
 
 @app.post("/foundry/build")
 async def dashboard_foundry_build(req: dict, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
@@ -653,6 +678,7 @@ async def delete_blueprint(id: str, current_user: User = Depends(require_permiss
     bp = result.scalar_one_or_none()
     if not bp:
         raise HTTPException(status_code=404, detail="Blueprint not found")
+    audit(db, current_user, "blueprint:delete", id, {"name": bp.name})
     await db.delete(bp)
     await db.commit()
     return {"status": "deleted"}
@@ -663,6 +689,7 @@ async def delete_template(id: str, current_user: User = Depends(require_permissi
     tmpl = result.scalar_one_or_none()
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template not found")
+    audit(db, current_user, "template:delete", id, {"name": tmpl.friendly_name})
     await db.delete(tmpl)
     await db.commit()
     return {"status": "deleted"}
@@ -701,6 +728,7 @@ async def upload_public_key(req: UploadKeyRequest, current_user: User = Depends(
         row.value = req.key_content
     else:
         db.add(Config(key="signing_public_key", value=req.key_content))
+    audit(db, current_user, "key:upload")
     await db.commit()
     return {"status": "stored"}
 
@@ -719,6 +747,7 @@ async def create_user(req: UserCreate, current_user: User = Depends(require_perm
         raise HTTPException(status_code=409, detail="Username already exists")
     new_user = User(username=req.username, password_hash=get_password_hash(req.password), role=req.role)
     db.add(new_user)
+    audit(db, current_user, "user:create", req.username, {"role": req.role})
     await db.commit()
     return {"id": new_user.username, "username": new_user.username, "role": new_user.role, "created_at": new_user.created_at}
 
@@ -730,6 +759,7 @@ async def delete_user(username: str, current_user: User = Depends(require_permis
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    audit(db, current_user, "user:delete", username)
     await db.delete(user)
     await db.commit()
     return {"status": "deleted", "username": username}
@@ -742,6 +772,7 @@ async def update_user_role(username: str, req: dict, current_user: User = Depend
         raise HTTPException(status_code=404, detail="User not found")
     if "role" in req:
         user.role = req["role"]
+    audit(db, current_user, "user:role_change", username, {"role": req.get("role")})
     await db.commit()
     return {"id": user.username, "username": user.username, "role": user.role, "created_at": user.created_at}
 
@@ -759,6 +790,7 @@ async def grant_role_permission(role: str, req: PermissionGrant, current_user: U
     if result.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Permission already granted")
     db.add(RolePermission(role=role, permission=req.permission))
+    audit(db, current_user, "permission:grant", role, {"permission": req.permission})
     await db.commit()
     return {"status": "granted", "role": role, "permission": req.permission}
 
@@ -768,6 +800,7 @@ async def revoke_role_permission(role: str, permission: str, current_user: User 
     perm = result.scalar_one_or_none()
     if not perm:
         raise HTTPException(status_code=404, detail="Permission not found")
+    audit(db, current_user, "permission:revoke", role, {"permission": permission})
     await db.delete(perm)
     await db.commit()
     return {"status": "revoked", "role": role, "permission": permission}
@@ -846,10 +879,11 @@ async def list_signatures(current_user: User = Depends(require_permission("signa
 
 @app.delete("/signatures/{id}")
 async def delete_signature(id: str, current_user: User = Depends(require_permission("signatures:write")), db: AsyncSession = Depends(get_db)):
-    
     success = await SignatureService.delete_signature(id, db)
     if not success:
         raise HTTPException(status_code=404, detail="Signature not found")
+    audit(db, current_user, "signature:delete", id)
+    await db.commit()
     return {"status": "deleted"}
 
 # --- Job Definitions API ---
@@ -946,6 +980,63 @@ async def get_doc_content(filename: str, current_user: User = Depends(require_pe
     with open(file_path, "r") as f:
         content = f.read()
     return {"content": content}
+
+# --- Audit Log Endpoint ---
+
+@app.get("/admin/audit-log")
+async def get_audit_log(
+    limit: int = 200,
+    current_user: User = Depends(require_permission("users:write")),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(AuditLog).order_by(desc(AuditLog.timestamp)).limit(limit)
+    )
+    rows = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "timestamp": r.timestamp.isoformat(),
+            "username": r.username,
+            "action": r.action,
+            "resource_id": r.resource_id,
+            "detail": json.loads(r.detail) if r.detail else None,
+        }
+        for r in rows
+    ]
+
+# --- Base Image Staleness Endpoints ---
+
+@app.post("/admin/mark-base-updated")
+async def mark_base_updated(current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
+    """Records the current timestamp as the last time the base node image was updated."""
+    now = datetime.utcnow().isoformat()
+    result = await db.execute(select(Config).where(Config.key == "base_node_image_updated_at"))
+    row = result.scalar_one_or_none()
+    if row:
+        row.value = now
+    else:
+        db.add(Config(key="base_node_image_updated_at", value=now))
+    audit(db, current_user, "base_image:marked_updated")
+    await db.commit()
+    return {"base_node_image_updated_at": now}
+
+@app.get("/admin/base-image-updated")
+async def get_base_image_updated(current_user: User = Depends(require_permission("foundry:read")), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Config).where(Config.key == "base_node_image_updated_at"))
+    row = result.scalar_one_or_none()
+    return {"base_node_image_updated_at": row.value if row else None}
+
+# --- CRL Endpoint ---
+
+@app.get("/system/crl.pem")
+async def get_crl(db: AsyncSession = Depends(get_db)):
+    """Returns a signed X.509 CRL of all revoked node certificates."""
+    result = await db.execute(select(RevokedCert))
+    revoked = result.scalars().all()
+    serials = [r.serial_number for r in revoked]
+    crl_pem = pki_service.ca_authority.generate_crl(serials)
+    return Response(content=crl_pem, media_type="application/x-pem-file")
 
 if __name__ == "__main__":
     import uvicorn

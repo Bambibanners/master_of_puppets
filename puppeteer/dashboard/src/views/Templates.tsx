@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Boxes, CheckCircle2, Clock, AlertCircle, Loader2, Plus, Cpu, Globe, Zap, Trash2 } from 'lucide-react';
+import { Boxes, CheckCircle2, Clock, AlertCircle, Loader2, Plus, Cpu, Globe, Zap, Trash2, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,9 +28,13 @@ interface Blueprint {
     created_at: string;
 }
 
-const TemplateCard = ({ template }: { template: Template }) => {
+const TemplateCard = ({ template, baseUpdatedAt }: { template: Template; baseUpdatedAt: string | null }) => {
     const queryClient = useQueryClient();
     const [buildStatus, setBuildStatus] = useState<'idle' | 'building' | 'success' | 'failed'>('idle');
+
+    const isStale = baseUpdatedAt && template.last_built_at
+        ? new Date(template.last_built_at) < new Date(baseUpdatedAt)
+        : false;
 
     const buildMutation = useMutation({
         mutationFn: async () => {
@@ -67,9 +71,16 @@ const TemplateCard = ({ template }: { template: Template }) => {
                     <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
                         <Boxes className="h-5 w-5 text-primary" />
                     </div>
-                    <Badge variant="outline" className="font-mono text-[10px] border-zinc-800 text-zinc-500 py-0 px-1.5 h-5">
-                        {template.canonical_id}
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                        {isStale && (
+                            <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 py-0 px-1.5 h-5">
+                                <RefreshCw className="h-2.5 w-2.5 mr-1" />Rebuild recommended
+                            </Badge>
+                        )}
+                        <Badge variant="outline" className="font-mono text-[10px] border-zinc-800 text-zinc-500 py-0 px-1.5 h-5">
+                            {template.canonical_id}
+                        </Badge>
+                    </div>
                 </div>
                 <CardTitle className="mt-4 text-white font-bold">{template.friendly_name}</CardTitle>
                 <CardDescription className="text-zinc-500 text-xs truncate">
@@ -198,6 +209,7 @@ const BlueprintItem = ({ blueprint }: { blueprint: Blueprint }) => {
 };
 
 const Templates = () => {
+    const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState<'templates' | 'blueprints'>('templates');
     const [isBlueprintOpen, setIsBlueprintOpen] = useState(false);
     const [isTemplateOpen, setIsTemplateOpen] = useState(false);
@@ -218,6 +230,23 @@ const Templates = () => {
         }
     });
 
+    const { data: baseImageData } = useQuery<{ base_node_image_updated_at: string | null }>({
+        queryKey: ['base-image-updated'],
+        queryFn: async () => {
+            const res = await authenticatedFetch('/admin/base-image-updated');
+            return await res.json();
+        }
+    });
+
+    const markBaseUpdatedMutation = useMutation({
+        mutationFn: async () => {
+            const res = await authenticatedFetch('/admin/mark-base-updated', { method: 'POST' });
+            if (!res.ok) throw new Error('Failed');
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['base-image-updated'] }),
+    });
+
+    const baseUpdatedAt = baseImageData?.base_node_image_updated_at ?? null;
     const isLoading = loadingTemplates || loadingBlueprints;
 
     return (
@@ -228,6 +257,15 @@ const Templates = () => {
                     <p className="text-zinc-500 text-sm">Compose and build immutable agent environments from standardized blueprints.</p>
                 </div>
                 <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        className="bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white h-10 px-4 rounded-xl"
+                        onClick={() => markBaseUpdatedMutation.mutate()}
+                        disabled={markBaseUpdatedMutation.isPending}
+                        title="Mark base node image as updated — flags older templates for rebuild"
+                    >
+                        <RefreshCw className="mr-2 h-4 w-4" /> Mark Base Updated
+                    </Button>
                     <Button
                         variant="outline"
                         className="bg-zinc-900 border-zinc-800 text-white h-10 px-4 rounded-xl"
@@ -274,7 +312,7 @@ const Templates = () => {
             ) : activeTab === 'templates' ? (
                 templates.length > 0 ? (
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {templates.map(t => <TemplateCard key={t.id} template={t} />)}
+                        {templates.map(t => <TemplateCard key={t.id} template={t} baseUpdatedAt={baseUpdatedAt} />)}
                     </div>
                 ) : (
                     <div className="py-20 text-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/20">

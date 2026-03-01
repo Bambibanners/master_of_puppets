@@ -12,6 +12,7 @@ const Signatures = lazy(() => import('./views/Signatures'));
 const Admin = lazy(() => import('./views/Admin'));
 const Docs = lazy(() => import('./views/Docs'));
 const Templates = lazy(() => import('./views/Templates'));
+const AuditLog = lazy(() => import('./views/AuditLog'));
 // import { getUser } from './auth';
 
 // Temporary explicit imports for JS files (if allowed) or placeholder
@@ -41,6 +42,7 @@ const AppRoutes = () => {
                     <Route path="templates" element={<Templates />} />
                     <Route path="admin" element={<Admin />} />
                     <Route path="docs" element={<Docs />} />
+                    <Route path="audit" element={<AuditLog />} />
                 </Route>
             </Routes>
         </Suspense>

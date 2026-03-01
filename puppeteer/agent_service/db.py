@@ -100,6 +100,24 @@ class Node(Base):
     job_memory_limit: Mapped[String] = mapped_column(String, default="512m")
     machine_id: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Host-bound ID
     node_secret_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Binding secret
+    client_cert_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Stored at enrollment for CRL
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    username: Mapped[str] = mapped_column(String, nullable=False)
+    action: Mapped[str] = mapped_column(String, nullable=False)
+    resource_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class RevokedCert(Base):
+    __tablename__ = "revoked_certs"
+    serial_number: Mapped[str] = mapped_column(String, primary_key=True)
+    node_id: Mapped[str] = mapped_column(String, nullable=False)
+    revoked_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
 
 class NodeStats(Base):
     __tablename__ = "node_stats"

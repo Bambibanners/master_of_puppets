@@ -8,7 +8,8 @@ import {
     Settings,
     Menu,
     Cpu,
-    Boxes
+    Boxes,
+    ScrollText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -65,6 +66,7 @@ const MainLayout = () => {
                         System
                     </div>
                     <NavItem to="/admin" icon={Settings} label="Settings" />
+                    <NavItem to="/audit" icon={ScrollText} label="Audit Log" />
                 </nav>
             </div>
             <div className="p-6 border-t border-zinc-900">
