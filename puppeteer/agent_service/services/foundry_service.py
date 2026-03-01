@@ -73,8 +73,10 @@ class FoundryService:
         image_uri = f"localhost:5000/puppet:{image_tag}"
 
         # Resolve the puppets source directory (relative to this service file)
+        # Inside the agent container: __file__ is at /app/agent_service/services/foundry_service.py
+        # Two levels up from services/ → /app, then puppets → /app/puppets (the mount point)
         puppets_src = os.path.realpath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "..", "puppets")
+            os.path.join(os.path.dirname(__file__), "..", "..", "puppets")
         )
 
         build_dir = f"/tmp/puppet_build_{tmpl.id}"

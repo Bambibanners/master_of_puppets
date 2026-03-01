@@ -1,6 +1,7 @@
-from pydantic import BaseModel
-from typing import Optional, List, Dict
+from pydantic import BaseModel, field_validator
+from typing import Optional, List, Dict, Any
 from datetime import datetime
+import json as _json
 
 class JobCreate(BaseModel):
     task_type: str
@@ -110,7 +111,17 @@ class JobDefinitionResponse(BaseModel):
     target_node_id: Optional[str]
     target_tags: Optional[List[str]] = None
     created_at: datetime
-    
+
+    @field_validator('target_tags', mode='before')
+    @classmethod
+    def deserialize_target_tags(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            try:
+                return _json.loads(v)
+            except Exception:
+                return v
+        return v
+
     class Config:
         from_attributes = True
 
