@@ -155,37 +155,55 @@ class FoundryService:
         dockerfile_path = os.path.join(context_path, "Containerfile.node")
         
         try:
-            # Check for podman or docker
+            # Check for podman or docker (async)
             engine = "docker"
             try:
-                subprocess.run(["podman", "--version"], check=True, capture_output=True)
-                engine = "podman"
-            except:
+                probe = await asyncio.create_subprocess_exec(
+                    "podman", "--version",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                await probe.wait()
+                if probe.returncode == 0:
+                    engine = "podman"
+            except Exception:
                 pass
 
             build_cmd = [engine, "build", "-t", image_uri, "-f", dockerfile_path, context_path] + build_args
             logger.info(f"Running build command: {' '.join(build_cmd)}")
-            
-            res = subprocess.run(build_cmd, capture_output=True, text=True)
-            if res.returncode != 0:
-                logger.error(f"Build failed: {res.stderr}")
+
+            proc = await asyncio.create_subprocess_exec(
+                *build_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                err = stderr.decode()
+                logger.error(f"Build failed: {err}")
                 return ImageResponse(
                     tag=req.tag,
                     image_uri=image_uri,
-                    status=f"FAILED: {res.stderr[:100]}",
+                    status=f"FAILED: {err[:100]}",
                     created_at=datetime.utcnow()
                 )
 
             # 3. Push to Local Registry
             push_cmd = [engine, "push", image_uri]
             logger.info(f"Running push command: {' '.join(push_cmd)}")
-            res = subprocess.run(push_cmd, capture_output=True, text=True)
-            if res.returncode != 0:
-                logger.error(f"Push failed: {res.stderr}")
+            push_proc = await asyncio.create_subprocess_exec(
+                *push_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, push_stderr = await push_proc.communicate()
+            if push_proc.returncode != 0:
+                err = push_stderr.decode()
+                logger.error(f"Push failed: {err}")
                 return ImageResponse(
                     tag=req.tag,
                     image_uri=image_uri,
-                    status=f"PUSH_FAILED: {res.stderr[:100]}",
+                    status=f"PUSH_FAILED: {err[:100]}",
                     created_at=datetime.utcnow()
                 )
 
