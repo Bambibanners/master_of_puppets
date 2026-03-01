@@ -19,13 +19,31 @@ import runtime
 
 from dotenv import load_dotenv
 
+
+def parse_bytes(s: str) -> int:
+    """Convert memory string like '300m', '2g', '1024k' to bytes."""
+    s = s.strip().lower()
+    if s.endswith('g'):
+        return int(s[:-1]) * 1024 ** 3
+    elif s.endswith('m'):
+        return int(s[:-1]) * 1024 ** 2
+    elif s.endswith('k'):
+        return int(s[:-1]) * 1024
+    return int(s)
+
 load_dotenv()
 
 AGENT_URL = os.getenv("AGENT_URL", "https://localhost:8001")
 API_KEY_NAME = "X-API-KEY"
 API_KEY = os.getenv("API_KEY", "master-secret-key")
 JOIN_TOKEN = os.getenv("JOIN_TOKEN") 
-NODE_ID = f"node-{uuid.uuid4().hex[:8]}"
+def _load_or_generate_node_id() -> str:
+    """Reuse an existing enrolled identity if present, otherwise generate a fresh one."""
+    os.makedirs("secrets", exist_ok=True)
+    existing = [f[:-4] for f in os.listdir("secrets") if f.endswith(".crt") and f.startswith("node-")]
+    return existing[0] if existing else f"node-{uuid.uuid4().hex[:8]}"
+
+NODE_ID = _load_or_generate_node_id()
 ROOT_CA_PATH = os.getenv("ROOT_CA_PATH", "c:/Development/Repos/master_of_puppets/ca/certs/root_ca.crt")
 CERT_FILE = f"secrets/{NODE_ID}.crt"
 KEY_FILE = f"secrets/{NODE_ID}.key"
@@ -60,7 +78,9 @@ def get_node_secret_hash() -> str:
         try:
             with open(NODE_SECRET_PATH, "r") as f:
                 secret = f.read().strip()
-                return hashes.Hash(hashes.SHA256()).update(secret.encode()).finalize().hex()
+                h = hashes.Hash(hashes.SHA256())
+                h.update(secret.encode())
+                return h.finalize().hex()
         except:
             pass
     return ""
@@ -159,7 +179,8 @@ class Node:
         self.key_file = KEY_FILE
         self.verify_key_path = "secrets/verification.key"
         self.concurrency_limit = 5
-        self.job_memory_limit = "512m"
+        self.job_memory_limit = os.getenv("JOB_MEMORY_LIMIT", "512m")
+        self.job_cpu_limit = os.getenv("JOB_CPU_LIMIT")
         self.active_tasks = set()
         self.runtime_engine = runtime.ContainerRuntime()
         os.makedirs("secrets", exist_ok=True)
@@ -352,8 +373,20 @@ class Node:
         guid = job["guid"]
         task_type = job.get("task_type", "web_task")
         payload = job.get("payload", {})
-        
+        memory_limit = job.get("memory_limit")
+        cpu_limit = job.get("cpu_limit")
+
         print(f"[{self.node_id}] Executing Job {guid} [{task_type}]")
+
+        # Secondary admission check
+        if memory_limit and self.job_memory_limit:
+            try:
+                if parse_bytes(memory_limit) > parse_bytes(self.job_memory_limit):
+                    print(f"[{self.node_id}] Job {guid} requests {memory_limit}, node limit is {self.job_memory_limit} — skipping")
+                    await self.report_result(guid, False, {"error": "Job memory limit exceeds node capacity"})
+                    return
+            except Exception:
+                pass
         
         if task_type == "python_script":
             script = payload.get("script_content")
@@ -415,12 +448,14 @@ class Node:
                 image = os.getenv("JOB_IMAGE", default_img)
                 
                 result = await self.runtime_engine.run(
-                   image=image, 
-                   command=["python", "-"], 
+                   image=image,
+                   command=["python", "-"],
                    env=env,
                    mounts=mounts,
                    network_ref=hostname,
-                   input_data=script
+                   input_data=script,
+                   memory_limit=memory_limit,
+                   cpu_limit=cpu_limit,
                 )
                 
                 success = (result["exit_code"] == 0)
@@ -510,7 +545,7 @@ class Node:
                     config = job_data.get("config", {})
                     if config:
                          self.concurrency_limit = config.get("concurrency_limit", 5)
-                         # self.job_memory_limit = config.get("job_memory_limit", "512m") # Used in execute_task
+                    self.job_memory_limit = config.get("job_memory_limit", self.job_memory_limit)
 
                     work = job_data.get("job")
                     if work:

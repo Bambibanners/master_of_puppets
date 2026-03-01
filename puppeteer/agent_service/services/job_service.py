@@ -3,9 +3,10 @@ import uuid
 import json
 from datetime import datetime
 from typing import List, Optional
+from packaging.version import Version, InvalidVersion
 from sqlalchemy.future import select
-from sqlalchemy import desc, func
-from ..db import Job, Node, AsyncSession
+from sqlalchemy import desc, func, delete
+from ..db import Job, Node, NodeStats, AsyncSession
 from ..models import (
     ResultReport, JobResponse, JobCreate, WorkResponse, PollResponse, 
     NodeConfig, HeartbeatPayload
@@ -14,13 +15,26 @@ from ..security import mask_secrets, encrypt_secrets, decrypt_secrets
 
 logger = logging.getLogger(__name__)
 
+
+def parse_bytes(s: str) -> int:
+    """Convert memory string like '300m', '2g', '1024k' to bytes."""
+    s = s.strip().lower()
+    if s.endswith('g'):
+        return int(s[:-1]) * 1024 ** 3
+    elif s.endswith('m'):
+        return int(s[:-1]) * 1024 ** 2
+    elif s.endswith('k'):
+        return int(s[:-1]) * 1024
+    return int(s)
+
+
 class JobService:
     @staticmethod
-    async def list_jobs(db: AsyncSession) -> List[dict]:
+    async def list_jobs(db: AsyncSession, skip: int = 0, limit: int = 50) -> List[dict]:
         """For the Dashboard. Filters system jobs by default."""
         result = await db.execute(
             select(Job).where(Job.task_type != 'system_heartbeat') \
-            .order_by(desc(Job.created_at)).limit(50)
+            .order_by(desc(Job.created_at)).offset(skip).limit(limit)
         )
         jobs = result.scalars().all()
         
@@ -61,6 +75,8 @@ class JobService:
             payload=json.dumps(encrypted_payload),
             target_tags=json.dumps(job_req.target_tags) if job_req.target_tags else None,
             capability_requirements=json.dumps(job_req.capability_requirements) if job_req.capability_requirements else None,
+            memory_limit=job_req.memory_limit,
+            cpu_limit=job_req.cpu_limit,
             created_at=datetime.utcnow()
         )
         
@@ -139,21 +155,33 @@ class JobService:
                 except:
                     continue
             
+            # Check Memory Limit
+            if candidate.memory_limit and node.job_memory_limit:
+                try:
+                    if parse_bytes(candidate.memory_limit) > parse_bytes(node.job_memory_limit):
+                        continue
+                except Exception:
+                    pass
+
             # Check Capabilities
             if candidate.capability_requirements:
                 try:
                     req_caps = json.loads(candidate.capability_requirements)
                     if not isinstance(req_caps, dict):
                          continue
-                    # Match: Node must have ALL required capabilities, 
-                    # and versions must be >= required (simple string comparison for now)
+                    # Match: Node must have ALL required capabilities,
+                    # and versions must be >= required (proper semver comparison)
                     match = True
                     for cap_name, min_version in req_caps.items():
                         if cap_name not in node_caps_dict:
                             match = False
                             break
-                        # Very simple version comparison (lexicographical)
-                        if node_caps_dict[cap_name] < min_version:
+                        node_ver = node_caps_dict[cap_name]
+                        try:
+                            satisfies = Version(node_ver) >= Version(min_version)
+                        except InvalidVersion:
+                            satisfies = node_ver >= min_version
+                        if not satisfies:
                             match = False
                             break
                     if not match:
@@ -176,7 +204,13 @@ class JobService:
         
         await db.commit()
         
-        work_resp = WorkResponse(guid=selected_job.guid, task_type=selected_job.task_type, payload=payload)
+        work_resp = WorkResponse(
+            guid=selected_job.guid,
+            task_type=selected_job.task_type,
+            payload=payload,
+            memory_limit=selected_job.memory_limit,
+            cpu_limit=selected_job.cpu_limit,
+        )
         return PollResponse(job=work_resp, config=node_config)
 
     @staticmethod
@@ -214,6 +248,20 @@ class JobService:
             )
             db.add(node)
         
+        # Record stats history
+        if hb.stats:
+            db.add(NodeStats(node_id=node_id, cpu=hb.stats.get("cpu"), ram=hb.stats.get("ram")))
+            await db.flush()
+            # Prune: keep last 60 rows per node
+            subq = (
+                select(NodeStats.id)
+                .where(NodeStats.node_id == node_id)
+                .order_by(desc(NodeStats.recorded_at))
+                .offset(60)
+                .subquery()
+            )
+            await db.execute(delete(NodeStats).where(NodeStats.id.in_(select(subq.c.id))))
+
         # Process Job Telemetry
         if hb.job_telemetry:
             for guid, metrics in hb.job_telemetry.items():

@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Install system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl podman krb5-user iptables \
+    curl podman krb5-user iptables docker.io \
     && rm -rf /var/lib/apt/lists/*
 
 # Dependencies

@@ -65,6 +65,29 @@ class CertificateAuthority:
         with open(self.cert_path, "r") as f:
             return f.read()
 
+    def generate_crl(self, revoked_serials: list) -> bytes:
+        """Generates a signed X.509 CRL from a list of revoked certificate serial numbers."""
+        self.ensure_root_ca()
+        with open(self.key_path, "rb") as f:
+            ca_key = serialization.load_pem_private_key(f.read(), password=None)
+        with open(self.cert_path, "rb") as f:
+            ca_cert = x509.load_pem_x509_certificate(f.read())
+        now = datetime.datetime.now(UTC)
+        builder = x509.CertificateRevocationListBuilder()
+        builder = builder.issuer_name(ca_cert.subject)
+        builder = builder.last_update(now)
+        builder = builder.next_update(now + datetime.timedelta(days=7))
+        for serial in revoked_serials:
+            revoked = (
+                x509.RevokedCertificateBuilder()
+                .serial_number(int(serial))
+                .revocation_date(now)
+                .build()
+            )
+            builder = builder.add_revoked_certificate(revoked)
+        crl = builder.sign(ca_key, hashes.SHA256())
+        return crl.public_bytes(serialization.Encoding.PEM)
+
     def ensure_signing_key(self, secrets_dir: str):
          """Ensures a key exists for CSR signing requests (Node keys)."""
          if not os.path.exists(secrets_dir):

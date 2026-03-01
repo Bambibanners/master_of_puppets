@@ -114,7 +114,10 @@ async def verify_node_secret(
     
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
-    
+
+    if node.status == "REVOKED":
+        raise HTTPException(status_code=403, detail="Node access has been revoked")
+
     if node.machine_id and node.machine_id != x_machine_id:
         raise HTTPException(status_code=403, detail="Machine ID Mismatch - Identity Binding Failure")
 

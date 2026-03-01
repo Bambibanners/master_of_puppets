@@ -1,10 +1,11 @@
 import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Integer, Text, Boolean, DateTime, LargeBinary
+from sqlalchemy import String, Integer, Float, Text, Boolean, DateTime, LargeBinary, UniqueConstraint
 from datetime import datetime
 import json
 from typing import Optional
+from uuid import uuid4
 
 # Database URL (Default to Postgres, fallback to SQLite for local dev if needed)
 # In Docker, this will be: postgresql+asyncpg://user:pass@db/dbname
@@ -32,6 +33,16 @@ class Job(Base):
     target_tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON list of tags required
     capability_requirements: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON dict of required capabilities
     telemetry: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON string: per-job metrics
+    memory_limit: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # e.g. "300m", "2g"
+    cpu_limit: Mapped[Optional[str]] = mapped_column(String, nullable=True)     # e.g. "0.5", "2"
+
+
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    permission: Mapped[str] = mapped_column(String, nullable=False)
+    __table_args__ = (UniqueConstraint("role", "permission"),)
 
 
 class Signature(Base):
@@ -74,6 +85,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String)
     role: Mapped[str] = mapped_column(String) # viewer, operator, admin
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 class Node(Base):
     __tablename__ = "nodes"
@@ -89,6 +102,33 @@ class Node(Base):
     job_memory_limit: Mapped[String] = mapped_column(String, default="512m")
     machine_id: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Host-bound ID
     node_secret_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Binding secret
+    client_cert_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Stored at enrollment for CRL
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    username: Mapped[str] = mapped_column(String, nullable=False)
+    action: Mapped[str] = mapped_column(String, nullable=False)
+    resource_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class RevokedCert(Base):
+    __tablename__ = "revoked_certs"
+    serial_number: Mapped[str] = mapped_column(String, primary_key=True)
+    node_id: Mapped[str] = mapped_column(String, nullable=False)
+    revoked_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class NodeStats(Base):
+    __tablename__ = "node_stats"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    node_id: Mapped[str] = mapped_column(String, nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    cpu: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    ram: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
 
 class Blueprint(Base):
     __tablename__ = "blueprints"
@@ -115,6 +155,7 @@ class PuppetTemplate(Base):
     network_blueprint_id: Mapped[str] = mapped_column(String) # FK to blueprints.id
     canonical_id: Mapped[str] = mapped_column(String) # Hash of ingredients
     current_image_uri: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    last_built_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 class Ping(Base):

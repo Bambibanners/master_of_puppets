@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import os
+import shutil
 import subprocess
 import json
 import hashlib
@@ -33,7 +35,7 @@ class FoundryService:
         
         # 2. Build Dockerfile Content
         base_os = rt_def.get("base_os", "debian-12-slim")
-        os_family = "DEBIAN" # Simplified detection
+        os_family = "ALPINE" if "alpine" in base_os.lower() else "DEBIAN"
         
         dockerfile = [f"FROM {base_os}"]
         
@@ -61,23 +63,38 @@ class FoundryService:
         egress_rules = nw_def.get("egress_rules", [])
         dockerfile.append(f"ENV EGRESS_POLICY='{json.dumps(egress_rules)}'")
         
-        # Core Puppet Code (Assumed relative path)
-        context_path = "/app/puppets"
+        # Core Puppet Code
         dockerfile.append("WORKDIR /app")
-        dockerfile.append("COPY environment_service/node.py .")
-        dockerfile.append("CMD [\"python\", \"node.py\"]")
-        
+        dockerfile.append("COPY environment_service/ environment_service/")
+        dockerfile.append("CMD [\"python\", \"environment_service/node.py\"]")
+
         # 3. Perform Build
         image_tag = tmpl.friendly_name
         image_uri = f"localhost:5000/puppet:{image_tag}"
-        
-        build_dir = f"/app/temp_build_{tmpl.id}"
+
+        # Resolve the puppets source directory (relative to this service file)
+        # Inside the agent container: __file__ is at /app/agent_service/services/foundry_service.py
+        # Two levels up from services/ → /app, then puppets → /app/puppets (the mount point)
+        puppets_src = os.path.realpath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "puppets")
+        )
+
+        build_dir = f"/tmp/puppet_build_{tmpl.id}"
         os.makedirs(build_dir, exist_ok=True)
+
+        # Copy puppet source files into the build context
+        env_src = os.path.join(puppets_src, "environment_service")
+        env_dst = os.path.join(build_dir, "environment_service")
+        if os.path.isdir(env_src):
+            shutil.copytree(env_src, env_dst, dirs_exist_ok=True)
+        else:
+            logger.warning(f"⚠️  environment_service not found at {env_src} — COPY may fail")
+
         with open(os.path.join(build_dir, "Dockerfile"), "w") as f:
             f.write("\n".join(dockerfile))
-            
+
         try:
-            # Detect Engine
+            # Detect Engine (fast sync check, not on hot path)
             engine = "docker"
             try:
                 subprocess.run(["podman", "--version"], check=True, capture_output=True)
@@ -86,27 +103,36 @@ class FoundryService:
                 pass
 
             logger.info(f"🏗️  Building {image_tag} using {engine}...")
-            build_cmd = [engine, "build", "-t", image_uri, "-f", os.path.join(build_dir, "Dockerfile"), context_path]
-            res = subprocess.run(build_cmd, capture_output=True, text=True)
-            
-            if res.returncode != 0:
-                logger.error(f"❌ Build Failed Output:\n{res.stdout}\n{res.stderr}")
-                return ImageResponse(tag=image_tag, image_uri=image_uri, status=f"FAILED: See Logs", created_at=datetime.utcnow())
+            build_cmd = [engine, "build", "-t", image_uri, "-f", os.path.join(build_dir, "Dockerfile"), build_dir]
+            proc = await asyncio.create_subprocess_exec(
+                *build_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode != 0:
+                logger.error(f"❌ Build Failed:\n{stdout.decode()}\n{stderr.decode()}")
+                return ImageResponse(tag=image_tag, image_uri=image_uri, status="FAILED: See Logs", created_at=datetime.utcnow())
 
             # Push
-            push_cmd = [engine, "push", image_uri]
-            subprocess.run(push_cmd, capture_output=True, text=True)
+            push_proc = await asyncio.create_subprocess_exec(
+                engine, "push", image_uri,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await push_proc.communicate()
             
             # Update Template in DB
             tmpl.current_image_uri = image_uri
+            tmpl.last_built_at = datetime.utcnow()
             await db.commit()
             
             return ImageResponse(tag=image_tag, image_uri=image_uri, status="SUCCESS", created_at=datetime.utcnow())
             
         finally:
-             import shutil
-             if os.path.exists(build_dir):
-                 shutil.rmtree(build_dir)
+            if os.path.exists(build_dir):
+                shutil.rmtree(build_dir)
 
     @staticmethod
     async def build_image(req: ImageBuildRequest) -> ImageResponse:
@@ -129,37 +155,55 @@ class FoundryService:
         dockerfile_path = os.path.join(context_path, "Containerfile.node")
         
         try:
-            # Check for podman or docker
+            # Check for podman or docker (async)
             engine = "docker"
             try:
-                subprocess.run(["podman", "--version"], check=True, capture_output=True)
-                engine = "podman"
-            except:
+                probe = await asyncio.create_subprocess_exec(
+                    "podman", "--version",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                await probe.wait()
+                if probe.returncode == 0:
+                    engine = "podman"
+            except Exception:
                 pass
 
             build_cmd = [engine, "build", "-t", image_uri, "-f", dockerfile_path, context_path] + build_args
             logger.info(f"Running build command: {' '.join(build_cmd)}")
-            
-            res = subprocess.run(build_cmd, capture_output=True, text=True)
-            if res.returncode != 0:
-                logger.error(f"Build failed: {res.stderr}")
+
+            proc = await asyncio.create_subprocess_exec(
+                *build_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                err = stderr.decode()
+                logger.error(f"Build failed: {err}")
                 return ImageResponse(
                     tag=req.tag,
                     image_uri=image_uri,
-                    status=f"FAILED: {res.stderr[:100]}",
+                    status=f"FAILED: {err[:100]}",
                     created_at=datetime.utcnow()
                 )
 
             # 3. Push to Local Registry
             push_cmd = [engine, "push", image_uri]
             logger.info(f"Running push command: {' '.join(push_cmd)}")
-            res = subprocess.run(push_cmd, capture_output=True, text=True)
-            if res.returncode != 0:
-                logger.error(f"Push failed: {res.stderr}")
+            push_proc = await asyncio.create_subprocess_exec(
+                *push_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, push_stderr = await push_proc.communicate()
+            if push_proc.returncode != 0:
+                err = push_stderr.decode()
+                logger.error(f"Push failed: {err}")
                 return ImageResponse(
                     tag=req.tag,
                     image_uri=image_uri,
-                    status=f"PUSH_FAILED: {res.stderr[:100]}",
+                    status=f"PUSH_FAILED: {err[:100]}",
                     created_at=datetime.utcnow()
                 )
 
