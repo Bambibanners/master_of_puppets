@@ -23,6 +23,7 @@ import { Separator } from '@/components/ui/separator';
 import AddNodeModal from '../components/AddNodeModal';
 import ManageMountsModal from '../components/ManageMountsModal';
 import { authenticatedFetch } from '../auth';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 interface NodeStats {
     cpu: number;
@@ -116,7 +117,10 @@ const NodeCard = ({ node }: { node: Node }) => {
     const [revoking, setRevoking] = useState(false);
 
     const deleteNode = async () => {
-        if (!confirm(`Remove ${node.hostname} from the mesh?`)) return;
+        const msg = isOnline
+            ? `Force-remove ${node.hostname}? It is currently ONLINE — this will not stop running jobs.`
+            : `Remove ${node.hostname} from the mesh?`;
+        if (!confirm(msg)) return;
         setDeleting(true);
         try {
             await authenticatedFetch(`/nodes/${node.node_id}`, { method: 'DELETE' });
@@ -271,11 +275,9 @@ const NodeCard = ({ node }: { node: Node }) => {
                                     <Button size="icon" variant="ghost" className="h-6 w-6 text-zinc-600 hover:text-amber-400 hover:bg-amber-500/10 rounded" onClick={revokeNode} disabled={revoking} title="Revoke node access">
                                         <Ban className="h-3 w-3" />
                                     </Button>
-                                    {!isOnline && (
-                                        <Button size="icon" variant="ghost" className="h-6 w-6 text-red-700 hover:text-red-400 hover:bg-red-500/10 rounded" onClick={deleteNode} disabled={deleting} title="Remove node">
-                                            <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                    )}
+                                    <Button size="icon" variant="ghost" className={`h-6 w-6 rounded ${isOnline ? 'text-zinc-700 hover:text-red-400 hover:bg-red-500/10' : 'text-red-700 hover:text-red-400 hover:bg-red-500/10'}`} onClick={deleteNode} disabled={deleting} title={isOnline ? 'Force-remove (node is online)' : 'Remove node'}>
+                                        <Trash2 className="h-3 w-3" />
+                                    </Button>
                                 </>
                             )}
                             <Button size="icon" variant="ghost" className="h-6 w-6 text-zinc-600 hover:text-white hover:bg-zinc-800 rounded" onClick={() => setEditing(true)}>
@@ -290,13 +292,18 @@ const NodeCard = ({ node }: { node: Node }) => {
 };
 
 const Nodes = () => {
+    const queryClient = useQueryClient();
     const [showAddModal, setShowAddModal] = useState(false);
     const [showMountsModal, setShowMountsModal] = useState(false);
 
     const { data: nodes, isLoading } = useQuery({
         queryKey: ['nodes'],
         queryFn: fetchNodes,
-        refetchInterval: 3000,
+        refetchInterval: 10000,
+    });
+
+    useWebSocket((event) => {
+        if (event === 'node:heartbeat') queryClient.invalidateQueries({ queryKey: ['nodes'] });
     });
 
     return (

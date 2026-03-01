@@ -37,6 +37,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { authenticatedFetch } from '../auth';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 interface Job {
     guid: string;
@@ -177,8 +178,12 @@ const JobDetailPanel = ({ job, open, onClose, onCancel }: { job: Job | null; ope
     );
 };
 
+const PAGE_SIZE = 50;
+
 const Jobs = () => {
     const [jobs, setJobs] = useState<Job[]>([]);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(0);
     const [filterText, setFilterText] = useState('');
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
@@ -190,20 +195,28 @@ const Jobs = () => {
     const [capabilityReqs, setCapabilityReqs] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const fetchJobs = async () => {
+    const fetchJobs = async (p = page) => {
         try {
-            const res = await authenticatedFetch('/jobs');
-            if (res.ok) setJobs(await res.json());
+            const [jobsRes, countRes] = await Promise.all([
+                authenticatedFetch(`/jobs?skip=${p * PAGE_SIZE}&limit=${PAGE_SIZE}`),
+                authenticatedFetch('/jobs/count'),
+            ]);
+            if (jobsRes.ok) setJobs(await jobsRes.json());
+            if (countRes.ok) { const d = await countRes.json(); setTotal(d.total); }
         } catch (e) {
             console.error(e);
         }
     };
 
     useEffect(() => {
-        fetchJobs();
-        const interval = setInterval(fetchJobs, 3000);
+        fetchJobs(page);
+        const interval = setInterval(() => fetchJobs(page), 10000);
         return () => clearInterval(interval);
-    }, []);
+    }, [page]);
+
+    useWebSocket((event) => {
+        if (event === 'job:created' || event === 'job:updated') fetchJobs(page);
+    });
 
     const createJob = async () => {
         try {
@@ -425,6 +438,33 @@ const Jobs = () => {
                             )}
                         </TableBody>
                     </Table>
+                    {total > PAGE_SIZE && (
+                        <div className="flex items-center justify-between px-6 py-3 border-t border-zinc-800 bg-zinc-900/30">
+                            <span className="text-xs text-zinc-500">
+                                Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs text-zinc-400 hover:text-white"
+                                    disabled={page === 0}
+                                    onClick={() => setPage(p => p - 1)}
+                                >
+                                    Previous
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs text-zinc-400 hover:text-white"
+                                    disabled={(page + 1) * PAGE_SIZE >= total}
+                                    onClick={() => setPage(p => p + 1)}
+                                >
+                                    Next
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </Card>
             </div>
 

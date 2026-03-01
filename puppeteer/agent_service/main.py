@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request, Depends, Header, status
+from fastapi import FastAPI, HTTPException, Request, Depends, Header, status, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -266,6 +266,32 @@ def require_permission(perm: str):
         return current_user
     return _check
 
+class ConnectionManager:
+    """Broadcasts JSON messages to all connected WebSocket clients."""
+    def __init__(self):
+        self._connections: list[WebSocket] = []
+
+    async def connect(self, ws: WebSocket):
+        await ws.accept()
+        self._connections.append(ws)
+
+    def disconnect(self, ws: WebSocket):
+        self._connections.remove(ws)
+
+    async def broadcast(self, event: str, data: dict):
+        msg = json.dumps({"event": event, "data": data})
+        dead = []
+        for ws in self._connections:
+            try:
+                await ws.send_text(msg)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self._connections.remove(ws)
+
+ws_manager = ConnectionManager()
+
+
 def audit(db: AsyncSession, user: User, action: str, resource_id: str = None, detail: dict = None):
     """Append an audit entry to the current session. Caller must commit."""
     db.add(AuditLog(
@@ -305,8 +331,14 @@ async def health_check():
     return {"status": "healthy", "service": "Agent Service v0.7"}
 
 @app.get("/jobs", response_model=List[JobResponse])
-async def list_jobs(current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
-    return await JobService.list_jobs(db)
+async def list_jobs(skip: int = 0, limit: int = 50, current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
+    return await JobService.list_jobs(db, skip=skip, limit=limit)
+
+@app.get("/jobs/count")
+async def count_jobs(current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
+    from sqlalchemy import func as sqlfunc
+    result = await db.execute(select(sqlfunc.count()).select_from(Job).where(Job.task_type != 'system_heartbeat'))
+    return {"total": result.scalar()}
 
 @app.get("/api/jobs/stats")
 async def get_job_stats(current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
@@ -316,7 +348,9 @@ async def get_job_stats(current_user: User = Depends(require_permission("jobs:re
 @app.post("/jobs", response_model=JobResponse)
 async def create_job(job_req: JobCreate, current_user: User = Depends(require_permission("jobs:write")), db: AsyncSession = Depends(get_db)):
     try:
-        return await JobService.create_job(job_req, db)
+        result = await JobService.create_job(job_req, db)
+        await ws_manager.broadcast("job:created", {"guid": result["guid"], "status": "PENDING", "task_type": job_req.task_type})
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -332,6 +366,7 @@ async def cancel_job(guid: str, current_user: User = Depends(require_permission(
     job.completed_at = datetime.utcnow()
     audit(db, current_user, "job:cancel", guid)
     await db.commit()
+    await ws_manager.broadcast("job:updated", {"guid": guid, "status": "CANCELLED"})
     return {"status": "cancelled", "guid": guid}
 
 @app.post("/work/pull", response_model=PollResponse)
@@ -342,7 +377,9 @@ async def pull_work(request: Request, node_id: str = Depends(verify_node_secret)
 @app.post("/heartbeat")
 async def receive_heartbeat(req: Request, hb: HeartbeatPayload, node_id: str = Depends(verify_node_secret), api_key: str = Depends(verify_api_key), db: AsyncSession = Depends(get_db)):
     node_ip = req.client.host
-    return await JobService.receive_heartbeat(node_id, node_ip, hb, db)
+    result = await JobService.receive_heartbeat(node_id, node_ip, hb, db)
+    await ws_manager.broadcast("node:heartbeat", {"node_id": node_id, "status": "ONLINE", "stats": hb.stats})
+    return result
 
 @app.post("/work/{guid}/result")
 async def report_result(guid: str, report: ResultReport, req: Request, node_id: str = Depends(verify_node_secret), api_key: str = Depends(verify_api_key), db: AsyncSession = Depends(get_db)):
@@ -353,6 +390,7 @@ async def report_result(guid: str, report: ResultReport, req: Request, node_id: 
     updated = await JobService.report_result(guid, report, node_ip, db)
     if not updated:
         raise HTTPException(status_code=404, detail="Job not found")
+    await ws_manager.broadcast("job:updated", {"guid": guid, "status": updated.get("status", "COMPLETED")})
     return updated
 
 @app.get("/nodes", response_model=List[NodeResponse])
@@ -980,6 +1018,20 @@ async def get_doc_content(filename: str, current_user: User = Depends(require_pe
     with open(file_path, "r") as f:
         content = f.read()
     return {"content": content}
+
+# --- WebSocket Live Feed ---
+
+@app.websocket("/ws")
+async def websocket_endpoint(ws: WebSocket):
+    await ws_manager.connect(ws)
+    try:
+        while True:
+            # Keep alive — client sends pings; server echoes
+            data = await ws.receive_text()
+            if data == "ping":
+                await ws.send_text("pong")
+    except WebSocketDisconnect:
+        ws_manager.disconnect(ws)
 
 # --- Audit Log Endpoint ---
 
