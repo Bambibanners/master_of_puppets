@@ -9,7 +9,8 @@ import {
     Menu,
     Cpu,
     Boxes,
-    ScrollText
+    ScrollText,
+    Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -66,6 +67,7 @@ const MainLayout = () => {
                         System
                     </div>
                     <NavItem to="/admin" icon={Settings} label="Settings" />
+                    <NavItem to="/users" icon={Users} label="Users & Roles" />
                     <NavItem to="/audit" icon={ScrollText} label="Audit Log" />
                 </nav>
             </div>

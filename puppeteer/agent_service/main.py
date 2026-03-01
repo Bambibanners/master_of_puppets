@@ -475,6 +475,18 @@ async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequ
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return {"username": current_user.username, "role": current_user.role}
 
+@app.patch("/auth/me")
+async def update_self(req: dict, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Allow a logged-in user to change their own password."""
+    from .auth import get_password_hash
+    new_password = req.get("password", "").strip()
+    if not new_password or len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    current_user.hashed_password = get_password_hash(new_password)
+    await db.commit()
+    await audit(db, current_user.username, "user:password_changed", {"username": current_user.username})
+    return {"status": "ok"}
+
 # --- Core Endpoints ---
 
 @app.get("/")

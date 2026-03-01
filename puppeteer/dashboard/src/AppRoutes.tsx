@@ -13,6 +13,7 @@ const Admin = lazy(() => import('./views/Admin'));
 const Docs = lazy(() => import('./views/Docs'));
 const Templates = lazy(() => import('./views/Templates'));
 const AuditLog = lazy(() => import('./views/AuditLog'));
+const Users = lazy(() => import('./views/Users'));
 // import { getUser } from './auth';
 
 // Temporary explicit imports for JS files (if allowed) or placeholder
@@ -43,6 +44,7 @@ const AppRoutes = () => {
                     <Route path="admin" element={<Admin />} />
                     <Route path="docs" element={<Docs />} />
                     <Route path="audit" element={<AuditLog />} />
+                    <Route path="users" element={<Users />} />
                 </Route>
             </Routes>
         </Suspense>
