@@ -46,6 +46,20 @@ def test_truncation_logic_in_report_result():
     assert 'truncated' in src
 
 
+def _make_mock_db(fake_job):
+    """Create a properly-configured mock DB session that returns fake_job."""
+    mock_db = AsyncMock()
+    # scalar_one_or_none must be a regular MagicMock (not AsyncMock) so it
+    # returns the value directly rather than a coroutine.
+    execute_result = MagicMock()
+    execute_result.scalar_one_or_none.return_value = fake_job
+    mock_db.execute.return_value = execute_result
+    added_objects = []
+    # db.add() is called synchronously (not awaited), so use MagicMock for it
+    mock_db.add = MagicMock(side_effect=lambda obj: added_objects.append(obj))
+    return mock_db, added_objects
+
+
 @pytest.mark.asyncio
 async def test_report_result_writes_execution_record_completed():
     """Successful job: ExecutionRecord written with status COMPLETED."""
@@ -60,11 +74,7 @@ async def test_report_result_writes_execution_record_completed():
     fake_job.node_id = "node-abc"
     fake_job.started_at = datetime(2026, 3, 4, 21, 0, 0)
 
-    # Mock DB session
-    mock_db = AsyncMock()
-    mock_db.execute.return_value.scalar_one_or_none.return_value = fake_job
-    added_objects = []
-    mock_db.add.side_effect = lambda obj: added_objects.append(obj)
+    mock_db, added_objects = _make_mock_db(fake_job)
 
     report = ResultReport(
         success=True,
@@ -101,10 +111,7 @@ async def test_report_result_security_rejected_status():
     fake_job.node_id = "node-abc"
     fake_job.started_at = datetime(2026, 3, 4, 21, 0, 0)
 
-    mock_db = AsyncMock()
-    mock_db.execute.return_value.scalar_one_or_none.return_value = fake_job
-    added_objects = []
-    mock_db.add.side_effect = lambda obj: added_objects.append(obj)
+    mock_db, added_objects = _make_mock_db(fake_job)
 
     report = ResultReport(
         success=False,
@@ -136,10 +143,7 @@ async def test_report_result_failed_status():
     fake_job.node_id = "node-abc"
     fake_job.started_at = datetime(2026, 3, 4, 21, 0, 0)
 
-    mock_db = AsyncMock()
-    mock_db.execute.return_value.scalar_one_or_none.return_value = fake_job
-    added_objects = []
-    mock_db.add.side_effect = lambda obj: added_objects.append(obj)
+    mock_db, added_objects = _make_mock_db(fake_job)
 
     report = ResultReport(
         success=False,
@@ -171,10 +175,7 @@ async def test_report_result_truncates_large_output():
     fake_job.node_id = "node-abc"
     fake_job.started_at = datetime(2026, 3, 4, 21, 0, 0)
 
-    mock_db = AsyncMock()
-    mock_db.execute.return_value.scalar_one_or_none.return_value = fake_job
-    added_objects = []
-    mock_db.add.side_effect = lambda obj: added_objects.append(obj)
+    mock_db, added_objects = _make_mock_db(fake_job)
 
     # Build output log larger than 1MB
     big_line = "x" * 1000

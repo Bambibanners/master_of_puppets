@@ -6,7 +6,7 @@ from typing import List, Optional
 from packaging.version import Version, InvalidVersion
 from sqlalchemy.future import select
 from sqlalchemy import desc, func, delete
-from ..db import Job, Node, NodeStats, AsyncSession
+from ..db import Job, Node, NodeStats, ExecutionRecord, AsyncSession
 from ..models import (
     ResultReport, JobResponse, JobCreate, WorkResponse, PollResponse, 
     NodeConfig, HeartbeatPayload
@@ -14,6 +14,8 @@ from ..models import (
 from ..security import mask_secrets, encrypt_secrets, decrypt_secrets
 
 logger = logging.getLogger(__name__)
+
+MAX_OUTPUT_BYTES = 1_048_576  # 1 MB
 
 
 def parse_bytes(s: str) -> int:
@@ -302,27 +304,55 @@ class JobService:
                 node = Node(node_id=node_id, hostname=node_id, ip=node_ip, status="ONLINE", stats=stats_json)
                 db.add(node)
 
-        job.status = "COMPLETED" if report.success else "FAILED"
-        result_payload = report.result or {}
-        
-        # Flight Recorder Logic for Failures
-        if not report.success:
+        # Determine status
+        if report.security_rejected:
+            new_status = "SECURITY_REJECTED"
+        elif report.success:
+            new_status = "COMPLETED"
+        else:
+            new_status = "FAILED"
+
+        # Build truncated output_log
+        output_log = report.output_log or []
+        truncated = False
+        output_json = json.dumps(output_log)
+        if len(output_json.encode("utf-8")) > MAX_OUTPUT_BYTES:
+            while output_log and len(json.dumps(output_log).encode("utf-8")) > MAX_OUTPUT_BYTES:
+                output_log.pop()
+            truncated = True
+
+        # Write ExecutionRecord (same transaction as job update)
+        record = ExecutionRecord(
+            job_guid=guid,
+            node_id=job.node_id,
+            status=new_status,
+            exit_code=report.exit_code,
+            started_at=job.started_at,
+            completed_at=datetime.utcnow(),
+            output_log=json.dumps(output_log),
+            truncated=truncated,
+        )
+        db.add(record)
+
+        # Update job — keep result as minimal summary only (no stdout/stderr)
+        job.status = new_status
+        job.completed_at = datetime.utcnow()
+        if not report.success and not report.security_rejected:
             error_info = report.error_details or {}
             flight_report = {
                 "timestamp": datetime.utcnow().isoformat(),
                 "node_ip": node_ip,
                 "error": error_info.get("message", "Unknown error"),
-                "exit_code": error_info.get("exit_code"),
+                "exit_code": report.exit_code,
                 "stack_trace": error_info.get("stack_trace"),
                 "analysis": "Automated Flight Recorder: Job failed during node execution."
             }
-            result_payload["flight_recorder"] = flight_report
-            
-        job.result = json.dumps(result_payload)
-        job.completed_at = datetime.utcnow()
+            job.result = json.dumps({"flight_recorder": flight_report})
+        else:
+            job.result = json.dumps({"exit_code": report.exit_code})
 
         await db.commit()
-        return {"status": "updated"}
+        return {"status": new_status}
     @staticmethod
     async def get_job_stats(db: AsyncSession) -> dict:
         """Returns aggregated job statistics for the dashboard."""
@@ -333,12 +363,12 @@ class JobService:
         )
         counts = {status: count for status, count in result.all()}
         
-        # Ensure all standard statuses are present
-        for status in ["PENDING", "ASSIGNED", "COMPLETED", "FAILED"]:
+        # Ensure all standard statuses are present (SECURITY_REJECTED tracked separately)
+        for status in ["PENDING", "ASSIGNED", "COMPLETED", "FAILED", "SECURITY_REJECTED"]:
             if status not in counts:
                 counts[status] = 0
-                
-        # Calculate success rate
+
+        # Calculate success rate (SECURITY_REJECTED excluded — security events tracked separately)
         total_finished = counts["COMPLETED"] + counts["FAILED"]
         success_rate = (counts["COMPLETED"] / total_finished * 100) if total_finished > 0 else 100
         
