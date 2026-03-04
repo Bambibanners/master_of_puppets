@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Plus,
@@ -16,6 +16,7 @@ import {
     AlertTriangle,
     Timer,
     Ban,
+    ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -38,6 +39,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { authenticatedFetch } from '../auth';
 import { useWebSocket } from '../hooks/useWebSocket';
 
@@ -53,11 +55,31 @@ interface Job {
     target_tags?: string[];
 }
 
+interface OutputLine {
+    t: string;
+    stream: 'stdout' | 'stderr';
+    line: string;
+}
+
+interface ExecutionRecord {
+    id: number;
+    job_guid: string;
+    node_id?: string;
+    status: string;
+    exit_code?: number | null;
+    started_at?: string;
+    completed_at?: string;
+    output_log: OutputLine[];
+    truncated: boolean;
+    duration_seconds?: number | null;
+}
+
 const getStatusVariant = (status: string) => {
     switch (status.toLowerCase()) {
         case 'completed': return 'success';
         case 'failed': return 'destructive';
         case 'cancelled': return 'destructive';
+        case 'security_rejected': return 'destructive';
         case 'assigned': return 'secondary';
         case 'pending': return 'outline';
         default: return 'outline';
@@ -68,12 +90,126 @@ const StatusIcon = ({ status }: { status: string }) => {
     switch (status.toLowerCase()) {
         case 'completed': return <CheckCircle2 className="h-4 w-4 text-green-500" />;
         case 'failed': return <XCircle className="h-4 w-4 text-red-500" />;
+        case 'security_rejected': return <ShieldAlert className="h-4 w-4 text-orange-500" />;
         case 'assigned': return <Timer className="h-4 w-4 text-yellow-500 animate-pulse" />;
         default: return <Clock className="h-4 w-4 text-zinc-500" />;
     }
 };
 
-const JobDetailPanel = ({ job, open, onClose, onCancel }: { job: Job | null; open: boolean; onClose: () => void; onCancel: (guid: string) => void }) => {
+const ExecutionLogModal = ({ guid, open, onClose }: {
+    guid: string;
+    open: boolean;
+    onClose: () => void;
+}) => {
+    const [executions, setExecutions] = useState<ExecutionRecord[]>([]);
+    const [selected, setSelected] = useState<ExecutionRecord | null>(null);
+    const logEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open || !guid) return;
+        authenticatedFetch(`/jobs/${guid}/executions`)
+            .then(r => r.json())
+            .then((data: ExecutionRecord[]) => {
+                setExecutions(data);
+                setSelected(data[0] ?? null);
+            })
+            .catch(() => {});
+    }, [open, guid]);
+
+    useEffect(() => {
+        if (open && logEndRef.current) {
+            logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [open, selected]);
+
+    const lines = selected?.output_log ?? [];
+
+    const handleCopy = () => {
+        const text = lines.map(l => `[${l.stream === 'stderr' ? 'ERR' : 'OUT'}] ${l.line}`).join('\n');
+        navigator.clipboard.writeText(text).then(() => toast('Copied to clipboard'));
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onClose}>
+            <DialogContent className="bg-zinc-950 border-zinc-800 text-white w-[95vw] max-w-6xl h-[90vh] flex flex-col p-0">
+                <DialogHeader className="px-4 pt-4 pb-3 border-b border-zinc-800 shrink-0">
+                    <div className="flex items-center justify-between">
+                        <DialogTitle className="text-white text-sm font-medium flex items-center gap-3">
+                            <span className="font-mono text-zinc-400 text-xs truncate max-w-[200px]">{guid}</span>
+                            {selected && (
+                                <>
+                                    <span className={`font-bold text-sm ${selected.exit_code === 0 ? 'text-green-400' : selected.exit_code === null ? 'text-zinc-500' : 'text-red-400'}`}>
+                                        {selected.exit_code === null ? 'exit: —' : `exit: ${selected.exit_code}`}
+                                    </span>
+                                    {selected.node_id && <span className="text-zinc-500 text-xs">{selected.node_id}</span>}
+                                    {selected.duration_seconds != null && (
+                                        <span className="text-zinc-500 text-xs">{selected.duration_seconds.toFixed(2)}s</span>
+                                    )}
+                                    {selected.started_at && (
+                                        <span className="text-zinc-500 text-xs">{new Date(selected.started_at).toLocaleString()}</span>
+                                    )}
+                                </>
+                            )}
+                        </DialogTitle>
+                        <div className="flex items-center gap-2">
+                            {executions.length > 1 && (
+                                <select
+                                    className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs rounded px-2 py-1"
+                                    value={selected?.id ?? ''}
+                                    onChange={e => setSelected(executions.find(x => x.id === Number(e.target.value)) ?? null)}
+                                >
+                                    {executions.map((ex, i) => (
+                                        <option key={ex.id} value={ex.id}>
+                                            Attempt {executions.length - i} — {ex.status}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                            <button
+                                onClick={handleCopy}
+                                className="text-zinc-400 hover:text-zinc-200 text-xs px-2 py-1 rounded border border-zinc-700 hover:border-zinc-500"
+                            >
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                </DialogHeader>
+
+                <div className="flex-1 overflow-y-auto font-mono text-xs p-4 bg-black">
+                    {lines.length === 0 && !selected?.truncated && (
+                        <div className="text-zinc-600 italic">No output captured.</div>
+                    )}
+                    {lines.map((entry, i) => (
+                        <div key={i} className="flex gap-2 leading-5">
+                            <span className="text-zinc-600 shrink-0 select-none">
+                                {new Date(entry.t).toLocaleTimeString()}
+                            </span>
+                            <span className="text-zinc-600 shrink-0 select-none">
+                                {entry.stream === 'stderr' ? '[ERR]' : '[OUT]'}
+                            </span>
+                            <span className={entry.stream === 'stderr' ? 'text-amber-400' : 'text-zinc-300'}>
+                                {entry.line}
+                            </span>
+                        </div>
+                    ))}
+                    {selected?.truncated && (
+                        <div className="text-yellow-500 border-t border-zinc-800 mt-2 pt-2 italic">
+                            Output truncated at 1MB — remaining lines not stored.
+                        </div>
+                    )}
+                    {selected && selected.exit_code !== null && selected.exit_code !== undefined && (
+                        <div className={`mt-4 font-bold text-sm ${selected.exit_code === 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {selected.exit_code === 0 ? '✔' : '✘'} Exit {selected.exit_code}
+                        </div>
+                    )}
+                    <div ref={logEndRef} />
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+const JobDetailPanel = ({ job, open, onClose, onCancel, onViewOutput }: { job: Job | null; open: boolean; onClose: () => void; onCancel: (guid: string) => void; onViewOutput: (guid: string) => void }) => {
     if (!job) return null;
     const cancellable = job.status === 'PENDING' || job.status === 'ASSIGNED';
 
@@ -105,6 +241,14 @@ const JobDetailPanel = ({ job, open, onClose, onCancel }: { job: Job | null; ope
                             <Ban className="mr-2 h-4 w-4" /> Cancel Job
                         </Button>
                     )}
+
+                    <Button
+                        variant="outline"
+                        className="w-full border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                        onClick={() => { onViewOutput(job.guid); onClose(); }}
+                    >
+                        <Terminal className="mr-2 h-4 w-4" /> View Output
+                    </Button>
 
                     {/* Metadata */}
                     <section className="space-y-3">
@@ -199,6 +343,7 @@ const Jobs = () => {
     const [targetTags, setTargetTags] = useState('');
     const [capabilityReqs, setCapabilityReqs] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [logModalGuid, setLogModalGuid] = useState<string | null>(null);
 
     const fetchJobs = async (p = page) => {
         try {
@@ -411,6 +556,7 @@ const Jobs = () => {
                                     <SelectItem value="completed">Completed</SelectItem>
                                     <SelectItem value="failed">Failed</SelectItem>
                                     <SelectItem value="cancelled">Cancelled</SelectItem>
+                                    <SelectItem value="security_rejected">Security Rejected</SelectItem>
                                 </SelectContent>
                             </Select>
                             <div className="relative">
@@ -518,7 +664,8 @@ const Jobs = () => {
                 </Card>
             </div>
 
-            <JobDetailPanel job={selectedJob} open={detailOpen} onClose={() => setDetailOpen(false)} onCancel={cancelJob} />
+            <JobDetailPanel job={selectedJob} open={detailOpen} onClose={() => setDetailOpen(false)} onCancel={cancelJob} onViewOutput={setLogModalGuid} />
+            <ExecutionLogModal guid={logModalGuid ?? ''} open={!!logModalGuid} onClose={() => setLogModalGuid(null)} />
         </div>
     );
 };
