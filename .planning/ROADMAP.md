@@ -12,7 +12,7 @@ This milestone adds the production-readiness layer to a functioning, security-ha
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Output Capture** - Node captures stdout/stderr/exit code per execution; dashboard surfaces output logs
+- [x] **Phase 1: Output Capture** - Node captures stdout/stderr/exit code per execution; dashboard surfaces output logs (completed 2026-03-04)
 - [ ] **Phase 2: Retry Policy** - Configurable retries with exponential backoff, failure classification, and zombie reaper
 - [ ] **Phase 3: Execution History** - Queryable timeline of past runs per job and node, with output retention pruning
 - [ ] **Phase 4: Environment Tags** - Operator-assignable env tags on nodes with strict enforcement for job targeting
@@ -88,7 +88,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Output Capture | 2/3 | In Progress|  |
+| 1. Output Capture | 3/3 | Complete   | 2026-03-04 |
 | 2. Retry Policy | 0/TBD | Not started | - |
 | 3. Execution History | 0/TBD | Not started | - |
 | 4. Environment Tags | 0/TBD | Not started | - |

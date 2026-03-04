@@ -1,3 +1,16 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: unknown
+last_updated: "2026-03-04T21:25:37.161Z"
+progress:
+  total_phases: 1
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 3
+---
+
 # Project State
 
 ## Project Reference
@@ -51,6 +64,8 @@ Recent decisions affecting current work:
 - 01-01: ResultReport extended with Optional fields — existing nodes that omit them continue to work
 - 01-03: onViewOutput callback lifted to Jobs level — JobDetailPanel remains pure display component
 - 01-03: SECURITY_REJECTED maps to destructive variant (same as failed/cancelled); ShieldAlert icon differentiates it
+- [Phase 01-output-capture]: 01-02: build_output_log filters whitespace-only lines to avoid blank entries in execution_records
+- [Phase 01-output-capture]: 01-02: job.result stores only minimal summary (exit_code or flight_recorder) — stdout/stderr exclusively in execution_records.output_log
 
 ### Pending Todos
 
