@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { authenticatedFetch } from '../auth';
 import { CreateBlueprintDialog } from '../components/CreateBlueprintDialog';
 import { CreateTemplateDialog } from '../components/CreateTemplateDialog';
@@ -221,11 +222,23 @@ const BlueprintItem = ({ blueprint }: { blueprint: Blueprint }) => {
     );
 };
 
+const BlueprintEmptyState = ({ type }: { type: 'RUNTIME' | 'NETWORK' }) => (
+    <div className="py-20 text-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/20">
+        {type === 'RUNTIME' ? (
+            <Cpu className="h-12 w-12 text-zinc-800 mx-auto mb-4" />
+        ) : (
+            <Globe className="h-12 w-12 text-zinc-800 mx-auto mb-4" />
+        )}
+        <h3 className="text-zinc-400 font-medium">No {type.toLowerCase()} blueprints found</h3>
+        <p className="text-zinc-600 text-sm mt-1">Create a {type.toLowerCase()} blueprint to get started.</p>
+    </div>
+);
+
 const Templates = () => {
     const queryClient = useQueryClient();
-    const [activeTab, setActiveTab] = useState<'templates' | 'blueprints'>('templates');
-    const [isBlueprintOpen, setIsBlueprintOpen] = useState(false);
     const [isTemplateOpen, setIsTemplateOpen] = useState(false);
+    const [blueprintDialogType, setBlueprintDialogType] = useState<'RUNTIME' | 'NETWORK' | undefined>();
+    const [blueprintDialogOpen, setBlueprintDialogOpen] = useState(false);
 
     const { data: templates = [], isLoading: loadingTemplates } = useQuery<Template[]>({
         queryKey: ['templates'],
@@ -264,60 +277,26 @@ const Templates = () => {
     });
 
     const baseUpdatedAt = baseImageData?.base_node_image_updated_at ?? null;
+    const runtimeBlueprints = blueprints.filter((b: Blueprint) => b.type === 'RUNTIME');
+    const networkBlueprints = blueprints.filter((b: Blueprint) => b.type === 'NETWORK');
     const isLoading = loadingTemplates || loadingBlueprints;
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500 max-w-6xl mx-auto">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-white">Templates</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-white">Foundry</h1>
                     <p className="text-sm text-zinc-500 mt-1">Compose and build immutable agent environments.</p>
                 </div>
-                <div className="flex gap-2">
-                    <Button
-                        variant="outline"
-                        className="bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white h-10 px-4 rounded-xl"
-                        onClick={() => markBaseUpdatedMutation.mutate()}
-                        disabled={markBaseUpdatedMutation.isPending}
-                        title="Mark base node image as updated — flags older templates for rebuild"
-                    >
-                        <RefreshCw className="mr-2 h-4 w-4" /> Mark Base Updated
-                    </Button>
-                    <Button
-                        variant="outline"
-                        className="bg-zinc-900 border-zinc-800 text-white h-10 px-4 rounded-xl"
-                        onClick={() => setIsBlueprintOpen(true)}
-                    >
-                        <Plus className="mr-2 h-4 w-4" /> New Blueprint
-                    </Button>
-                    <Button
-                        className="bg-primary hover:bg-primary/90 text-white h-10 px-4 rounded-xl font-bold shadow-lg shadow-primary/10"
-                        onClick={() => setIsTemplateOpen(true)}
-                    >
-                        <Plus className="mr-2 h-4 w-4" /> New Template
-                    </Button>
-                </div>
-            </div>
-
-            <div className="flex border-b border-zinc-800/50 gap-8">
-                <button
-                    onClick={() => setActiveTab('templates')}
-                    className={`pb-4 text-sm font-bold transition-all relative ${
-                        activeTab === 'templates' ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'
-                    }`}
+                <Button
+                    variant="outline"
+                    className="bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white h-10 px-4 rounded-xl"
+                    onClick={() => markBaseUpdatedMutation.mutate()}
+                    disabled={markBaseUpdatedMutation.isPending}
+                    title="Mark base node image as updated — flags older templates for rebuild"
                 >
-                    Templates ({templates.length})
-                    {activeTab === 'templates' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />}
-                </button>
-                <button
-                    onClick={() => setActiveTab('blueprints')}
-                    className={`pb-4 text-sm font-bold transition-all relative ${
-                        activeTab === 'blueprints' ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'
-                    }`}
-                >
-                    Blueprints ({blueprints.length})
-                    {activeTab === 'blueprints' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />}
-                </button>
+                    <RefreshCw className="mr-2 h-4 w-4" /> Mark Base Updated
+                </Button>
             </div>
 
             {isLoading ? (
@@ -326,33 +305,81 @@ const Templates = () => {
                         <div key={i} className="h-48 rounded-2xl bg-zinc-900/50 border border-zinc-800 animate-pulse" />
                     ))}
                 </div>
-            ) : activeTab === 'templates' ? (
-                templates.length > 0 ? (
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {templates.map(t => <TemplateCard key={t.id} template={t} baseUpdatedAt={baseUpdatedAt} />)}
-                    </div>
-                ) : (
-                    <div className="py-20 text-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/20">
-                        <Boxes className="h-12 w-12 text-zinc-800 mx-auto mb-4" />
-                        <h3 className="text-zinc-400 font-medium">No templates found</h3>
-                        <p className="text-zinc-600 text-sm mt-1">Compose your first template using blueprints.</p>
-                    </div>
-                )
             ) : (
-                <div className="space-y-4">
-                    {blueprints.length > 0 ? (
-                        blueprints.map(b => <BlueprintItem key={b.id} blueprint={b} />)
-                    ) : (
-                        <div className="py-20 text-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/20">
-                            <Cpu className="h-12 w-12 text-zinc-800 mx-auto mb-4" />
-                            <h3 className="text-zinc-400 font-medium">No blueprints found</h3>
-                            <p className="text-zinc-600 text-sm mt-1">Create runtime or network blueprints to get started.</p>
+                <Tabs defaultValue="templates" className="w-full">
+                    <TabsList>
+                        <TabsTrigger value="templates">Templates ({templates.length})</TabsTrigger>
+                        <TabsTrigger value="runtime">Runtime Blueprints ({runtimeBlueprints.length})</TabsTrigger>
+                        <TabsTrigger value="network">Network Blueprints ({networkBlueprints.length})</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="templates">
+                        <div className="flex justify-end mb-4">
+                            <Button
+                                className="bg-primary hover:bg-primary/90 text-white h-10 px-4 rounded-xl font-bold shadow-lg shadow-primary/10"
+                                onClick={() => setIsTemplateOpen(true)}
+                            >
+                                <Plus className="mr-2 h-4 w-4" /> New Template
+                            </Button>
                         </div>
-                    )}
-                </div>
+                        {templates.length > 0 ? (
+                            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                                {templates.map(t => <TemplateCard key={t.id} template={t} baseUpdatedAt={baseUpdatedAt} />)}
+                            </div>
+                        ) : (
+                            <div className="py-20 text-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/20">
+                                <Boxes className="h-12 w-12 text-zinc-800 mx-auto mb-4" />
+                                <h3 className="text-zinc-400 font-medium">No templates found</h3>
+                                <p className="text-zinc-600 text-sm mt-1">Compose your first template using blueprints.</p>
+                            </div>
+                        )}
+                    </TabsContent>
+
+                    <TabsContent value="runtime">
+                        <div className="flex justify-end mb-4">
+                            <Button
+                                variant="outline"
+                                className="bg-zinc-900 border-zinc-800 text-white h-10 px-4 rounded-xl"
+                                onClick={() => { setBlueprintDialogType('RUNTIME'); setBlueprintDialogOpen(true); }}
+                            >
+                                <Plus className="mr-2 h-4 w-4" /> New Runtime Blueprint
+                            </Button>
+                        </div>
+                        {runtimeBlueprints.length > 0 ? (
+                            <div className="space-y-3">
+                                {runtimeBlueprints.map(b => <BlueprintItem key={b.id} blueprint={b} />)}
+                            </div>
+                        ) : (
+                            <BlueprintEmptyState type="RUNTIME" />
+                        )}
+                    </TabsContent>
+
+                    <TabsContent value="network">
+                        <div className="flex justify-end mb-4">
+                            <Button
+                                variant="outline"
+                                className="bg-zinc-900 border-zinc-800 text-white h-10 px-4 rounded-xl"
+                                onClick={() => { setBlueprintDialogType('NETWORK'); setBlueprintDialogOpen(true); }}
+                            >
+                                <Plus className="mr-2 h-4 w-4" /> New Network Blueprint
+                            </Button>
+                        </div>
+                        {networkBlueprints.length > 0 ? (
+                            <div className="space-y-3">
+                                {networkBlueprints.map(b => <BlueprintItem key={b.id} blueprint={b} />)}
+                            </div>
+                        ) : (
+                            <BlueprintEmptyState type="NETWORK" />
+                        )}
+                    </TabsContent>
+                </Tabs>
             )}
 
-            <CreateBlueprintDialog open={isBlueprintOpen} onOpenChange={setIsBlueprintOpen} />
+            <CreateBlueprintDialog
+                open={blueprintDialogOpen}
+                onOpenChange={setBlueprintDialogOpen}
+                presetType={blueprintDialogType}
+            />
             <CreateTemplateDialog open={isTemplateOpen} onOpenChange={setIsTemplateOpen} />
         </div>
     );

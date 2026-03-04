@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Plus, X, Globe, Cpu, ShieldCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -12,11 +12,12 @@ import { authenticatedFetch } from '../auth';
 interface CreateBlueprintDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    presetType?: 'RUNTIME' | 'NETWORK';
 }
 
-export const CreateBlueprintDialog = ({ open, onOpenChange }: CreateBlueprintDialogProps) => {
+export const CreateBlueprintDialog = ({ open, onOpenChange, presetType }: CreateBlueprintDialogProps) => {
     const queryClient = useQueryClient();
-    const [type, setType] = useState<'RUNTIME' | 'NETWORK'>('RUNTIME');
+    const [type, setType] = useState<'RUNTIME' | 'NETWORK'>(presetType || 'RUNTIME');
     const [name, setName] = useState('');
     
     // Runtime Fields
@@ -30,6 +31,10 @@ export const CreateBlueprintDialog = ({ open, onOpenChange }: CreateBlueprintDia
     const [managementBypass] = useState(true);
     const [egressRules, setEgressRules] = useState<{type: string, value: string, port: number, desc: string}[]>([]);
     const [newRule, setNewRule] = useState({type: 'url', value: '', port: 443, desc: ''});
+
+    useEffect(() => {
+        if (presetType) setType(presetType);
+    }, [presetType]);
 
     const { data: matrix = [] } = useQuery({
         queryKey: ['capability-matrix'],
@@ -98,22 +103,24 @@ export const CreateBlueprintDialog = ({ open, onOpenChange }: CreateBlueprintDia
                 </DialogHeader>
 
                 <div className="grid gap-6 py-4">
-                    <div className="flex gap-2 p-1 bg-zinc-900 rounded-lg">
-                        <Button 
-                            variant={type === 'RUNTIME' ? 'default' : 'ghost'} 
-                            className="flex-1"
-                            onClick={() => setType('RUNTIME')}
-                        >
-                            <Cpu className="mr-2 h-4 w-4" /> Runtime
-                        </Button>
-                        <Button 
-                            variant={type === 'NETWORK' ? 'default' : 'ghost'} 
-                            className="flex-1"
-                            onClick={() => setType('NETWORK')}
-                        >
-                            <Globe className="mr-2 h-4 w-4" /> Network
-                        </Button>
-                    </div>
+                    {!presetType && (
+                        <div className="flex gap-2 p-1 bg-zinc-900 rounded-lg">
+                            <Button
+                                variant={type === 'RUNTIME' ? 'default' : 'ghost'}
+                                className="flex-1"
+                                onClick={() => setType('RUNTIME')}
+                            >
+                                <Cpu className="mr-2 h-4 w-4" /> Runtime
+                            </Button>
+                            <Button
+                                variant={type === 'NETWORK' ? 'default' : 'ghost'}
+                                className="flex-1"
+                                onClick={() => setType('NETWORK')}
+                            >
+                                <Globe className="mr-2 h-4 w-4" /> Network
+                            </Button>
+                        </div>
+                    )}
 
                     <div className="grid gap-2">
                         <Label htmlFor="name">Blueprint Name</Label>

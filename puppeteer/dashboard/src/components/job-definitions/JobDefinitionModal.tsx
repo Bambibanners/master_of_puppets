@@ -1,8 +1,10 @@
+import { useEffect } from 'react';
 import {
     Code2,
     Info,
     Tag,
     Cpu,
+    AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,6 +43,18 @@ interface JobDefinitionFormData {
     capability_requirements: string;
 }
 
+interface EditingJob {
+    id: string;
+    name: string;
+    script_content: string;
+    signature_id: string;
+    signature_payload: string;
+    schedule_cron: string | null;
+    target_node_id: string | null;
+    target_tags: string[] | null;
+    capability_requirements: Record<string, string> | null;
+}
+
 interface JobDefinitionModalProps {
     isOpen: boolean;
     onClose: (open: boolean) => void;
@@ -48,6 +62,7 @@ interface JobDefinitionModalProps {
     formData: JobDefinitionFormData;
     setFormData: (data: JobDefinitionFormData) => void;
     signatures: Signature[];
+    editingJob?: EditingJob | null;
 }
 
 const JobDefinitionModal = ({
@@ -56,18 +71,39 @@ const JobDefinitionModal = ({
     onSubmit,
     formData,
     setFormData,
-    signatures
+    signatures,
+    editingJob,
 }: JobDefinitionModalProps) => {
+    useEffect(() => {
+        if (!editingJob) return;
+        setFormData({
+            name: editingJob.name,
+            script_content: editingJob.script_content,
+            signature: editingJob.signature_payload,
+            signature_id: editingJob.signature_id,
+            schedule_cron: editingJob.schedule_cron ?? '',
+            target_node_id: editingJob.target_node_id ?? '',
+            target_tags: (editingJob.target_tags ?? []).join(', '),
+            capability_requirements: Object.entries(editingJob.capability_requirements ?? {})
+                .map(([k, v]) => `${k}:${v}`)
+                .join(', '),
+        });
+    }, [editingJob]);
+
+    const isEditMode = !!editingJob;
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="bg-zinc-925 border-zinc-800 text-white sm:max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold">
                         <Code2 className="h-5 w-5 text-primary" />
-                        Seal & Schedule Payload
+                        {isEditMode ? 'Edit Job Definition' : 'Seal & Schedule Payload'}
                     </DialogTitle>
                     <DialogDescription className="text-zinc-500">
-                        Create an immutable, cryptographically signed Python job. Every byte of the script is verified at runtime by the puppet nodes.
+                        {isEditMode
+                            ? 'Update the job definition. If you change the script content, you must provide a new signature.'
+                            : 'Create an immutable, cryptographically signed Python job. Every byte of the script is verified at runtime by the puppet nodes.'}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -160,6 +196,14 @@ const JobDefinitionModal = ({
                                 required
                                 aria-describedby="signature-help"
                             />
+                            {isEditMode && (
+                                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-950/30 border border-amber-800/50">
+                                    <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
+                                    <p className="text-xs text-amber-400 leading-normal">
+                                        If you change the script content, you must provide a new signature. The server will reject any payload where the signature doesn't match.
+                                    </p>
+                                </div>
+                            )}
                             <div className="flex items-start gap-2 p-3 rounded-lg bg-zinc-900 border border-zinc-800" id="signature-help">
                                 <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" aria-hidden="true" />
                                 <p className="text-xs text-zinc-500 leading-normal">
@@ -190,7 +234,7 @@ const JobDefinitionModal = ({
                     <DialogFooter className="col-span-full pt-4 border-t border-zinc-800 mt-2">
                         <Button type="button" variant="ghost" onClick={() => onClose(false)} className="text-zinc-500">Abandon</Button>
                         <Button type="submit" className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-8 rounded-xl ring-2 ring-primary/20 ring-offset-2 ring-offset-zinc-925">
-                            Seal and Register
+                            {isEditMode ? 'Save Changes' : 'Seal and Register'}
                         </Button>
                     </DialogFooter>
                 </form>

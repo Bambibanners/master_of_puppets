@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Network } from 'lucide-react';
+import { Network, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { login } from '../auth';
 
@@ -8,15 +8,20 @@ const Login = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError('');
+        setIsLoading(true);
         try {
             await login(username, password);
             navigate('/');
         } catch (err) {
-            setError('Invalid Credentials');
+            setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -32,8 +37,9 @@ const Login = () => {
                 </div>
 
                 {error && (
-                    <div className="bg-destructive/10 border border-destructive/20 text-destructive text-xs py-3 px-4 rounded-lg text-center font-medium animate-in fade-in slide-in-from-top-1">
-                        {error}
+                    <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/30 text-red-400 text-sm py-3 px-4 rounded-lg animate-in fade-in slide-in-from-top-1">
+                        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                        <span>{error}</span>
                     </div>
                 )}
 
@@ -45,7 +51,8 @@ const Login = () => {
                             value={username}
                             onChange={e => setUsername(e.target.value)}
                             placeholder="admin"
-                            className="w-full h-11 px-4 bg-zinc-900 border border-zinc-800 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all placeholder:text-zinc-700"
+                            disabled={isLoading}
+                            className="w-full h-11 px-4 bg-zinc-900 border border-zinc-800 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all placeholder:text-zinc-700 disabled:opacity-50"
                         />
                     </div>
                     <div className="space-y-2">
@@ -55,11 +62,21 @@ const Login = () => {
                             value={password}
                             onChange={e => setPassword(e.target.value)}
                             placeholder="••••••••"
-                            className="w-full h-11 px-4 bg-zinc-900 border border-zinc-800 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all placeholder:text-zinc-700"
+                            disabled={isLoading}
+                            className="w-full h-11 px-4 bg-zinc-900 border border-zinc-800 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all placeholder:text-zinc-700 disabled:opacity-50"
                         />
                     </div>
-                    <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-[0.98]">
-                        Enter Control Plane
+                    <Button
+                        type="submit"
+                        disabled={isLoading || !username || !password}
+                        className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+                    >
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Signing in…
+                            </>
+                        ) : 'Login'}
                     </Button>
                 </form>
 

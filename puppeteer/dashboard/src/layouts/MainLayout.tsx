@@ -14,6 +14,7 @@ import {
     Users,
     KeyRound,
     CalendarClock,
+    Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -168,6 +169,7 @@ const MainLayout = () => {
                     </div>
                     <NavItem to="/admin" icon={Settings} label="Settings" />
                     <NavItem to="/users" icon={Users} label="Users & Roles" />
+                    <NavItem to="/service-principals" icon={Bot} label="Service Principals" />
                     <NavItem to="/audit" icon={ScrollText} label="Audit Log" />
                 </nav>
             </div>
@@ -227,7 +229,7 @@ const MainLayout = () => {
                                     Signed in as <span className="text-white font-medium">{user?.username}</span>
                                 </DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => navigate('/users')}>
+                                <DropdownMenuItem onClick={() => navigate('/account')}>
                                     My Account
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />

@@ -21,15 +21,34 @@ export const login = async (username: string, password: string): Promise<LoginRe
     params.append('username', username);
     params.append('password', password);
 
-    const res = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: params
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
 
-    if (!res.ok) throw new Error("Login failed");
+    let res: Response;
+    try {
+        res = await fetch(`${API_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params,
+            signal: controller.signal,
+        });
+    } catch (e: unknown) {
+        clearTimeout(timeout);
+        if (e instanceof Error && e.name === 'AbortError') {
+            throw new Error('Connection timed out — is the server reachable?');
+        }
+        throw new Error('Network error — could not reach the server');
+    }
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+        let detail = `Login failed (${res.status})`;
+        try {
+            const body = await res.json();
+            if (body.detail) detail = body.detail;
+        } catch { /* non-JSON error body */ }
+        throw new Error(detail);
+    }
 
     const data: LoginResponse = await res.json();
     localStorage.setItem(TOKEN_KEY, data.access_token);

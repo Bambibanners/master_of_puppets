@@ -6,23 +6,38 @@ import { authenticatedFetch } from '../auth';
 import JobDefinitionList from '../components/job-definitions/JobDefinitionList';
 import JobDefinitionModal from '../components/job-definitions/JobDefinitionModal';
 
+interface EditingJob {
+    id: string;
+    name: string;
+    script_content: string;
+    signature_id: string;
+    signature_payload: string;
+    schedule_cron: string | null;
+    target_node_id: string | null;
+    target_tags: string[] | null;
+    capability_requirements: Record<string, string> | null;
+}
+
+const EMPTY_FORM = {
+    name: '',
+    script_content: '',
+    signature: '',
+    signature_id: '',
+    schedule_cron: '* * * * *',
+    target_node_id: '',
+    target_tags: '',
+    capability_requirements: '',
+};
+
 const JobDefinitions = () => {
     const [definitions, setDefinitions] = useState([]);
     const [executions, setExecutions] = useState([]);
     const [signatures, setSignatures] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [editingJob, setEditingJob] = useState<EditingJob | null>(null);
 
-    const [formData, setFormData] = useState({
-        name: '',
-        script_content: '',
-        signature: '',
-        signature_id: '',
-        schedule_cron: '* * * * *',
-        target_node_id: '',
-        target_tags: '',
-        capability_requirements: '',
-    });
+    const [formData, setFormData] = useState(EMPTY_FORM);
 
     useEffect(() => {
         loadData();
@@ -64,32 +79,52 @@ const JobDefinitions = () => {
         }
     };
 
+    const handleEdit = async (id: string) => {
+        try {
+            const res = await authenticatedFetch(`/jobs/definitions/${id}`);
+            if (!res.ok) {
+                const err = await res.json();
+                toast.error(err.detail || 'Failed to load job definition');
+                return;
+            }
+            const data = await res.json();
+            setEditingJob(data);
+            setShowModal(true);
+        } catch (e) {
+            console.error(e);
+            toast.error('Failed to load job definition');
+        }
+    };
+
+    const buildPayload = () => {
+        const tags = formData.target_tags.trim()
+            ? formData.target_tags.split(',').map(t => t.trim()).filter(Boolean)
+            : undefined;
+        const caps = formData.capability_requirements.trim()
+            ? Object.fromEntries(
+                formData.capability_requirements.split(',')
+                    .map(s => s.trim().split(':').map(p => p.trim()))
+                    .filter(parts => parts.length === 2 && parts[0])
+              )
+            : undefined;
+        return { ...formData, target_tags: tags, capability_requirements: caps };
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (editingJob) {
+            await handleUpdate(editingJob.id);
+            return;
+        }
         try {
-            const tags = formData.target_tags.trim()
-                ? formData.target_tags.split(',').map(t => t.trim()).filter(Boolean)
-                : undefined;
-            const caps = formData.capability_requirements.trim()
-                ? Object.fromEntries(
-                    formData.capability_requirements.split(',')
-                        .map(s => s.trim().split(':').map(p => p.trim()))
-                        .filter(parts => parts.length === 2 && parts[0])
-                  )
-                : undefined;
-            const body = {
-                ...formData,
-                target_tags: tags,
-                capability_requirements: caps,
-            };
             const res = await authenticatedFetch('/jobs/definitions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+                body: JSON.stringify(buildPayload())
             });
             if (res.ok) {
                 toast.success('Job definition created successfully');
-                setShowModal(false);
+                closeModal();
                 loadData();
             } else {
                 const err = await res.json();
@@ -97,8 +132,40 @@ const JobDefinitions = () => {
             }
         } catch (e) {
             console.error(e);
-            toast.error("Submission Error");
+            toast.error('Submission Error');
         }
+    };
+
+    const handleUpdate = async (id: string) => {
+        try {
+            const res = await authenticatedFetch(`/jobs/definitions/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(buildPayload())
+            });
+            if (res.ok) {
+                toast.success('Job definition updated successfully');
+                closeModal();
+                loadData();
+            } else {
+                const err = await res.json();
+                toast.error(err.detail || 'Failed to update job definition');
+            }
+        } catch (e) {
+            console.error(e);
+            toast.error('Update Error');
+        }
+    };
+
+    const openCreateModal = () => {
+        setEditingJob(null);
+        setFormData(EMPTY_FORM);
+        setShowModal(true);
+    };
+
+    const closeModal = () => {
+        setShowModal(false);
+        setEditingJob(null);
     };
 
     if (loading) return (
@@ -115,21 +182,22 @@ const JobDefinitions = () => {
                     <h1 className="text-2xl font-bold tracking-tight text-white">Scheduled Jobs</h1>
                     <p className="text-sm text-zinc-500 mt-1">Signed, zero-trust recurring payloads.</p>
                 </div>
-                <Button onClick={() => setShowModal(true)} className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-6 rounded-xl shadow-lg shadow-primary/10">
+                <Button onClick={openCreateModal} className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-6 rounded-xl shadow-lg shadow-primary/10">
                     <Plus className="mr-2 h-4 w-4" />
                     Archive New Payload
                 </Button>
             </div>
 
-            <JobDefinitionList definitions={definitions} executions={executions} onDelete={handleDelete} onToggle={handleToggle} />
+            <JobDefinitionList definitions={definitions} executions={executions} onDelete={handleDelete} onToggle={handleToggle} onEdit={handleEdit} />
 
             <JobDefinitionModal
                 isOpen={showModal}
-                onClose={setShowModal}
+                onClose={(open) => { if (!open) closeModal(); }}
                 onSubmit={handleSubmit}
                 formData={formData}
                 setFormData={setFormData}
                 signatures={signatures}
+                editingJob={editingJob}
             />
         </div>
     );

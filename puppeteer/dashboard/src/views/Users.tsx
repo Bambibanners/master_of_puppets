@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, Trash2, ChevronDown, ChevronRight, Plus, X, Shield, KeyRound, User, RotateCcw, AlertTriangle } from 'lucide-react';
+import { UserPlus, Trash2, ChevronDown, ChevronRight, Plus, X, Shield, KeyRound, RotateCcw, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { setToken } from '../auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -145,108 +144,6 @@ const RolePanel = ({ role }: { role: string }) => {
                 </div>
             )}
         </div>
-    );
-};
-
-// ── My Account ───────────────────────────────────────────────────────────────
-
-const MyAccount = () => {
-    const [currentPw, setCurrentPw] = useState('');
-    const [newPw, setNewPw] = useState('');
-    const [confirmPw, setConfirmPw] = useState('');
-    const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
-
-    const { data: me } = useQuery({
-        queryKey: ['me'],
-        queryFn: async () => {
-            const res = await authenticatedFetch('/auth/me');
-            return res.json() as Promise<{ username: string; role: string }>;
-        },
-    });
-
-    const changePw = useMutation({
-        mutationFn: async () => {
-            const res = await authenticatedFetch('/auth/me', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password: newPw, current_password: currentPw }),
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.detail || 'Failed');
-            }
-            return res.json() as Promise<{ access_token?: string }>;
-        },
-        onSuccess: (data) => {
-            if (data?.access_token) setToken(data.access_token);
-            setCurrentPw(''); setNewPw(''); setConfirmPw('');
-            setMsg({ type: 'ok', text: 'Password updated successfully.' });
-        },
-        onError: (e: Error) => setMsg({ type: 'err', text: e.message }),
-    });
-
-    const canSubmit = currentPw.length > 0 && newPw.length >= 8 && newPw === confirmPw;
-
-    return (
-        <Card className="bg-zinc-925 border-zinc-800/50">
-            <CardHeader>
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <User className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                        <CardTitle className="text-lg font-bold text-white">My Account</CardTitle>
-                        <CardDescription className="text-zinc-500">
-                            {me ? (
-                                <span className="font-mono">{me.username} · <span className={`${roleBadge(me.role).split(' ')[1]}`}>{me.role}</span></span>
-                            ) : '—'}
-                        </CardDescription>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <div className="space-y-3 max-w-sm">
-                    <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
-                        <KeyRound className="h-3.5 w-3.5" /> Change Password
-                    </p>
-                    <Input
-                        type="password"
-                        placeholder="Current password"
-                        value={currentPw}
-                        onChange={e => setCurrentPw(e.target.value)}
-                        className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
-                    />
-                    <Input
-                        type="password"
-                        placeholder="New password (min 8 chars)"
-                        value={newPw}
-                        onChange={e => { setNewPw(e.target.value); setMsg(null); }}
-                        className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
-                    />
-                    <Input
-                        type="password"
-                        placeholder="Confirm new password"
-                        value={confirmPw}
-                        onChange={e => { setConfirmPw(e.target.value); setMsg(null); }}
-                        className={`bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600 ${confirmPw && confirmPw !== newPw ? 'border-red-500/50' : ''}`}
-                    />
-                    {confirmPw && confirmPw !== newPw && (
-                        <p className="text-xs text-red-400">Passwords don't match</p>
-                    )}
-                    {msg && (
-                        <p className={`text-xs ${msg.type === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>{msg.text}</p>
-                    )}
-                    <Button
-                        onClick={() => changePw.mutate()}
-                        disabled={!canSubmit || changePw.isPending}
-                        className="bg-primary hover:bg-primary/90 text-white font-bold"
-                        size="sm"
-                    >
-                        {changePw.isPending ? 'Updating…' : 'Update Password'}
-                    </Button>
-                </div>
-            </CardContent>
-        </Card>
     );
 };
 
@@ -489,8 +386,6 @@ const Users = () => {
                 <h1 className="text-2xl font-bold tracking-tight text-white">Users & Roles</h1>
                 <p className="text-sm text-zinc-500 mt-1">Manage operator accounts and configure role permissions.</p>
             </div>
-
-            <MyAccount />
 
             {/* ── Users Table ── */}
             <Card className="bg-zinc-925 border-zinc-800/50">

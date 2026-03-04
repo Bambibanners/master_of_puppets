@@ -6,6 +6,7 @@ import {
     Trash2,
     PlayCircle,
     PauseCircle,
+    Pencil,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import {
@@ -38,9 +39,10 @@ interface JobDefinitionListProps {
     executions: Execution[];
     onDelete: (id: string) => void;
     onToggle: (id: string) => void;
+    onEdit: (id: string) => void;
 }
 
-const JobDefinitionList = ({ definitions, executions, onDelete, onToggle }: JobDefinitionListProps) => {
+const JobDefinitionList = ({ definitions, executions, onDelete, onToggle, onEdit }: JobDefinitionListProps) => {
     const getSparklineData = (defId: string) => {
         return executions
             .filter(e => e.scheduled_job_id === defId)
@@ -138,6 +140,15 @@ const JobDefinitionList = ({ definitions, executions, onDelete, onToggle }: JobD
                                                 ? <PauseCircle className="h-3.5 w-3.5" />
                                                 : <PlayCircle className="h-3.5 w-3.5" />
                                             }
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-md"
+                                            onClick={() => onEdit(def.id)}
+                                            title="Edit"
+                                        >
+                                            <Pencil className="h-3.5 w-3.5" />
                                         </Button>
                                         <Button
                                             variant="ghost"

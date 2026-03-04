@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ScrollText } from 'lucide-react';
+import { ScrollText, Bot } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { authenticatedFetch } from '../auth';
@@ -100,7 +100,12 @@ const AuditLog = () => {
                                         {new Date(entry.timestamp).toLocaleString()}
                                     </td>
                                     <td className="px-4 py-2.5 font-mono text-[11px] text-zinc-300">
-                                        {entry.username}
+                                        {entry.username.startsWith('sp:') ? (
+                                            <span className="flex items-center gap-1.5">
+                                                <Bot className="h-3.5 w-3.5 text-blue-400" />
+                                                <span className="text-blue-300">{entry.username.slice(3)}</span>
+                                            </span>
+                                        ) : entry.username}
                                     </td>
                                     <td className="px-4 py-2.5 font-mono text-[11px]">
                                         <span className={ACTION_COLOR[entry.action] ?? 'text-zinc-400'}>
