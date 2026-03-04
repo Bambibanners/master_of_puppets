@@ -9,6 +9,7 @@ import base64
 import threading
 import psutil
 import time
+from datetime import datetime, timezone
 from typing import Optional, Dict, List
 from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
 from cryptography.hazmat.primitives import serialization, hashes
@@ -30,6 +31,19 @@ def parse_bytes(s: str) -> int:
     elif s.endswith('k'):
         return int(s[:-1]) * 1024
     return int(s)
+
+
+def build_output_log(stdout: str, stderr: str) -> list:
+    """Split stdout/stderr into per-line timestamped entries for execution_records."""
+    ts = datetime.now(timezone.utc).isoformat()
+    lines = []
+    for line in (stdout or "").splitlines():
+        if line.strip():
+            lines.append({"t": ts, "stream": "stdout", "line": line})
+    for line in (stderr or "").splitlines():
+        if line.strip():
+            lines.append({"t": ts, "stream": "stderr", "line": line})
+    return lines
 
 load_dotenv()
 
@@ -394,26 +408,26 @@ class Node:
             signature = payload.get("signature")
             
             if not script or not signature:
-                 await self.report_result(guid, False, {"error": "Missing script or signature"})
+                 await self.report_result(guid, False, {"error": "Missing script or signature"}, security_rejected=True)
                  return
-            
+
             # Verify Signature
             if not os.path.exists(self.verify_key_path):
                  print(f"[{self.node_id}] ❌ CRITICAL: Verification Key missing. Cannot verify signature.")
-                 await self.report_result(guid, False, {"error": "Security Check Failed: Verification Key missing"})
+                 await self.report_result(guid, False, {"error": "Security Check Failed: Verification Key missing"}, security_rejected=True)
                  return
-                 
+
             try:
                 with open(self.verify_key_path, "rb") as f:
                      public_key_bytes = f.read()
                      public_key = serialization.load_pem_public_key(public_key_bytes)
-                     
+
                 sig_bytes = base64.b64decode(signature)
                 public_key.verify(sig_bytes, script.encode('utf-8'))
                 print(f"[{self.node_id}] ✅ Signature Verified for Job {guid}")
             except Exception as e:
                 print(f"[{self.node_id}] ❌ Signature Verification FAILED for Job {guid}: {e}")
-                await self.report_result(guid, False, {"error": "Signature Verification Failed"})
+                await self.report_result(guid, False, {"error": "Signature Verification Failed"}, security_rejected=True)
                 return
             
             # Prepare Environment
@@ -459,19 +473,23 @@ class Node:
                 )
                 
                 success = (result["exit_code"] == 0)
-                
+
                 runtime_report = {
                     "exit_code": result["exit_code"],
                     "stdout": result["stdout"],
                     "stderr": result["stderr"]
                 }
-                
-                # Check if Sidecar already handled it? 
+
+                output_log = build_output_log(result.get("stdout", ""), result.get("stderr", ""))
+                exit_code = result["exit_code"]
+
+                # Check if Sidecar already handled it?
                 # We can't easily know in this stateless flow without global tracking.
                 # However, reporting again is usually safe if DB handles it (Update WHERE guid=...)
                 # We report the container output.
-                
-                await self.report_result(guid, success, runtime_report)
+
+                await self.report_result(guid, success, runtime_report,
+                                         output_log=output_log, exit_code=exit_code)
                 
             except Exception as e:
                  print(f"[{self.node_id}] Runtime Execution Failed: {e}")
@@ -482,7 +500,8 @@ class Node:
              await asyncio.sleep(2)
              await self.report_result(guid, True, {"processed": True})
 
-    async def report_result(self, guid: str, success: bool, result: Dict):
+    async def report_result(self, guid: str, success: bool, result: Dict,
+                            output_log=None, exit_code=None, security_rejected=False):
         try:
             async with httpx.AsyncClient(
                 verify=VERIFY_SSL,
@@ -491,7 +510,13 @@ class Node:
                 secret_hash = get_node_secret_hash()
                 await client.post(
                     f"{self.agent_url}/work/{guid}/result",
-                    json={"success": success, "result": result},
+                    json={
+                        "success": success,
+                        "result": result,
+                        "output_log": output_log,
+                        "exit_code": exit_code,
+                        "security_rejected": security_rejected,
+                    },
                     headers={
                         API_KEY_NAME: API_KEY,
                         "X-Node-ID": self.node_id,
