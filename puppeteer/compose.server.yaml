@@ -23,7 +23,7 @@ services:
     build:
       context: ./cert-manager
     ports:
-      - "8080:80"
+      - "80:80"
       - "8443:443"
       # Expose internal API port if needed, or keep internal only
     volumes:
@@ -110,6 +110,15 @@ services:
       - "5000:5000"
     volumes:
       - registry-data:/var/lib/registry
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: always
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - cert-manager
 
 volumes:
   pgdata:
