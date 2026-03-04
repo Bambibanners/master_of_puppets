@@ -46,7 +46,7 @@ from sqlalchemy.future import select
 from sqlalchemy import update, desc, func, delete
 from collections import defaultdict
 from cryptography import x509 as _x509
-from .db import init_db, get_db, Job, Token, Config, User, Node, NodeStats, AsyncSession, Signature, ScheduledJob, Ping, AsyncSessionLocal, CapabilityMatrix, Blueprint, PuppetTemplate, RolePermission, AuditLog, RevokedCert, UserSigningKey, UserApiKey, ServicePrincipal
+from .db import init_db, get_db, Job, Token, Config, User, Node, NodeStats, AsyncSession, Signature, ScheduledJob, Ping, AsyncSessionLocal, CapabilityMatrix, Blueprint, PuppetTemplate, RolePermission, AuditLog, RevokedCert, UserSigningKey, UserApiKey, ServicePrincipal, ExecutionRecord
 from .auth import verify_password, get_password_hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from .services.job_service import JobService
 from .services.signature_service import SignatureService
@@ -1007,6 +1007,37 @@ async def cancel_job(guid: str, current_user: User = Depends(require_permission(
     await db.commit()
     await ws_manager.broadcast("job:updated", {"guid": guid, "status": "CANCELLED"})
     return {"status": "cancelled", "guid": guid}
+
+@app.get("/jobs/{guid}/executions")
+async def list_executions(
+    guid: str,
+    current_user: User = Depends(require_permission("jobs:read")),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(ExecutionRecord)
+        .where(ExecutionRecord.job_guid == guid)
+        .order_by(ExecutionRecord.id.desc())
+    )
+    records = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "job_guid": r.job_guid,
+            "node_id": r.node_id,
+            "status": r.status,
+            "exit_code": r.exit_code,
+            "started_at": r.started_at,
+            "completed_at": r.completed_at,
+            "output_log": json.loads(r.output_log) if r.output_log else [],
+            "truncated": r.truncated,
+            "duration_seconds": (
+                (r.completed_at - r.started_at).total_seconds()
+                if r.started_at and r.completed_at else None
+            )
+        }
+        for r in records
+    ]
 
 @app.post("/work/pull", response_model=PollResponse)
 async def pull_work(request: Request, node_id: str = Depends(verify_node_secret), api_key: str = Depends(verify_api_key), db: AsyncSession = Depends(get_db)):
