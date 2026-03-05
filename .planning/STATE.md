@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-05T11:25:43Z"
+last_updated: "2026-03-05T11:28:00Z"
 progress:
   total_phases: 1
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 5
+  completed_plans: 5
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 1 of 5 (Output Capture)
-Plan: 4 of 4 in current phase (01-01, 01-02, 01-03, 01-04 complete — gap closure in progress)
-Status: Phase 1 gap closure in progress (01-04 complete, 01-05 pending)
-Last activity: 2026-03-05 — Plan 01-04 complete: pr-8 padding fix on ExecutionLogModal action row clears X button overlap
+Plan: 5 of 5 in current phase (01-01, 01-02, 01-03, 01-04, 01-05 complete — Phase 1 + gap closure DONE)
+Status: Phase 1 complete (including gap closure plans 04 and 05)
+Last activity: 2026-03-05 — Plan 01-05 complete: server-side status filter for GET /jobs — filteredJobs client-side array removed
 
-Progress: [███░░░░░░░] 21% (4 of 19 plans complete)
+Progress: [███░░░░░░░] 22% (5 of 19 plans complete)
 
 ## Performance Metrics
 
@@ -40,10 +40,10 @@ Progress: [███░░░░░░░] 21% (4 of 19 plans complete)
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-output-capture | 4/4 complete | 10 min | 2.5 min |
+| 01-output-capture | 5/5 complete | 13 min | 2.6 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (3 min), 01-02 (3 min), 01-03 (3 min), 01-04 (1 min)
+- Last 5 plans: 01-01 (3 min), 01-02 (3 min), 01-03 (3 min), 01-04 (1 min), 01-05 (3 min)
 - Trend: consistent
 
 *Updated after each plan completion*
@@ -67,6 +67,8 @@ Recent decisions affecting current work:
 - [Phase 01-output-capture]: 01-02: build_output_log filters whitespace-only lines to avoid blank entries in execution_records
 - [Phase 01-output-capture]: 01-02: job.result stores only minimal summary (exit_code or flight_recorder) — stdout/stderr exclusively in execution_records.output_log
 - [Phase 01-output-capture]: 01-04: pr-8 (2rem) clears shadcn DialogPrimitive.Close at right-4; action rows inside DialogContent should use pr-8 when flush to right edge
+- [Phase 01-output-capture]: 01-05: Status filter is server-side — filteredJobs client-side array removed; text/GUID search kept as client-side within-page filter only
+- [Phase 01-output-capture]: 01-05: onValueChange calls fetchJobs(0, v) directly to avoid stale closure on React state update cycle
 
 ### Pending Todos
 
@@ -82,6 +84,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-05
-Stopped at: Completed 01-04-PLAN.md — Copy button overlap fix (pr-8 on ExecutionLogModal action row)
+Stopped at: Completed 01-05-PLAN.md — Phase 1 (Output Capture) fully complete including gap closure plans 04+05
 Resume file: None
-Next plan: .planning/phases/01-output-capture/01-05-PLAN.md (gap closure 05: server-side status filter)
+Next plan: .planning/phases/02-retry/ (Phase 2)
