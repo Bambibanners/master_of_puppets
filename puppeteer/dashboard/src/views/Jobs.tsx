@@ -151,7 +151,7 @@ const ExecutionLogModal = ({ guid, open, onClose }: {
                                 </>
                             )}
                         </DialogTitle>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 pr-8">
                             {executions.length > 1 && (
                                 <select
                                     className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs rounded px-2 py-1"
