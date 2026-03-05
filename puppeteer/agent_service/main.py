@@ -970,13 +970,16 @@ async def health_check():
     return {"status": "healthy", "service": "Agent Service v0.7"}
 
 @app.get("/jobs", response_model=List[JobResponse])
-async def list_jobs(skip: int = 0, limit: int = 50, current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
-    return await JobService.list_jobs(db, skip=skip, limit=limit)
+async def list_jobs(skip: int = 0, limit: int = 50, status: Optional[str] = None, current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
+    return await JobService.list_jobs(db, skip=skip, limit=limit, status=status)
 
 @app.get("/jobs/count")
-async def count_jobs(current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
+async def count_jobs(status: Optional[str] = None, current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
     from sqlalchemy import func as sqlfunc
-    result = await db.execute(select(sqlfunc.count()).select_from(Job).where(Job.task_type != 'system_heartbeat'))
+    query = select(sqlfunc.count()).select_from(Job).where(Job.task_type != 'system_heartbeat')
+    if status and status.upper() != 'ALL':
+        query = query.where(Job.status == status.upper())
+    result = await db.execute(query)
     return {"total": result.scalar()}
 
 @app.get("/api/jobs/stats")

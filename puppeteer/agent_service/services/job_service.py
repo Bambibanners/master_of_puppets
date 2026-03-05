@@ -32,12 +32,13 @@ def parse_bytes(s: str) -> int:
 
 class JobService:
     @staticmethod
-    async def list_jobs(db: AsyncSession, skip: int = 0, limit: int = 50) -> List[dict]:
+    async def list_jobs(db: AsyncSession, skip: int = 0, limit: int = 50, status: Optional[str] = None) -> List[dict]:
         """For the Dashboard. Filters system jobs by default."""
-        result = await db.execute(
-            select(Job).where(Job.task_type != 'system_heartbeat') \
-            .order_by(desc(Job.created_at)).offset(skip).limit(limit)
-        )
+        query = select(Job).where(Job.task_type != 'system_heartbeat')
+        if status and status.upper() != 'ALL':
+            query = query.where(Job.status == status.upper())
+        query = query.order_by(desc(Job.created_at)).offset(skip).limit(limit)
+        result = await db.execute(query)
         jobs = result.scalars().all()
         
         response_jobs = []
