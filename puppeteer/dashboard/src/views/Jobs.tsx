@@ -345,11 +345,12 @@ const Jobs = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [logModalGuid, setLogModalGuid] = useState<string | null>(null);
 
-    const fetchJobs = async (p = page) => {
+    const fetchJobs = async (p = page, status = filterStatus) => {
         try {
+            const statusParam = status !== 'all' ? `&status=${status}` : '';
             const [jobsRes, countRes] = await Promise.all([
-                authenticatedFetch(`/jobs?skip=${p * PAGE_SIZE}&limit=${PAGE_SIZE}`),
-                authenticatedFetch('/jobs/count'),
+                authenticatedFetch(`/jobs?skip=${p * PAGE_SIZE}&limit=${PAGE_SIZE}${statusParam}`),
+                authenticatedFetch(`/jobs/count${status !== 'all' ? `?status=${status}` : ''}`),
             ]);
             if (jobsRes.ok) setJobs(await jobsRes.json());
             if (countRes.ok) { const d = await countRes.json(); setTotal(d.total); }
@@ -362,13 +363,13 @@ const Jobs = () => {
     };
 
     useEffect(() => {
-        fetchJobs(page);
-        const interval = setInterval(() => fetchJobs(page), 10000);
+        fetchJobs(0, filterStatus);
+        const interval = setInterval(() => fetchJobs(page, filterStatus), 10000);
         return () => clearInterval(interval);
-    }, [page]);
+    }, [page, filterStatus]);
 
     useWebSocket((event) => {
-        if (event === 'job:created' || event === 'job:updated') fetchJobs(page);
+        if (event === 'job:created' || event === 'job:updated') fetchJobs(page, filterStatus);
     });
 
     const createJob = async () => {
@@ -438,12 +439,6 @@ const Jobs = () => {
             toast.error('Failed to cancel job');
         }
     };
-
-    const filteredJobs = jobs.filter(j => {
-        const matchesText = !filterText || j.guid.toLowerCase().includes(filterText.toLowerCase());
-        const matchesStatus = filterStatus === 'all' || j.status.toLowerCase() === filterStatus.toLowerCase();
-        return matchesText && matchesStatus;
-    });
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -545,7 +540,7 @@ const Jobs = () => {
                             <CardDescription className="text-zinc-500">Real-time status of dispatched tasks.</CardDescription>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(0); }}>
+                            <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(0); fetchJobs(0, v); }}>
                                 <SelectTrigger className="bg-zinc-900 border-zinc-800 text-white h-9 w-32 text-xs">
                                     <SelectValue placeholder="Status" />
                                 </SelectTrigger>
@@ -592,8 +587,8 @@ const Jobs = () => {
                                         ))}
                                     </TableRow>
                                 ))
-                            ) : filteredJobs.length > 0 ? (
-                                filteredJobs.map(job => (
+                            ) : jobs.filter(j => !filterText || j.guid.toLowerCase().includes(filterText.toLowerCase())).length > 0 ? (
+                                jobs.filter(j => !filterText || j.guid.toLowerCase().includes(filterText.toLowerCase())).map(job => (
                                     <TableRow key={job.guid} className="border-zinc-800 hover:bg-zinc-900/30 transition-colors cursor-pointer" onClick={() => openDetail(job)}>
                                         <TableCell className="font-mono text-zinc-400 pl-6">
                                             <div className="flex items-center gap-2">
