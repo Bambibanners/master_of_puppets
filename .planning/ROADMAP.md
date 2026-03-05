@@ -48,7 +48,13 @@ Plans:
   3. After exhausting all retries, the job shows a terminal DEAD_LETTER status and does not re-queue
   4. Signature verification failures and explicit non-retriable exit codes do not trigger retries — only transient failures do
   5. A job that was assigned to a node which then crashed is reclaimed within the configured zombie timeout and re-enters the retry cycle
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — DB contracts: retry columns on Job/ScheduledJob ORM, Pydantic model extensions (ResultReport+retriable, WorkResponse/JobDefinition*+retry fields), migration_v15.sql
+- [ ] 02-02-PLAN.md — Backend retry engine: report_result() failure classification + backoff, zombie reaper in pull_work(), backoff-aware job selection, get_job_stats() extension
+- [ ] 02-03-PLAN.md — Cron guard + manual retry: execute_scheduled_job() overlap prevention with audit event, misfire_grace_time=60 fix, POST /jobs/{guid}/retry endpoint
+- [ ] 02-04-PLAN.md — Frontend retry UX: RETRYING/DEAD_LETTER badges, attempt column, retry_after countdown, Re-queue button, filter chips
 
 ### Phase 3: Execution History
 **Goal**: Operators can query a timeline of past executions across all jobs and nodes, drill into per-attempt output, and the system automatically prunes old records to prevent runaway disk growth
@@ -91,7 +97,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Output Capture | 5/5 | Complete   | 2026-03-05 |
-| 2. Retry Policy | 0/TBD | Not started | - |
+| 2. Retry Policy | 0/4 | Not started | - |
 | 3. Execution History | 0/TBD | Not started | - |
 | 4. Environment Tags | 0/TBD | Not started | - |
 | 5. Job Dependencies | 0/TBD | Not started | - |
