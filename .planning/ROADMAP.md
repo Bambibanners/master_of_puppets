@@ -10,6 +10,32 @@
 - [ ] **Phase 4: TriggerManager Dashboard UI** - Build the Admin.tsx Automation tab with TriggerManager component to expose the trigger API in the dashboard (was claimed in M4 but not delivered).
 - [ ] **Phase 5: Windows Installer Fix** - Fix Podman named-pipe socket mapping in `install_universal.ps1` so the Loader deployment method works on Windows.
 
+### Phase 1: Remote Server Deployment
+**Goal:** Validate the Docker Compose stack on a remote Linux host, including reverse proxy configuration and certificate handling.
+**Status:** Complete [2026-03-06]
+
+### Phase 2: Linux Universal Installer
+**Goal:** Ensure `install_universal.sh` correctly imports the MOP CA, installs dependencies, and enrolls nodes on fresh Linux environments. Use ephemeral Incus LXC containers (manage-test-nodes skill) to validate on a true fresh Linux environment.
+**Status:** Planned — 3 plans in 3 waves
+**Plans:** 3 plans
+
+Plans:
+- [ ] 06-02a-PLAN.md — Environment setup: AGENT_URL fix, registry push, test harness
+- [ ] 06-02b-PLAN.md — Happy path test: fresh LXC install, CA + heartbeat verification, image reference fix
+- [ ] 06-02c-PLAN.md — Edge cases: jq-absent fallback, no-runtime error, non-root behavior
+
+### Phase 3: Cross-Network Validation
+**Goal:** Verify mTLS heartbeat, job pulling, and artifact downloading across true network boundaries (non-loopback).
+**Status:** Not Started
+
+### Phase 4: TriggerManager Dashboard UI
+**Goal:** Build the Admin.tsx Automation tab with TriggerManager component to expose the trigger CRUD API in the dashboard. This was claimed delivered in Milestone 4 but the component was never created.
+**Status:** Not Started
+
+### Phase 5: Windows Installer Fix
+**Goal:** Fix Podman named-pipe socket mapping in `install_universal.ps1` so the Loader deployment method (Method 1) works correctly on Windows.
+**Status:** Not Started
+
 ---
 
 ## Archived: Milestone 5 (Notifications & Webhooks)
