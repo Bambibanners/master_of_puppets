@@ -5,7 +5,7 @@
 
 ### Phases
 - [x] **Phase 1: Remote Server Deployment** - Validate the Docker Compose stack on a remote Linux host, including reverse proxy configuration and certificate handling. [2026-03-06]
-- [ ] **Phase 2: Linux Universal Installer** - Ensure `install_universal.sh` correctly imports the MOP CA, installs dependencies, and enrolls nodes on fresh Linux environments.
+- [x] **Phase 2: Linux Universal Installer** - Ensure `install_universal.sh` correctly imports the MOP CA, installs dependencies, and enrolls nodes on fresh Linux environments. [2026-03-07]
 - [ ] **Phase 3: Cross-Network Validation** - Verify mTLS heartbeat, job pulling, and artifact downloading across true network boundaries (non-loopback).
 - [ ] **Phase 4: TriggerManager Dashboard UI** - Build the Admin.tsx Automation tab with TriggerManager component to expose the trigger API in the dashboard (was claimed in M4 but not delivered).
 - [ ] **Phase 5: Windows Installer Fix** - Fix Podman named-pipe socket mapping in `install_universal.ps1` so the Loader deployment method works on Windows.
@@ -16,13 +16,14 @@
 
 ### Phase 2: Linux Universal Installer
 **Goal:** Ensure `install_universal.sh` correctly imports the MOP CA, installs dependencies, and enrolls nodes on fresh Linux environments. Use ephemeral Incus LXC containers (manage-test-nodes skill) to validate on a true fresh Linux environment.
-**Status:** Planned — 3 plans in 3 waves
-**Plans:** 3 plans
+**Status:** Complete [2026-03-07]
+**Plans:** 4 plans
 
 Plans:
+- [x] 06-01-PLAN.md — Research and context [2026-03-06]
 - [x] 06-02a-PLAN.md — Environment setup: AGENT_URL fix, registry push, test harness [2026-03-07]
-- [ ] 06-02b-PLAN.md — Happy path test: fresh LXC install, CA + heartbeat verification, image reference fix
-- [ ] 06-02c-PLAN.md — Edge cases: jq-absent fallback, no-runtime error, non-root behavior
+- [x] 06-02b-PLAN.md — Happy path test: fresh LXC install, CA + heartbeat verification, image reference fix [2026-03-07]
+- [x] 06-02c-PLAN.md — Edge cases: jq-absent fallback, no-runtime error, non-root behavior [2026-03-07]
 
 ### Phase 3: Cross-Network Validation
 **Goal:** Verify mTLS heartbeat, job pulling, and artifact downloading across true network boundaries (non-loopback).
