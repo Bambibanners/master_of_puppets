@@ -11,6 +11,10 @@ class JobCreate(BaseModel):
     capability_requirements: Optional[Dict[str, str]] = None
     memory_limit: Optional[str] = None
     cpu_limit: Optional[str] = None
+    depends_on: Optional[List[str]] = None
+    max_retries: int = 0
+    backoff_multiplier: float = 2.0
+    timeout_minutes: Optional[int] = None
 
 class RegisterRequest(BaseModel):
     client_secret: str
@@ -37,6 +41,7 @@ class JobResponse(BaseModel):
     started_at: Optional[datetime] = None
     duration_seconds: Optional[float] = None
     target_tags: Optional[List[str]] = None
+    depends_on: Optional[List[str]] = None
 
 class WorkResponse(BaseModel):
     guid: str
@@ -44,6 +49,9 @@ class WorkResponse(BaseModel):
     payload: Dict
     memory_limit: Optional[str] = None
     cpu_limit: Optional[str] = None
+    max_retries: int = 0
+    backoff_multiplier: float = 2.0
+    timeout_minutes: Optional[int] = None
 
 class ResultReport(BaseModel):
     result: Optional[Dict] = None
@@ -52,12 +60,45 @@ class ResultReport(BaseModel):
     output_log: Optional[List[Dict[str, str]]] = None  # [{t, stream, line}, ...]
     exit_code: Optional[int] = None
     security_rejected: bool = False
+    retriable: Optional[bool] = None  # None = non-retriable (default); True = retry eligible
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
     role: str
     must_change_password: bool = False
+
+class EnrollmentTokenCreate(BaseModel):
+    template_id: Optional[str] = None
+
+class TriggerCreate(BaseModel):
+    slug: str
+    name: str
+    job_definition_id: str
+    is_active: bool = True
+
+class TriggerResponse(BaseModel):
+    id: str
+    slug: str
+    name: str
+    job_definition_id: str
+    secret_token: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class SignalFire(BaseModel):
+    payload: Optional[Dict] = None
+
+class SignalResponse(BaseModel):
+    name: str
+    payload: Optional[Dict] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 class HeartbeatPayload(BaseModel):
     node_id: str
@@ -66,15 +107,46 @@ class HeartbeatPayload(BaseModel):
     tags: Optional[List[str]] = None
     capabilities: Optional[Dict[str, str]] = None
     job_telemetry: Optional[Dict[str, Dict]] = None # guid -> metrics
+    upgrade_result: Optional[Dict] = None # status, output, error
 
 class NodeConfig(BaseModel):
     concurrency_limit: int
     job_memory_limit: str
     job_cpu_limit: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 class PollResponse(BaseModel):
     job: Optional[WorkResponse] = None
     config: NodeConfig
+
+class WebhookCreate(BaseModel):
+    url: str
+    events: Optional[str] = "*" # comma separated or * for all
+
+class WebhookResponse(BaseModel):
+    id: int
+    url: str
+    events: str
+    active: bool
+    created_at: datetime
+    secret: str # Only returned on creation or for admins
+
+    class Config:
+        from_attributes = True
+
+class AlertResponse(BaseModel):
+    id: int
+    type: str
+    severity: str
+    message: str
+    resource_id: Optional[str]
+    created_at: datetime
+    acknowledged: bool
+    acknowledged_at: Optional[datetime]
+    acknowledged_by: Optional[str]
+
+    class Config:
+        from_attributes = True
 
 class NodeResponse(BaseModel):
     node_id: str
@@ -82,9 +154,12 @@ class NodeResponse(BaseModel):
     ip: str
     last_seen: datetime
     status: str
+    base_os_family: Optional[str] = None
     stats: Optional[Dict] = None
     tags: Optional[List[str]] = None
     capabilities: Optional[Dict] = None
+    expected_capabilities: Optional[Dict] = None
+    tamper_details: Optional[str] = None
     concurrency_limit: Optional[int] = None
     job_memory_limit: Optional[str] = None
     stats_history: Optional[List[Dict]] = None
@@ -112,6 +187,9 @@ class JobDefinitionCreate(BaseModel):
     target_node_id: Optional[str] = None
     target_tags: Optional[List[str]] = None
     capability_requirements: Optional[Dict[str, str]] = None
+    max_retries: int = 0
+    backoff_multiplier: float = 2.0
+    timeout_minutes: Optional[int] = None
 
 class JobDefinitionResponse(BaseModel):
     id: str
@@ -127,6 +205,9 @@ class JobDefinitionResponse(BaseModel):
     created_by: str
     created_at: datetime
     updated_at: Optional[datetime] = None
+    max_retries: int = 0
+    backoff_multiplier: float = 2.0
+    timeout_minutes: Optional[int] = None
 
     @field_validator('target_tags', mode='before')
     @classmethod
@@ -161,6 +242,9 @@ class JobDefinitionUpdate(BaseModel):
     target_node_id: Optional[str] = None
     target_tags: Optional[List[str]] = None
     capability_requirements: Optional[Dict[str, str]] = None
+    max_retries: Optional[int] = None
+    backoff_multiplier: Optional[float] = None
+    timeout_minutes: Optional[int] = None
 
 class UploadKeyRequest(BaseModel):
     key_content: str  # PEM public key
@@ -226,10 +310,35 @@ class BlueprintResponse(BaseModel):
         from_attributes = True
 
 class CapabilityMatrixEntry(BaseModel):
+    id: Optional[int] = None
     base_os_family: str
     tool_id: str
     injection_recipe: str
     validation_cmd: str
+    artifact_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class ArtifactResponse(BaseModel):
+    id: str
+    filename: str
+    content_type: str
+    sha256: str
+    size_bytes: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ApprovedOSResponse(BaseModel):
+    id: int
+    name: str
+    image_uri: str
+    os_family: str
+
+    class Config:
+        from_attributes = True
 
 class PuppetTemplateCreate(BaseModel):
     friendly_name: str
