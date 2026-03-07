@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v6.0
-milestone_name: remote-validation
-status: in_progress
-stopped_at: "Completed 06-02a-PLAN.md"
-last_updated: "2026-03-07T14:09:06Z"
-last_activity: "2026-03-07 — Phase 2 Plan 02a complete: LXC installer prerequisites."
+milestone: v1.0
+milestone_name: milestone
+status: completed
+stopped_at: Completed 06-02b-PLAN.md
+last_updated: "2026-03-07T14:50:26.193Z"
+last_activity: "2026-03-07 — Plan 06-02a complete: AGENT_URL propagation fixed, puppet-node image in local registry, LXC test harness written."
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 3
+  total_plans: 11
+  completed_plans: 14
   percent: 40
 ---
 
@@ -42,6 +42,7 @@ Progress: [████░░░░░░] 40% (1 of 3 phases complete, 2 plans 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 06-remote-validation | 2 | 5 min | 2.5 min |
+| Phase 06-remote-validation P02b | 35 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -51,6 +52,9 @@ Progress: [████░░░░░░] 40% (1 of 3 phases complete, 2 plans 
 - Phase 06-02a: AGENT_URL must be in compose.server.yaml agent environment block (not just .env) for docker compose to pass it through.
 - Phase 06-02a: LXC containers need image in localhost:5000 registry (host bridge accessible) — cannot pull from localhost/ prefix.
 - Phase 06-02a: node-compose.yaml still references localhost/ image — plan 02b should fix this in main.py.
+- [Phase 06-remote-validation]: NODE_IMAGE env var in compose template (main.py) + compose.server.yaml env block enables configurable node image for LXC/remote deployments
+- [Phase 06-remote-validation]: Server cert SAN now includes AGENT_URL IP via parsing at cert generation time — allows remote nodes to verify server identity by LAN IP
+- [Phase 06-remote-validation]: install_universal.sh: python3 is the preferred CA extraction fallback over grep — available on all Ubuntu systems and handles any JSON spacing
 
 ### Pending Todos
 - Plan 02b: Fix node-compose.yaml image reference in main.py (localhost/ → 192.168.50.148:5000/).
@@ -61,7 +65,7 @@ Progress: [████░░░░░░] 40% (1 of 3 phases complete, 2 plans 
 
 ## Session Continuity
 
-Last session: 2026-03-07T14:09:06Z
-Stopped at: Completed 06-02a-PLAN.md
-Resume file: .planning/ROADMAP.md
+Last session: 2026-03-07T14:50:26.191Z
+Stopped at: Completed 06-02b-PLAN.md
+Resume file: None
 Next plan: .planning/phases/06-remote-validation/06-02b-PLAN.md (if exists) or create it
