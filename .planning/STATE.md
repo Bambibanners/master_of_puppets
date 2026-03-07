@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 06-02b-PLAN.md
-last_updated: "2026-03-07T14:50:26.193Z"
+stopped_at: Completed 06-02c-PLAN.md
+last_updated: "2026-03-07T20:08:29.032Z"
 last_activity: "2026-03-07 — Plan 06-02a complete: AGENT_URL propagation fixed, puppet-node image in local registry, LXC test harness written."
 progress:
   total_phases: 5
@@ -43,6 +43,7 @@ Progress: [████░░░░░░] 40% (1 of 3 phases complete, 2 plans 
 |-------|-------|-------|----------|
 | 06-remote-validation | 2 | 5 min | 2.5 min |
 | Phase 06-remote-validation P02b | 35 | 2 tasks | 3 files |
+| Phase 06-remote-validation P02c | 39 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -55,6 +56,8 @@ Progress: [████░░░░░░] 40% (1 of 3 phases complete, 2 plans 
 - [Phase 06-remote-validation]: NODE_IMAGE env var in compose template (main.py) + compose.server.yaml env block enables configurable node image for LXC/remote deployments
 - [Phase 06-remote-validation]: Server cert SAN now includes AGENT_URL IP via parsing at cert generation time — allows remote nodes to verify server identity by LAN IP
 - [Phase 06-remote-validation]: install_universal.sh: python3 is the preferred CA extraction fallback over grep — available on all Ubuntu systems and handles any JSON spacing
+- [Phase 06-remote-validation]: printf '%s' over echo for JSON variables: bash echo interprets \n as newlines, corrupting JSON passed to jq/python3/grep — printf '%s' preserves literal backslash-n sequences
+- [Phase 06-remote-validation]: Non-root heartbeat not required as test pass criterion — rootless podman + LXC cgroupv2 is an infrastructure constraint, not an installer defect
 
 ### Pending Todos
 - Plan 02b: Fix node-compose.yaml image reference in main.py (localhost/ → 192.168.50.148:5000/).
@@ -65,7 +68,7 @@ Progress: [████░░░░░░] 40% (1 of 3 phases complete, 2 plans 
 
 ## Session Continuity
 
-Last session: 2026-03-07T14:50:26.191Z
-Stopped at: Completed 06-02b-PLAN.md
+Last session: 2026-03-07T20:08:29.029Z
+Stopped at: Completed 06-02c-PLAN.md
 Resume file: None
 Next plan: .planning/phases/06-remote-validation/06-02b-PLAN.md (if exists) or create it
