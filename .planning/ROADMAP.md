@@ -20,7 +20,7 @@
 **Plans:** 3 plans
 
 Plans:
-- [ ] 06-02a-PLAN.md — Environment setup: AGENT_URL fix, registry push, test harness
+- [x] 06-02a-PLAN.md — Environment setup: AGENT_URL fix, registry push, test harness [2026-03-07]
 - [ ] 06-02b-PLAN.md — Happy path test: fresh LXC install, CA + heartbeat verification, image reference fix
 - [ ] 06-02c-PLAN.md — Edge cases: jq-absent fallback, no-runtime error, non-root behavior
 
