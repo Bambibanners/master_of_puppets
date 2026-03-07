@@ -147,7 +147,16 @@ Detection: Check installer stdout for "SSL verification" errors before fallback 
     Read ADMIN_PASSWORD from /home/thomas/Development/mop_validation/secrets.env to use in the curl.
   </action>
   <verify>
-    <automated>curl -sSfk https://192.168.50.148:8001/api/node/compose?token=PLACEHOLDER\&platform=podman 2>&1 | grep -q "5000" && echo "PASS" || echo "FAIL or need fresh token"</automated>
+    <manual>
+      Read ADMIN_PASSWORD from mop_validation/secrets.env, then:
+        TOKEN=$(curl -sSfk -X POST https://192.168.50.148:8001/auth/login \
+          -H "Content-Type: application/json" \
+          -d '{"username":"admin","password":"PASSWORD"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+        JOIN=$(curl -sSfk -H "Authorization: Bearer $TOKEN" \
+          https://192.168.50.148:8001/api/node/token | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+        curl -sSfk "https://192.168.50.148:8001/api/node/compose?token=$JOIN&platform=podman" | grep image
+      Expected: line containing "5000" (i.e. 192.168.50.148:5000/puppet-node:latest)
+    </manual>
   </verify>
   <done>
     The generated node-compose.yaml contains an image reference to 192.168.50.148:5000/puppet-node:latest.
