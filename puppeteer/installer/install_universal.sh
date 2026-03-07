@@ -13,6 +13,7 @@ TOKEN=""
 SERVER_URL="https://localhost:8001"
 COUNT=1
 PLATFORM=""
+TAGS=""
 
 # --- Color Helpers ---
 RED='\033[0;31m'
@@ -32,6 +33,25 @@ log_green() {
 log_error() {
     echo -e "${RED}[Error]${NC} $1" >&2
     exit 1
+}
+
+# --- CA Installation (Hardening) ---
+install_ca() {
+    if [[ $EUID -ne 0 ]]; then
+        log "Warning: Not running as root. Skipping system CA installation."
+        return
+    fi
+
+    log "Installing Root CA to system trust store..."
+    if [[ -f /etc/debian_version ]]; then
+        cp bootstrap_ca.crt /usr/local/share/ca-certificates/mop-root.crt
+        update-ca-certificates
+    elif [[ -f /etc/redhat-release ]]; then
+        cp bootstrap_ca.crt /etc/pki/ca-trust/source/anchors/mop-root.crt
+        update-ca-trust
+    else
+        log "Unsupported OS for auto-CA installation. Please install bootstrap_ca.crt manually."
+    fi
 }
 
 # --- Argument Parsing ---
@@ -55,6 +75,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --platform)
             PLATFORM="$2"
+            shift 2
+            ;;
+        --tags)
+            TAGS="$2"
             shift 2
             ;;
         *)
@@ -131,12 +155,14 @@ if [[ "$ROLE" == "node" ]]; then
         log_error "Invalid Token Format. Ensure you are using a v0.8+ Token."
     fi
 
-    # Extract CA using jq if available, otherwise grep/sed
+    # Extract CA using jq if available, then python3, then grep/sed fallback
     if command -v jq &>/dev/null; then
         CA_CONTENT=$(echo "$JSON_PAYLOAD" | jq -r '.ca // empty')
+    elif command -v python3 &>/dev/null; then
+        CA_CONTENT=$(echo "$JSON_PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('ca',''))" 2>/dev/null || echo "")
     else
-        # Fallback: simple grep (fragile)
-        CA_CONTENT=$(echo "$JSON_PAYLOAD" | grep -o '"ca":"[^"]*"' | cut -d'"' -f4 | sed 's/\\n/\n/g')
+        # Fallback: grep with optional space after colon (fragile but handles common formats)
+        CA_CONTENT=$(echo "$JSON_PAYLOAD" | grep -o '"ca": *"[^"]*"' | sed 's/"ca": *"//; s/"$//' | sed 's/\\n/\n/g')
     fi
 
     if [[ -z "$CA_CONTENT" ]]; then
@@ -145,12 +171,25 @@ if [[ "$ROLE" == "node" ]]; then
 
     echo "$CA_CONTENT" > bootstrap_ca.crt
     log_green "✅ Trust Root extracted to bootstrap_ca.crt"
+    
+    # Try to install CA to system trust store if possible
+    install_ca
 fi
 
 # --- Fetch Configuration ---
 if [[ "$ROLE" == "node" ]]; then
-    log "Fetching Node Configuration..."
+    log "Fetching Node Configuration from ${SERVER_URL}..."
+    
+    # If we are using a remote hostname, ensure we use the right URL
+    if [[ "$SERVER_URL" == *"localhost"* && -n "${SERVER_HOSTNAME:-}" ]]; then
+        SERVER_URL="${SERVER_URL/localhost/$SERVER_HOSTNAME}"
+        log "Updating Server URL to use SERVER_HOSTNAME: ${SERVER_URL}"
+    fi
+
     COMPOSE_URL="${SERVER_URL}/api/node/compose?token=${TOKEN}&platform=${PLATFORM}"
+    if [[ -n "$TAGS" ]]; then
+        COMPOSE_URL="${COMPOSE_URL}&tags=${TAGS}"
+    fi
     
     curl -sSfL --cacert bootstrap_ca.crt "$COMPOSE_URL" -o node-compose.yaml || \
         curl -sSfLk "$COMPOSE_URL" -o node-compose.yaml  # Fallback insecure if CA fails

@@ -2451,6 +2451,16 @@ if __name__ == "__main__":
              except Exception:
                  ip = "127.0.0.1"
              sans = ["localhost", "master-of-puppets", "agent", "puppeteer-agent-1", hostname, ip]
+             # Include the AGENT_URL host/IP in the SAN so remote nodes can connect
+             agent_url = os.getenv("AGENT_URL", "")
+             if agent_url:
+                 import re as _re
+                 m = _re.match(r"https?://([^:/]+)", agent_url)
+                 if m:
+                     agent_host = m.group(1)
+                     if agent_host not in sans:
+                         sans.append(agent_host)
+                         print(f"   Adding AGENT_URL host to SAN: {agent_host}")
              try:
                 pki_service.ca_authority.issue_server_cert(key_path, cert_path, sans)
                 ssl_enabled = True
