@@ -75,6 +75,12 @@ const TriggerManager = () => {
     const queryClient = useQueryClient();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [newTrigger, setNewTrigger] = useState({ name: '', slug: '', job_definition_id: '' });
+    const [isDisableConfirmOpen, setIsDisableConfirmOpen] = useState(false);
+    const [pendingToggleTrigger, setPendingToggleTrigger] = useState<any>(null);
+    const [isRotateConfirmOpen, setIsRotateConfirmOpen] = useState(false);
+    const [isTokenRevealOpen, setIsTokenRevealOpen] = useState(false);
+    const [newToken, setNewToken] = useState<string | null>(null);
+    const [pendingRotateTrigger, setPendingRotateTrigger] = useState<any>(null);
 
     const { data: triggers = [] } = useQuery({
         queryKey: ['automation-triggers'],
@@ -119,6 +125,38 @@ const TriggerManager = () => {
         }
     });
 
+    const toggleMutation = useMutation({
+        mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+            const res = await authenticatedFetch(`/api/admin/triggers/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_active })
+            });
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['automation-triggers'] });
+            toast.success('Trigger updated');
+            setIsDisableConfirmOpen(false);
+        }
+    });
+
+    const rotateMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const res = await authenticatedFetch(`/api/admin/triggers/${id}/regenerate-token`, {
+                method: 'POST'
+            });
+            return res.json();
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['automation-triggers'] });
+            setNewToken(data.secret_token);
+            setIsRotateConfirmOpen(false);
+            setIsTokenRevealOpen(true);
+            toast.success('Token regenerated');
+        }
+    });
+
     const copyCurl = (trigger: any) => {
         const baseUrl = window.location.origin;
         const curl = `curl -X POST "${baseUrl}/api/trigger/${trigger.slug}" \\
@@ -151,27 +189,72 @@ const TriggerManager = () => {
                                 <TableHead className="text-zinc-400">Name</TableHead>
                                 <TableHead className="text-zinc-400">Slug</TableHead>
                                 <TableHead className="text-zinc-400">Target Job</TableHead>
+                                <TableHead className="text-zinc-400">Status</TableHead>
                                 <TableHead className="text-zinc-400 text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {triggers.map((t: any) => (
-                                <TableRow key={t.id} className="border-zinc-800 group hover:bg-white/[0.02]">
-                                    <TableCell className="text-white font-medium">{t.name}</TableCell>
-                                    <TableCell className="font-mono text-zinc-500 text-xs">/api/trigger/{t.slug}</TableCell>
-                                    <TableCell className="text-zinc-400 text-xs">
-                                        {jobDefs.find((j: any) => j.id === t.job_definition_id)?.name || t.job_definition_id}
-                                    </TableCell>
-                                    <TableCell className="text-right flex justify-end gap-2">
-                                        <Button variant="ghost" size="sm" className="text-zinc-500 hover:text-white gap-2" onClick={() => copyCurl(t)}>
-                                            <Copy className="h-3 w-3" /> Copy Curl
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-600 hover:text-red-400" onClick={() => deleteMutation.mutate(t.id)}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                            {triggers.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="py-16 text-center">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <Zap className="h-8 w-8 text-zinc-700" />
+                                            <p className="text-white font-medium">No triggers yet.</p>
+                                            <p className="text-zinc-500 text-sm max-w-xs">
+                                                Triggers are secure webhooks that let external systems (GitHub Actions, scripts) fire jobs.
+                                            </p>
+                                            <Button size="sm" className="mt-2 bg-primary hover:bg-primary/90 text-white font-bold"
+                                                onClick={() => setIsCreateOpen(true)}>
+                                                <Plus className="mr-2 h-4 w-4" /> Create Trigger
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            ) : (
+                                triggers.map((t: any) => (
+                                    <TableRow key={t.id} className="border-zinc-800 group hover:bg-white/[0.02]">
+                                        <TableCell className="text-white font-medium">{t.name}</TableCell>
+                                        <TableCell className="font-mono text-zinc-500 text-xs">/api/trigger/{t.slug}</TableCell>
+                                        <TableCell className="text-zinc-400 text-xs">
+                                            {jobDefs.find((j: any) => j.id === t.job_definition_id)?.name || t.job_definition_id}
+                                        </TableCell>
+                                        <TableCell>
+                                            {t.is_active ? (
+                                                <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">Active</Badge>
+                                            ) : (
+                                                <Badge className="bg-zinc-500/10 text-zinc-400 border-zinc-500/20">Inactive</Badge>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right flex justify-end gap-2">
+                                            <Button variant="ghost" size="sm" className="text-zinc-500 hover:text-white gap-2" onClick={() => copyCurl(t)}>
+                                                <Copy className="h-3 w-3" /> Copy Curl
+                                            </Button>
+                                            <Button variant="ghost" size="sm" className="text-zinc-500 hover:text-white gap-2"
+                                                onClick={() => { navigator.clipboard.writeText(t.secret_token); toast.success('Token copied'); }}>
+                                                <Key className="h-3 w-3" /> Copy Token
+                                            </Button>
+                                            <Button variant="ghost" size="sm" className="text-zinc-500 hover:text-amber-400 gap-2"
+                                                onClick={() => {
+                                                    if (t.is_active) {
+                                                        setPendingToggleTrigger(t);
+                                                        setIsDisableConfirmOpen(true);
+                                                    } else {
+                                                        toggleMutation.mutate({ id: t.id, is_active: true });
+                                                    }
+                                                }}>
+                                                <RefreshCcw className="h-3 w-3" /> {t.is_active ? 'Disable' : 'Enable'}
+                                            </Button>
+                                            <Button variant="ghost" size="sm" className="text-zinc-500 hover:text-amber-400 gap-2"
+                                                onClick={() => { setPendingRotateTrigger(t); setIsRotateConfirmOpen(true); }}>
+                                                <Lock className="h-3 w-3" /> Rotate Key
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-600 hover:text-red-400" onClick={() => deleteMutation.mutate(t.id)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
                         </TableBody>
                     </Table>
                 </CardContent>
@@ -224,6 +307,82 @@ const TriggerManager = () => {
                             className="bg-primary hover:bg-primary/90 text-white font-bold"
                         >
                             Register Trigger
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <AlertDialog open={isDisableConfirmOpen} onOpenChange={setIsDisableConfirmOpen}>
+                <AlertDialogContent className="bg-zinc-925 border-zinc-800 text-white">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Disable this trigger?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-zinc-400">
+                            Disabling this trigger will prevent new jobs from being fired. Continue?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700">Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => pendingToggleTrigger && toggleMutation.mutate({ id: pendingToggleTrigger.id, is_active: false })}
+                            className="bg-amber-600 hover:bg-amber-700 text-white">
+                            Disable Trigger
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={isRotateConfirmOpen} onOpenChange={setIsRotateConfirmOpen}>
+                <AlertDialogContent className="bg-zinc-925 border-zinc-800 text-white">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Rotate trigger token?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-zinc-400">
+                            This will invalidate the current token. Existing integrations will break until updated.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel className="bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700">Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => pendingRotateTrigger && rotateMutation.mutate(pendingRotateTrigger.id)}
+                            className="bg-amber-600 hover:bg-amber-700 text-white">
+                            Rotate Token
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <Dialog open={isTokenRevealOpen} onOpenChange={setIsTokenRevealOpen}>
+                <DialogContent className="bg-zinc-925 border-zinc-800 text-white max-w-lg">
+                    <DialogHeader>
+                        <div className="flex items-center gap-2 text-emerald-500 mb-2">
+                            <CheckCircle2 className="h-6 w-6" />
+                            <DialogTitle>New Token Generated</DialogTitle>
+                        </div>
+                        <DialogDescription className="text-zinc-400">
+                            This is the only time you'll see this token. Copy it now.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex gap-3">
+                            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                            <p className="text-xs text-amber-200/80">
+                                Store this token securely. Loss requires another rotation.
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-zinc-400">Secret Token</Label>
+                            <div className="flex gap-2">
+                                <Input readOnly value={newToken || ''} className="bg-zinc-950 border-zinc-800 font-mono text-xs" />
+                                <Button size="icon" variant="outline"
+                                    onClick={() => { navigator.clipboard.writeText(newToken || ''); toast.success('Token copied'); }}>
+                                    <Copy className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button className="w-full bg-zinc-100 hover:bg-white text-zinc-950 font-bold"
+                            onClick={() => setIsTokenRevealOpen(false)}>
+                            I have saved the token
                         </Button>
                     </DialogFooter>
                 </DialogContent>
