@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     Cpu,
     ShieldAlert,
@@ -10,14 +11,516 @@ import {
     RefreshCcw,
     Lock,
     Terminal,
-    AlertCircle
+    AlertCircle,
+    AlertTriangle,
+    Database,
+    FileText,
+    Plus,
+    Trash2,
+    Upload,
+    Download,
+    Package
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from '@/components/ui/tabs';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from '@/components/ui/dialog';
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogCancel,
+    AlertDialogAction,
+} from '@/components/ui/alert-dialog';
+import { Label } from '@/components/ui/label';
 import { authenticatedFetch } from '../auth';
+
+// --- Sub-components for Admin ---
+
+const TriggerManager = () => {
+    const queryClient = useQueryClient();
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [newTrigger, setNewTrigger] = useState({ name: '', slug: '', job_definition_id: '' });
+
+    const { data: triggers = [] } = useQuery({
+        queryKey: ['automation-triggers'],
+        queryFn: async () => {
+            const res = await authenticatedFetch('/api/admin/triggers');
+            return res.json();
+        }
+    });
+
+    const { data: jobDefs = [] } = useQuery({
+        queryKey: ['job-definitions'],
+        queryFn: async () => {
+            const res = await authenticatedFetch('/job-definitions');
+            return res.json();
+        }
+    });
+
+    const createMutation = useMutation({
+        mutationFn: async (payload: any) => {
+            const res = await authenticatedFetch('/api/admin/triggers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['automation-triggers'] });
+            toast.success('Trigger registered');
+            setIsCreateOpen(false);
+            setNewTrigger({ name: '', slug: '', job_definition_id: '' });
+        }
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            await authenticatedFetch(`/api/admin/triggers/${id}`, { method: 'DELETE' });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['automation-triggers'] });
+            toast.success('Trigger removed');
+        }
+    });
+
+    const copyCurl = (trigger: any) => {
+        const baseUrl = window.location.origin;
+        const curl = `curl -X POST "${baseUrl}/api/trigger/${trigger.slug}" \\
+  -H "X-MOP-Trigger-Key: ${trigger.secret_token}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"ref": "main", "actor": "github-actions"}'`;
+        navigator.clipboard.writeText(curl);
+        toast.success('Curl command copied to clipboard');
+    };
+
+    return (
+        <div className="space-y-6">
+            <Card className="bg-zinc-925 border-zinc-800/50">
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle className="text-white font-bold flex items-center gap-2">
+                            <Zap className="h-5 w-5 text-primary fill-current" />
+                            Automation Triggers
+                        </CardTitle>
+                        <CardDescription>Headless endpoints for CI/CD integrations.</CardDescription>
+                    </div>
+                    <Button onClick={() => setIsCreateOpen(true)} size="sm" className="bg-primary hover:bg-primary/90 text-white font-bold">
+                        <Plus className="mr-2 h-4 w-4" /> Create Trigger
+                    </Button>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader className="bg-zinc-950/50">
+                            <TableRow className="border-zinc-800">
+                                <TableHead className="text-zinc-400">Name</TableHead>
+                                <TableHead className="text-zinc-400">Slug</TableHead>
+                                <TableHead className="text-zinc-400">Target Job</TableHead>
+                                <TableHead className="text-zinc-400 text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {triggers.map((t: any) => (
+                                <TableRow key={t.id} className="border-zinc-800 group hover:bg-white/[0.02]">
+                                    <TableCell className="text-white font-medium">{t.name}</TableCell>
+                                    <TableCell className="font-mono text-zinc-500 text-xs">/api/trigger/{t.slug}</TableCell>
+                                    <TableCell className="text-zinc-400 text-xs">
+                                        {jobDefs.find((j: any) => j.id === t.job_definition_id)?.name || t.job_definition_id}
+                                    </TableCell>
+                                    <TableCell className="text-right flex justify-end gap-2">
+                                        <Button variant="ghost" size="sm" className="text-zinc-500 hover:text-white gap-2" onClick={() => copyCurl(t)}>
+                                            <Copy className="h-3 w-3" /> Copy Curl
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-600 hover:text-red-400" onClick={() => deleteMutation.mutate(t.id)}>
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                <DialogContent className="bg-zinc-925 border-zinc-800 text-white">
+                    <DialogHeader>
+                        <DialogTitle>Create Automation Trigger</DialogTitle>
+                        <DialogDescription>Define a secure webhook for external systems.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>Display Name</Label>
+                            <Input 
+                                placeholder="GitHub Actions Deployment" 
+                                value={newTrigger.name}
+                                onChange={e => setNewTrigger({...newTrigger, name: e.target.value})}
+                                className="bg-zinc-950 border-zinc-800"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>URL Slug</Label>
+                            <Input 
+                                placeholder="deploy-prod" 
+                                value={newTrigger.slug}
+                                onChange={e => setNewTrigger({...newTrigger, slug: e.target.value})}
+                                className="bg-zinc-950 border-zinc-800 font-mono"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Target Job Definition</Label>
+                            <Select value={newTrigger.job_definition_id} onValueChange={v => setNewTrigger({...newTrigger, job_definition_id: v})}>
+                                <SelectTrigger className="bg-zinc-950 border-zinc-800">
+                                    <SelectValue placeholder="Select a job to trigger..." />
+                                </SelectTrigger>
+                                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                                    {jobDefs.map((j: any) => (
+                                        <SelectItem key={j.id} value={j.id}>{j.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+                        <Button 
+                            disabled={!newTrigger.name || !newTrigger.slug || !newTrigger.job_definition_id}
+                            onClick={() => createMutation.mutate(newTrigger)}
+                            className="bg-primary hover:bg-primary/90 text-white font-bold"
+                        >
+                            Register Trigger
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+};
+
+const RolloutManager = () => {
+    const queryClient = useQueryClient();
+    const [selectedToolId, setSelectedToolId] = useState<string>('');
+    const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
+    const [rolloutStatus, setRolloutStatus] = useState<'idle' | 'running' | 'complete'>('idle');
+    const [results, setResults] = useState<{ success: number; failed: number }>({ success: 0, failed: 0 });
+
+    const { data: matrix = [] } = useQuery({
+        queryKey: ['capability-matrix'],
+        queryFn: async () => {
+            const res = await authenticatedFetch('/api/capability-matrix');
+            return res.json();
+        }
+    });
+
+    const { data: nodes = [] } = useQuery({
+        queryKey: ['nodes'],
+        queryFn: async () => {
+            const res = await authenticatedFetch('/nodes');
+            return res.json();
+        }
+    });
+
+    const toggleNode = (id: string) => {
+        const next = new Set(selectedNodes);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedNodes(next);
+    };
+
+    const handleBatchUpgrade = async () => {
+        if (!selectedToolId || selectedNodes.size === 0) return;
+        setRolloutStatus('running');
+        let success = 0;
+        let failed = 0;
+
+        for (const nodeId of selectedNodes) {
+            try {
+                const res = await authenticatedFetch(`/api/nodes/${nodeId}/upgrade?capability_id=${selectedToolId}`, {
+                    method: 'POST'
+                });
+                if (res.ok) success++;
+                else failed++;
+            } catch {
+                failed++;
+            }
+        }
+
+        setResults({ success, failed });
+        setRolloutStatus('complete');
+        queryClient.invalidateQueries({ queryKey: ['nodes'] });
+        toast.success(`Rollout complete: ${success} started, ${failed} failed`);
+    };
+
+    const selectedTool = matrix.find((m: any) => String(m.id) === selectedToolId);
+
+    return (
+        <div className="space-y-6">
+            <Card className="bg-zinc-925 border-zinc-800/50">
+                <CardHeader>
+                    <CardTitle className="text-white font-bold flex items-center gap-2">
+                        <Package className="h-5 w-5 text-primary" />
+                        Staged Rollout
+                    </CardTitle>
+                    <CardDescription>Push a capability update to multiple nodes simultaneously.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-1">1. Select Target Tool</label>
+                        <Select value={selectedToolId} onValueChange={setSelectedToolId}>
+                            <SelectTrigger className="bg-zinc-950 border-zinc-800">
+                                <SelectValue placeholder="Choose a tool recipe..." />
+                            </SelectTrigger>
+                            <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                                {matrix.map((m: any) => (
+                                    <SelectItem key={m.id} value={String(m.id)}>{m.tool_id} ({m.base_os_family})</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-1">2. Select Target Nodes</label>
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-950 overflow-hidden">
+                            <Table>
+                                <TableHeader className="bg-zinc-900/50">
+                                    <TableRow className="border-zinc-800">
+                                        <TableHead className="w-12"></TableHead>
+                                        <TableHead className="text-zinc-400">Hostname</TableHead>
+                                        <TableHead className="text-zinc-400">OS</TableHead>
+                                        <TableHead className="text-zinc-400">Tags</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {nodes.filter((n: any) => !selectedTool || n.base_os_family === selectedTool.base_os_family).map((n: any) => (
+                                        <TableRow 
+                                            key={n.node_id} 
+                                            className={`border-zinc-800 cursor-pointer transition-colors ${selectedNodes.has(n.node_id) ? 'bg-primary/5' : 'hover:bg-white/[0.02]'}`}
+                                            onClick={() => toggleNode(n.node_id)}
+                                        >
+                                            <TableCell>
+                                                <div className={`h-4 w-4 rounded border flex items-center justify-center transition-all ${selectedNodes.has(n.node_id) ? 'bg-primary border-primary' : 'border-zinc-700 bg-zinc-900'}`}>
+                                                    {selectedNodes.has(n.node_id) && <Check className="h-3 w-3 text-white stroke-[3]" />}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-white font-medium">{n.hostname}</TableCell>
+                                            <TableCell><Badge variant="outline" className="text-[8px]">{n.base_os_family}</Badge></TableCell>
+                                            <TableCell>
+                                                <div className="flex gap-1">
+                                                    {n.tags?.slice(0, 2).map((t: string) => (
+                                                        <span key={t} className="text-[8px] text-zinc-500">{t}</span>
+                                                    ))}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
+                </CardContent>
+                <CardFooter className="bg-zinc-900/30 border-t border-zinc-800 flex items-center justify-between py-4">
+                    <div className="text-xs text-zinc-500">
+                        {selectedNodes.size} nodes selected for rollout
+                    </div>
+                    <Button 
+                        disabled={!selectedToolId || selectedNodes.size === 0 || rolloutStatus === 'running'}
+                        onClick={handleBatchUpgrade}
+                        className="bg-primary hover:bg-primary/90 text-white font-bold px-8"
+                    >
+                        {rolloutStatus === 'running' ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Executing...</> : 'Initiate Rollout'}
+                    </Button>
+                </CardFooter>
+            </Card>
+        </div>
+    );
+};
+
+const CapabilityMatrixManager = () => {
+    const queryClient = useQueryClient();
+    const { data: matrix = [], isLoading } = useQuery({
+        queryKey: ['capability-matrix'],
+        queryFn: async () => {
+            const res = await authenticatedFetch('/api/capability-matrix');
+            return res.json();
+        }
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: async (id: number) => {
+            await authenticatedFetch(`/api/capability-matrix/${id}`, { method: 'DELETE' });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['capability-matrix'] });
+            toast.success('Tool recipe removed');
+        }
+    });
+
+    return (
+        <Card className="bg-zinc-925 border-zinc-800/50">
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="text-white font-bold">Tool Registry</CardTitle>
+                    <CardDescription>Injection recipes for Puppet runtimes.</CardDescription>
+                </div>
+                <Button size="sm" className="bg-primary hover:bg-primary/90 text-white font-bold">
+                    <Plus className="mr-2 h-4 w-4" /> Register Tool
+                </Button>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader className="bg-zinc-950/50">
+                        <TableRow className="border-zinc-800">
+                            <TableHead className="text-zinc-400">OS Family</TableHead>
+                            <TableHead className="text-zinc-400">Tool ID</TableHead>
+                            <TableHead className="text-zinc-400">Recipe</TableHead>
+                            <TableHead className="text-zinc-400 text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {matrix.map((item: any) => (
+                            <TableRow key={item.id} className="border-zinc-800 group hover:bg-white/[0.02]">
+                                <TableCell><Badge variant="outline">{item.base_os_family}</Badge></TableCell>
+                                <TableCell className="font-mono text-white text-xs">{item.tool_id}</TableCell>
+                                <TableCell className="max-w-[300px] truncate font-mono text-[10px] text-zinc-500">
+                                    {item.injection_recipe}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-600 hover:text-red-400" onClick={() => deleteMutation.mutate(item.id)}>
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+};
+
+const ArtifactVault = () => {
+    const queryClient = useQueryClient();
+    const { data: artifacts = [], isLoading } = useQuery({
+        queryKey: ['artifacts'],
+        queryFn: async () => {
+            const res = await authenticatedFetch('/api/artifacts');
+            return res.json();
+        }
+    });
+
+    const uploadMutation = useMutation({
+        mutationFn: async (file: File) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await authenticatedFetch('/api/artifacts', {
+                method: 'POST',
+                body: formData
+            });
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['artifacts'] });
+            toast.success('Artifact stored in vault');
+        }
+    });
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            uploadMutation.mutate(e.target.files[0]);
+        }
+    };
+
+    return (
+        <Card className="bg-zinc-925 border-zinc-800/50">
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="text-white font-bold text-xl flex items-center gap-2">
+                        <Database className="h-5 w-5 text-primary" />
+                        Artifact Vault
+                    </CardTitle>
+                    <CardDescription>Secure binary storage for node-side upgrades.</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                    <input type="file" id="artifact-upload" className="hidden" onChange={handleFileUpload} />
+                    <Button 
+                        size="sm" 
+                        className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold"
+                        onClick={() => document.getElementById('artifact-upload')?.click()}
+                        disabled={uploadMutation.isPending}
+                    >
+                        <Upload className="mr-2 h-4 w-4" /> {uploadMutation.isPending ? 'Storing...' : 'Upload Binary'}
+                    </Button>
+                </div>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader className="bg-zinc-950/50">
+                        <TableRow className="border-zinc-800">
+                            <TableHead className="text-zinc-400">Filename</TableHead>
+                            <TableHead className="text-zinc-400">Size</TableHead>
+                            <TableHead className="text-zinc-400">SHA256</TableHead>
+                            <TableHead className="text-zinc-400 text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {artifacts.map((item: any) => (
+                            <TableRow key={item.id} className="border-zinc-800 group">
+                                <TableCell className="text-white font-medium flex items-center gap-2">
+                                    <Package className="h-3.5 w-3.5 text-zinc-500" />
+                                    {item.filename}
+                                </TableCell>
+                                <TableCell className="text-xs text-zinc-500">{(item.size_bytes / 1024 / 1024).toFixed(2)} MB</TableCell>
+                                <TableCell className="font-mono text-[10px] text-zinc-600 truncate max-w-[120px]">{item.sha256}</TableCell>
+                                <TableCell className="text-right">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-600 hover:text-white" asChild>
+                                        <a href={`/api/artifacts/${item.id}/download`} download>
+                                            <Download className="h-4 w-4" />
+                                        </a>
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+};
 
 const Admin = () => {
     const [joinToken, setJoinToken] = useState<string | null>(null);
@@ -71,114 +574,142 @@ const Admin = () => {
                 <p className="text-sm text-zinc-500 mt-1">System configuration and node onboarding.</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Node Onboarding */}
-                <Card className="bg-zinc-925 border-zinc-800/50 flex flex-col">
-                    <CardHeader>
-                        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                            <Cpu className="h-5 w-5 text-primary" />
-                        </div>
-                        <CardTitle className="text-xl font-bold text-white">Node Onboarding</CardTitle>
-                        <CardDescription className="text-zinc-500">
-                            Generate secure, short-lived tokens to register new puppets into the mesh.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex-1 space-y-6">
-                        <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 text-sm text-zinc-400 leading-relaxed">
-                            <ShieldAlert className="h-4 w-4 text-primary inline mr-2 mb-1" />
-                            Join tokens are one-time use and expire after 24 hours. Ensure the target node has the control plane's public CA certificate installed.
-                        </div>
+            <Tabs defaultValue="onboarding" className="space-y-6">
+                <TabsList className="bg-zinc-900 border border-zinc-800 p-1 h-11">
+                    <TabsTrigger value="onboarding" className="px-6 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white font-bold">Onboarding</TabsTrigger>
+                    <TabsTrigger value="matrix" className="px-6 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white font-bold">Capability Matrix</TabsTrigger>
+                    <TabsTrigger value="vault" className="px-6 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white font-bold">Artifact Vault</TabsTrigger>
+                    <TabsTrigger value="rollouts" className="px-6 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white font-bold">Rollouts</TabsTrigger>
+                    <TabsTrigger value="automation" className="px-6 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white font-bold">Automation</TabsTrigger>
+                </TabsList>
 
-                        {!joinToken ? (
-                            <Button
-                                onClick={generateToken}
-                                disabled={isGenerating}
-                                className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/10 transition-all active:scale-[0.98]"
-                            >
-                                <Zap className="mr-2 h-4 w-4 fill-current" />
-                                {isGenerating ? 'Securing...' : 'Generate Join Token'}
-                            </Button>
-                        ) : (
-                            <div className="space-y-4 animate-in slide-in-from-bottom-2">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Active Join Token</label>
-                                    <div className="flex gap-2">
-                                        <div className="flex-1 h-12 bg-zinc-900 border border-primary/30 rounded-xl flex items-center px-4 font-mono text-primary font-bold overflow-hidden truncate">
-                                            {joinToken}
+                <TabsContent value="onboarding" className="space-y-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Node Onboarding */}
+                        <Card className="bg-zinc-925 border-zinc-800/50 flex flex-col shadow-none">
+                            <CardHeader>
+                                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+                                    <Cpu className="h-5 w-5 text-primary" />
+                                </div>
+                                <CardTitle className="text-xl font-bold text-white">Node Enrollment</CardTitle>
+                                <CardDescription className="text-zinc-500">
+                                    Generate secure, short-lived tokens to register new puppets into the mesh.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex-1 space-y-6">
+                                <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 text-sm text-zinc-400 leading-relaxed">
+                                    <ShieldAlert className="h-4 w-4 text-primary inline mr-2 mb-1" />
+                                    Join tokens are one-time use and expire after 24 hours. Ensure the target node has the control plane's public CA certificate installed.
+                                </div>
+
+                                {!joinToken ? (
+                                    <Button
+                                        onClick={generateToken}
+                                        disabled={isGenerating}
+                                        className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/10 transition-all active:scale-[0.98]"
+                                    >
+                                        <Zap className="mr-2 h-4 w-4 fill-current" />
+                                        {isGenerating ? 'Securing...' : 'Generate Join Token'}
+                                    </Button>
+                                ) : (
+                                    <div className="space-y-4 animate-in slide-in-from-bottom-2">
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Active Join Token</label>
+                                            <div className="flex gap-2">
+                                                <div className="flex-1 h-12 bg-zinc-900 border border-primary/30 rounded-xl flex items-center px-4 font-mono text-primary font-bold overflow-hidden truncate">
+                                                    {joinToken}
+                                                </div>
+                                                <Button
+                                                    variant="outline"
+                                                    className="h-12 w-12 border-zinc-800 bg-zinc-900 p-0"
+                                                    onClick={() => navigator.clipboard.writeText(joinToken || '')}
+                                                    aria-label="Copy join token"
+                                                >
+                                                    <Copy className="h-4 w-4 text-zinc-400" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-green-500 font-bold uppercase tracking-tighter">
+                                            <CheckCircle2 className="h-3 w-3" />
+                                            Token ready for deployment
                                         </div>
                                         <Button
-                                            variant="outline"
-                                            className="h-12 w-12 border-zinc-800 bg-zinc-900 p-0"
-                                            onClick={() => navigator.clipboard.writeText(joinToken || '')}
-                                            aria-label="Copy join token"
+                                            variant="link"
+                                            onClick={() => setJoinToken(null)}
+                                            className="text-zinc-600 p-0 h-auto text-xs hover:text-zinc-400"
                                         >
-                                            <Copy className="h-4 w-4 text-zinc-400" />
+                                            <RefreshCcw className="mr-1 h-3 w-3" />
+                                            Revoke & Create New
                                         </Button>
                                     </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Key Management */}
+                        <Card className="bg-zinc-925 border-zinc-800/50 flex flex-col shadow-none">
+                            <CardHeader>
+                                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+                                    <Key className="h-5 w-5 text-primary" />
                                 </div>
-                                <div className="flex items-center gap-2 text-xs text-green-500 font-bold uppercase tracking-tighter">
-                                    <CheckCircle2 className="h-3 w-3" />
-                                    Token ready for deployment
+                                <CardTitle className="text-xl font-bold text-white">Security Root of Trust</CardTitle>
+                                <CardDescription className="text-zinc-500">
+                                    Rotate the Master Public Key used by puppets to verify the signature of every dispatched job.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex-1 space-y-4">
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <label htmlFor="master-public-key" className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Master Public Key (PEM)</label>
+                                        <Badge variant="outline" className="h-5 px-1.5 text-xs border-zinc-800 text-zinc-600">Rotation Required</Badge>
+                                    </div>
+                                    <div className="relative group/pk">
+                                        <Terminal className="absolute top-3 left-3 h-4 w-4 text-zinc-600" />
+                                        <Textarea
+                                            id="master-public-key"
+                                            value={pubKey}
+                                            onChange={e => setPubKey(e.target.value)}
+                                            placeholder="-----BEGIN PUBLIC KEY-----"
+                                            className="min-h-[160px] pl-10 bg-zinc-900 border-zinc-800 text-green-500 font-mono text-sm placeholder:text-zinc-700 focus:ring-primary/20 transition-all"
+                                        />
+                                        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-zinc-900 to-transparent pointer-events-none rounded-b-xl" />
+                                    </div>
                                 </div>
+
                                 <Button
-                                    variant="link"
-                                    onClick={() => setJoinToken(null)}
-                                    className="text-zinc-600 p-0 h-auto text-xs hover:text-zinc-400"
+                                    onClick={uploadKey}
+                                    disabled={isUploading || !pubKey}
+                                    className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-bold rounded-xl transition-all disabled:opacity-50"
                                 >
-                                    <RefreshCcw className="mr-1 h-3 w-3" />
-                                    Revoke & Create New
+                                    <Lock className="mr-2 h-4 w-4" />
+                                    {isUploading ? 'Updating Root...' : 'Upload Root Key'}
                                 </Button>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
 
-                {/* Key Management */}
-                <Card className="bg-zinc-925 border-zinc-800/50 flex flex-col">
-                    <CardHeader>
-                        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                            <Key className="h-5 w-5 text-primary" />
-                        </div>
-                        <CardTitle className="text-xl font-bold text-white">Security Root of Trust</CardTitle>
-                        <CardDescription className="text-zinc-500">
-                            Rotate the Master Public Key used by puppets to verify the signature of every dispatched job.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex-1 space-y-4">
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <label htmlFor="master-public-key" className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Master Public Key (PEM)</label>
-                                <Badge variant="outline" className="h-5 px-1.5 text-xs border-zinc-800 text-zinc-600">Rotation Required</Badge>
-                            </div>
-                            <div className="relative group/pk">
-                                <Terminal className="absolute top-3 left-3 h-4 w-4 text-zinc-600" />
-                                <Textarea
-                                    id="master-public-key"
-                                    value={pubKey}
-                                    onChange={e => setPubKey(e.target.value)}
-                                    placeholder="-----BEGIN PUBLIC KEY-----"
-                                    className="min-h-[160px] pl-10 bg-zinc-900 border-zinc-800 text-green-500 font-mono text-sm placeholder:text-zinc-700 focus:ring-primary/20 transition-all"
-                                />
-                                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-zinc-900 to-transparent pointer-events-none rounded-b-xl" />
-                            </div>
-                        </div>
+                                <p className="text-xs text-zinc-600 text-center flex items-center justify-center gap-1">
+                                    <AlertCircle className="h-3 w-3" />
+                                    Changing this key will break validation for all existing nodes until they are updated.
+                                </p>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </TabsContent>
 
-                        <Button
-                            onClick={uploadKey}
-                            disabled={isUploading || !pubKey}
-                            className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-bold rounded-xl transition-all disabled:opacity-50"
-                        >
-                            <Lock className="mr-2 h-4 w-4" />
-                            {isUploading ? 'Updating Root...' : 'Upload Root Key'}
-                        </Button>
+                <TabsContent value="matrix">
+                    <CapabilityMatrixManager />
+                </TabsContent>
 
-                        <p className="text-xs text-zinc-600 text-center flex items-center justify-center gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            Changing this key will break validation for all existing nodes until they are updated.
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
+                <TabsContent value="vault">
+                    <ArtifactVault />
+                </TabsContent>
+
+                <TabsContent value="rollouts">
+                    <RolloutManager />
+                </TabsContent>
+
+                <TabsContent value="automation">
+                    <TriggerManager />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 };
