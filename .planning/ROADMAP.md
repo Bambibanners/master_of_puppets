@@ -4,17 +4,17 @@
 **Goal**: Transition from local simulation to true remote infrastructure. Validate the server deployment on remote Linux and prove the universal installer on fresh Debian/Ubuntu nodes.
 
 ### Phases
-- [x] **Phase 1: Remote Server Deployment** - Validate the Docker Compose stack on a remote Linux host, including reverse proxy configuration and certificate handling. [2026-03-06]
-- [x] **Phase 2: Linux Universal Installer** - Ensure `install_universal.sh` correctly imports the MOP CA, installs dependencies, and enrolls nodes on fresh Linux environments. [2026-03-07]
-- [ ] **Phase 3: Cross-Network Validation** - Verify mTLS heartbeat, job pulling, and artifact downloading across true network boundaries (non-loopback).
-- [ ] **Phase 4: TriggerManager Dashboard UI** - Build the Admin.tsx Automation tab with TriggerManager component to expose the trigger API in the dashboard (was claimed in M4 but not delivered).
-- [ ] **Phase 5: Windows Installer Fix** - Fix Podman named-pipe socket mapping in `install_universal.ps1` so the Loader deployment method works on Windows.
+- [x] **Phase 6: Remote Server Deployment** - Validate the Docker Compose stack on a remote Linux host, including reverse proxy configuration and certificate handling. [2026-03-06]
+- [x] **Phase 7: Linux Universal Installer** - Ensure `install_universal.sh` correctly imports the MOP CA, installs dependencies, and enrolls nodes on fresh Linux environments. [2026-03-07]
+- [ ] **Phase 8: Cross-Network Validation** - Verify mTLS heartbeat, job pulling, and artifact downloading across true network boundaries (non-loopback).
+- [ ] **Phase 9: TriggerManager Dashboard UI** - Build the Admin.tsx Automation tab with TriggerManager component to expose the trigger API in the dashboard (was claimed in M4 but not delivered).
+- [ ] **Phase 10: Windows Installer Fix** - Fix Podman named-pipe socket mapping in `install_universal.ps1` so the Loader deployment method works on Windows.
 
-### Phase 1: Remote Server Deployment
+### Phase 6: Remote Server Deployment
 **Goal:** Validate the Docker Compose stack on a remote Linux host, including reverse proxy configuration and certificate handling.
 **Status:** Complete [2026-03-06]
 
-### Phase 2: Linux Universal Installer
+### Phase 7: Linux Universal Installer
 **Goal:** Ensure `install_universal.sh` correctly imports the MOP CA, installs dependencies, and enrolls nodes on fresh Linux environments. Use ephemeral Incus LXC containers (manage-test-nodes skill) to validate on a true fresh Linux environment.
 **Status:** Complete [2026-03-07]
 **Plans:** 4 plans
@@ -25,15 +25,21 @@ Plans:
 - [x] 06-02b-PLAN.md — Happy path test: fresh LXC install, CA + heartbeat verification, image reference fix [2026-03-07]
 - [x] 06-02c-PLAN.md — Edge cases: jq-absent fallback, no-runtime error, non-root behavior [2026-03-07]
 
-### Phase 3: Cross-Network Validation
+### Phase 8: Cross-Network Validation
 **Goal:** Verify mTLS heartbeat, job pulling, and artifact downloading across true network boundaries (non-loopback).
-**Status:** Not Started
+**Status:** In Progress
+**Plans:** 3 plans
 
-### Phase 4: TriggerManager Dashboard UI
+Plans:
+- [ ] 08-01-PLAN.md — Script skeleton: all helpers, provisioning functions, CLI wiring, --dry-run
+- [ ] 08-02-PLAN.md — Docker stack validation: CN-01..08 (enroll, heartbeat, job exec, routing, revocation)
+- [ ] 08-03-PLAN.md — Podman stack validation: CN-09..16 + podman-compose gap report
+
+### Phase 9: TriggerManager Dashboard UI
 **Goal:** Build the Admin.tsx Automation tab with TriggerManager component to expose the trigger CRUD API in the dashboard. This was claimed delivered in Milestone 4 but the component was never created.
 **Status:** Not Started
 
-### Phase 5: Windows Installer Fix
+### Phase 10: Windows Installer Fix
 **Goal:** Fix Podman named-pipe socket mapping in `install_universal.ps1` so the Loader deployment method (Method 1) works correctly on Windows.
 **Status:** Not Started
 
