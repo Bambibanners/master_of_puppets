@@ -14,6 +14,7 @@ interface AddNodeModalProps {
 const AddNodeModal = ({ open, onOpenChange }: AddNodeModalProps) => {
     const [token, setToken] = useState('');
     const [count, setCount] = useState(1);
+    const [tags, setTags] = useState('');
     const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
 
@@ -41,7 +42,10 @@ const AddNodeModal = ({ open, onOpenChange }: AddNodeModalProps) => {
 
     const handleCopy = () => {
         const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-        const cmd = `iex (irm "${baseUrl}/installer") -Role Node -Token "${token}" -Count ${count}`;
+        let cmd = `iex (irm "${baseUrl}/installer") -Role Node -Token "${token}" -Count ${count}`;
+        if (tags.trim()) {
+            cmd += ` -Tags "${tags.trim()}"`;
+        }
         navigator.clipboard.writeText(cmd);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -65,27 +69,40 @@ const AddNodeModal = ({ open, onOpenChange }: AddNodeModalProps) => {
                 {loading ? (
                     <div className="py-8 text-center text-muted-foreground">Generating Secure Token...</div>
                 ) : (
-                    <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="count" className="text-right">
-                                Scale Count
-                            </Label>
-                            <Input
-                                id="count"
-                                type="number"
-                                value={count}
-                                onChange={(e) => setCount(parseInt(e.target.value) || 1)}
-                                className="col-span-3"
-                                min={1}
-                                max={50}
-                            />
-                        </div>
+                <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="count" className="text-right text-xs font-bold text-zinc-500 uppercase">
+                            Scale Count
+                        </Label>
+                        <Input
+                            id="count"
+                            type="number"
+                            value={count}
+                            onChange={(e) => setCount(parseInt(e.target.value) || 1)}
+                            className="col-span-3 bg-zinc-950 border-zinc-800"
+                            min={1}
+                            max={50}
+                        />
+                    </div>
 
-                        <div className="space-y-2">
-                            <Label>Option A: One-Liner (Recommended)</Label>
-                            <div className="relative rounded-md bg-muted p-4 pr-12 font-mono text-sm break-all">
-                                {`iex (irm "${import.meta.env.VITE_API_URL || window.location.origin}/installer") -Role Node -Token "${token}" -Count ${count}`}
-                                <Button
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="tags" className="text-right text-xs font-bold text-zinc-500 uppercase">
+                            Initial Tags
+                        </Label>
+                        <Input
+                            id="tags"
+                            placeholder="e.g. env:prod, linux"
+                            value={tags}
+                            onChange={(e) => setTags(e.target.value)}
+                            className="col-span-3 bg-zinc-950 border-zinc-800"
+                        />
+                    </div>
+
+                    <div className="space-y-2 pt-2">
+                        <Label className="text-xs font-bold text-zinc-500 uppercase">Option A: One-Liner (Recommended)</Label>
+                        <div className="relative rounded-lg bg-black border border-zinc-800 p-4 pr-12 font-mono text-xs break-all text-zinc-300">
+                            {`iex (irm "${import.meta.env.VITE_API_URL || window.location.origin}/installer") -Role Node -Token "${token}" -Count ${count}${tags.trim() ? ` -Tags "${tags.trim()}"` : ''}`}
+                            <Button
                                     size="icon"
                                     variant="ghost"
                                     className="absolute right-2 top-2 h-8 w-8 text-muted-foreground hover:text-foreground"
@@ -105,7 +122,7 @@ const AddNodeModal = ({ open, onOpenChange }: AddNodeModalProps) => {
                                     Download Script
                                 </Button>
                                 <span className="text-xs text-muted-foreground">
-                                    Run: <code>.\install_universal.ps1 -Role Node -Token ...</code>
+                                    Run: <code>.\install_universal.ps1 -Role Node -Token ... {tags.trim() ? `-Tags "${tags.trim()}"` : ''}</code>
                                 </span>
                             </div>
                         </div>
