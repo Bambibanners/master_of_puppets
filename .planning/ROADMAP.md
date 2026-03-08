@@ -6,7 +6,7 @@
 ### Phases
 - [x] **Phase 6: Remote Server Deployment** - Validate the Docker Compose stack on a remote Linux host, including reverse proxy configuration and certificate handling. [2026-03-06]
 - [x] **Phase 7: Linux Universal Installer** - Ensure `install_universal.sh` correctly imports the MOP CA, installs dependencies, and enrolls nodes on fresh Linux environments. [2026-03-07]
-- [ ] **Phase 8: Cross-Network Validation** - Verify mTLS heartbeat, job pulling, and artifact downloading across true network boundaries (non-loopback).
+- [x] **Phase 8: Cross-Network Validation** - Verify mTLS heartbeat, job pulling, and artifact downloading across true network boundaries (non-loopback).
 - [ ] **Phase 9: TriggerManager Dashboard UI** - Build the Admin.tsx Automation tab with TriggerManager component to expose the trigger API in the dashboard (was claimed in M4 but not delivered).
 - [ ] **Phase 10: Windows Installer Fix** - Fix Podman named-pipe socket mapping in `install_universal.ps1` so the Loader deployment method works on Windows.
 
@@ -27,13 +27,13 @@ Plans:
 
 ### Phase 8: Cross-Network Validation
 **Goal:** Verify mTLS heartbeat, job pulling, and artifact downloading across true network boundaries (non-loopback).
-**Status:** In Progress
-**Plans:** 2/3 plans executed
+**Status:** Complete [2026-03-08]
+**Plans:** 3/3 plans executed
 
 Plans:
-- [ ] 08-01-PLAN.md — Script skeleton: all helpers, provisioning functions, CLI wiring, --dry-run
-- [ ] 08-02-PLAN.md — Docker stack validation: CN-01..08 (enroll, heartbeat, job exec, routing, revocation)
-- [ ] 08-03-PLAN.md — Podman stack validation: CN-09..16 + podman-compose gap report
+- [x] 08-01-PLAN.md — Script skeleton: all helpers, provisioning functions, CLI wiring, --dry-run
+- [x] 08-02-PLAN.md — Docker stack validation: CN-01..08 (enroll, heartbeat, job exec, routing, revocation)
+- [x] 08-03-PLAN.md — Podman stack validation: CN-09..16 + podman-compose gap report
 
 ### Phase 9: TriggerManager Dashboard UI
 **Goal:** Build the Admin.tsx Automation tab with TriggerManager component to expose the trigger CRUD API in the dashboard. This was claimed delivered in Milestone 4 but the component was never created.
