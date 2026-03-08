@@ -498,21 +498,25 @@ async def get_execution(
 # Serve Installer Scripts
 @app.get("/api/node/compose")
 @app.get("/api/installer/compose")
-async def get_node_compose(token: str, mounts: Optional[str] = None, tags: Optional[str] = None):
+async def get_node_compose(token: str, mounts: Optional[str] = None, tags: Optional[str] = None, execution_mode: Optional[str] = None):
     """Dynamic Compose File generator for Nodes."""
     effective_tags = tags if tags else "general,linux,arm64"
+    # Allow caller or server default to set EXECUTION_MODE for the node container.
+    # Defaults to "auto" (Docker/Podman detection). Use "direct" for DinD environments
+    # where no container runtime socket is available inside the node container.
+    effective_execution_mode = execution_mode or os.getenv("NODE_EXECUTION_MODE", "auto")
     compose_content = f"""
 version: '3.8'
 services:
   puppet:
     image: {os.getenv("NODE_IMAGE", "localhost/master-of-puppets-node:latest")}
-    container_name: puppet-node
     network_mode: host
     environment:
       - AGENT_URL={os.getenv("AGENT_URL", "https://localhost:8001")}
       - JOIN_TOKEN={token}
       - MOUNT_DATA={mounts if mounts else ""}
       - NODE_TAGS={effective_tags}
+      - EXECUTION_MODE={effective_execution_mode}
     volumes:
       - ./secrets:/app/secrets
     restart: unless-stopped

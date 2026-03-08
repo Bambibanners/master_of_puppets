@@ -66,6 +66,7 @@ services:
       - PYTHONUNBUFFERED=1
       - AGENT_URL=${AGENT_URL:-https://localhost:8001}
       - NODE_IMAGE=${NODE_IMAGE:-localhost/master-of-puppets-node:latest}
+      - NODE_EXECUTION_MODE=${NODE_EXECUTION_MODE:-auto}
     ports:
       - "8001:8001"
     volumes:
