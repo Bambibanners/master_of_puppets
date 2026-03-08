@@ -38,7 +38,7 @@ Plans:
 ### Phase 9: TriggerManager Dashboard UI
 **Goal:** Fix compile errors in TriggerManager, add PATCH/regenerate-token backend endpoints, and deliver Active/Inactive toggle, Copy Token, Rotate Key, and empty state UI features.
 **Status:** Not Started
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
 - [ ] 09-01-PLAN.md — Backend: TriggerUpdate model, update_trigger/regenerate_token service methods, PATCH + POST routes
