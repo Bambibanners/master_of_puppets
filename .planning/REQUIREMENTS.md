@@ -1,46 +1,112 @@
 # Requirements: Master of Puppets
 
 **Defined:** 2026-03-04
+**Updated:** 2026-03-09 — Milestone 7: Advanced Foundry & Smelter
 **Core Value:** Jobs run reliably — on the right node, when scheduled, with output captured — without weakening the security model.
 
-## v1 Requirements
+## Milestone 1–6 Requirements (Complete)
 
 ### Output Capture
-
 - [x] **OUT-01**: Node captures stdout and stderr for every job execution
 - [x] **OUT-02**: Exit code is recorded per execution
 - [x] **OUT-03**: Each run produces a separate execution record (not just latest result)
 - [x] **OUT-04**: User can view execution output logs from the job detail page in the dashboard
 
 ### Execution History
-
 - [ ] **HIST-01**: User can view a timeline of past executions per job definition
 - [ ] **HIST-02**: User can filter execution history by node, status, and date range
 - [ ] **HIST-03**: Each execution record shows: node, start time, duration, exit code, status
 - [ ] **HIST-04**: Output is retained for a configurable period before pruning
 
 ### Retry Policy
-
 - [ ] **RETR-01**: Job definition can specify a maximum retry count (0 = no retries)
 - [ ] **RETR-02**: Retries use exponential backoff with jitter (not immediate re-queue)
 - [ ] **RETR-03**: System classifies failures as transient (retry) vs permanent (dead letter)
 - [ ] **RETR-04**: Zombie jobs (assigned but never reported back) are reaped and rescheduled
 
 ### Job Dependencies
-
 - [ ] **DEP-01**: User can define that job B runs only after job A succeeds (chaining)
 - [ ] **DEP-02**: User can define fan-in: job waits for multiple upstream jobs to complete
 - [ ] **DEP-03**: System detects and rejects dependency cycles at job creation time
 - [ ] **DEP-04**: Dashboard shows blocked/ready status for jobs with unmet dependencies
 
 ### Environment Tags
-
 - [ ] **TAG-01**: Operator can assign environment tags (e.g. env:dev, env:test, env:prod) to nodes
 - [ ] **TAG-02**: Job definitions can require a specific environment tag
 - [ ] **TAG-03**: Strict enforcement: untagged nodes are skipped for env-targeted jobs
 - [ ] **TAG-04**: Node environment tags are manageable from the dashboard nodes page
 
-## v2 Requirements
+---
+
+## Milestone 7 Requirements — Advanced Foundry & Smelter
+
+### Smelter Registry
+
+- [ ] **SMLT-01**: Admin can add packages to a vetted ingredient catalog (name, version constraint, sha256, OS family)
+- [ ] **SMLT-02**: System auto-flags catalog entries with known CVEs via pip-audit/Safety integration
+- [ ] **SMLT-03**: Build fails (STRICT mode) if any blueprint ingredient is not in the approved catalog
+- [ ] **SMLT-04**: Admin can toggle enforcement mode between STRICT and WARNING per system config
+- [ ] **SMLT-05**: Dashboard shows Non-Compliant badge on images built with unapproved ingredients in WARNING mode
+
+### Compatibility Engine
+
+- [ ] **COMP-01**: Every tool in the CapabilityMatrix is tagged with an `os_family` (DEBIAN/ALPINE/etc.)
+- [ ] **COMP-02**: Tools can declare a required runtime dependency (e.g. Scapy requires Python 3.x)
+- [ ] **COMP-03**: Foundry API rejects blueprints where any tool's `os_family` doesn't match the selected base OS
+- [ ] **COMP-04**: Foundry UI filters available tools in real-time based on selected base OS
+
+### Package Management
+
+- [ ] **PKG-01**: Admin can select native OS packages (apt/apk) to pre-bake into an image
+- [ ] **PKG-02**: Admin can select PIP packages to pre-install at build time (reducing node startup time)
+- [ ] **PKG-03**: Admin can define a global "Core" package set that is auto-injected into every Puppet image
+
+### Custom Repositories
+
+- [ ] **REPO-01**: Admin can add custom APT/APK repository sources with GPG key to a blueprint
+- [ ] **REPO-02**: MoP hosts a built-in internal PyPI registry (pypiserver sidecar) — admin can upload .whl/.tar.gz packages
+- [ ] **REPO-03**: Internal PyPI packages appear as selectable items in the Foundry package picker
+- [ ] **REPO-04**: Admin can define named repo presets (e.g. "Corporate APT Mirror") and toggle them on/off per blueprint
+
+### Foundry Wizard
+
+- [ ] **WIZ-01**: Foundry provides a 5-step guided composition wizard (Base OS → Runtime → Tools → Packages → Repos)
+- [ ] **WIZ-02**: Wizard only shows tools and packages compatible with the selected base OS (real-time filtering)
+- [ ] **WIZ-03**: Admin can search the Smelter Registry and internal PyPI store from within the wizard
+
+### Smelt-Check
+
+- [ ] **SMCK-01**: After build, an ephemeral container is spawned from the new image and runs `validation_cmd` for every included tool
+- [ ] **SMCK-02**: Any `validation_cmd` exit code != 0 aborts the build and marks it failed before tagging/pushing
+- [ ] **SMCK-03**: Smelt-Check results (pass/fail per tool) are stored and visible in the dashboard
+
+### Image BOM & Lifecycle
+
+- [ ] **BOM-01**: Every completed build generates a JSON Bill of Materials listing all packages, tools, and repos
+- [ ] **BOM-02**: BOM is stored in the DB and viewable from the template detail page in the dashboard
+- [ ] **LIFE-01**: Template images have lifecycle states: ACTIVE / DEPRECATED / REVOKED
+- [ ] **LIFE-02**: Nodes running a REVOKED image are blocked from receiving new job assignments
+- [ ] **LIFE-03**: Dashboard shows lifecycle state badge on all template images
+
+### Security & Governance
+
+- [ ] **GOV-01**: At build completion, a SLSA provenance document is generated listing all ingredients + hashes
+- [ ] **GOV-02**: Provenance document is signed with the control plane's Ed25519 private key
+- [ ] **GOV-03**: Build process runs with enforced CPU and memory limits (configurable, default 4GB RAM)
+- [ ] **GOV-04**: Credentials passed to builds via `docker build --secret` never appear in image history
+
+---
+
+## v2 Requirements (Deferred)
+
+### Advanced Foundry (Phase 2)
+
+- **FNDRY-01**: Multi-arch smelting — support linux/amd64 and linux/arm64 via buildx
+- **FNDRY-02**: Warm-up commands baked at build time to prime JIT caches for faster node startup
+- **FNDRY-03**: Foundry Pulse — scheduled/webhook-triggered monitoring of upstream base images, auto-rebuild on security patches
+- **FNDRY-04**: Layer optimization — automatic squashing and multi-stage builds to strip build-time deps
+- **FNDRY-05**: Air-gapped smelting — export baked image + dependencies as encrypted tarball for offline deployment
+- **FNDRY-06**: Artifact staging area — upload one-off binaries/.so libraries with auto-generated COPY instructions
 
 ### CI/CD Integration
 
@@ -60,16 +126,23 @@
 - **HOOK-01**: Optional webhook callback when job completes (POST to configured URL)
 - **HOOK-02**: Webhook payloads are signed so receivers can verify authenticity
 
+---
+
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
 | Silent security weakening | Non-negotiable — any trade-off must be documented and operator opt-in |
-| Real-time output streaming | Increases complexity significantly; buffered delivery sufficient for v1 |
+| Real-time output streaming | Increases complexity significantly; buffered delivery sufficient |
 | Mobile app | Web-first; API covers automation needs |
 | Built-in secrets vault | Use external vault; Fernet-at-rest covers in-DB secrets |
 | Webhook implementation (v1) | SSRF/DNS rebinding design needed first; deferred to v2 |
 | CI/CD integration (v1) | Correct async poll semantics depend on retry + history being solid first |
+| Artifact staging area | Low priority relative to registry + wizard; deferred to v2 |
+| Multi-arch builds | Buildx complexity; single-arch sufficient for homelab/enterprise target |
+| Air-gapped export | Niche use case; deferred until core Smelter is proven |
+
+---
 
 ## Traceability
 
@@ -97,12 +170,43 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TAG-02 | Phase 4 | Pending |
 | TAG-03 | Phase 4 | Pending |
 | TAG-04 | Phase 4 | Pending |
+| SMLT-01 | TBD | Pending |
+| SMLT-02 | TBD | Pending |
+| SMLT-03 | TBD | Pending |
+| SMLT-04 | TBD | Pending |
+| SMLT-05 | TBD | Pending |
+| COMP-01 | TBD | Pending |
+| COMP-02 | TBD | Pending |
+| COMP-03 | TBD | Pending |
+| COMP-04 | TBD | Pending |
+| PKG-01 | TBD | Pending |
+| PKG-02 | TBD | Pending |
+| PKG-03 | TBD | Pending |
+| REPO-01 | TBD | Pending |
+| REPO-02 | TBD | Pending |
+| REPO-03 | TBD | Pending |
+| REPO-04 | TBD | Pending |
+| WIZ-01 | TBD | Pending |
+| WIZ-02 | TBD | Pending |
+| WIZ-03 | TBD | Pending |
+| SMCK-01 | TBD | Pending |
+| SMCK-02 | TBD | Pending |
+| SMCK-03 | TBD | Pending |
+| BOM-01 | TBD | Pending |
+| BOM-02 | TBD | Pending |
+| LIFE-01 | TBD | Pending |
+| LIFE-02 | TBD | Pending |
+| LIFE-03 | TBD | Pending |
+| GOV-01 | TBD | Pending |
+| GOV-02 | TBD | Pending |
+| GOV-03 | TBD | Pending |
+| GOV-04 | TBD | Pending |
 
-**Coverage:**
-- v1 requirements: 20 total
-- Mapped to phases: 20
-- Unmapped: 0 ✓
+**Coverage (Milestone 7):**
+- v1 requirements: 29 total
+- Mapped to phases: TBD (roadmapper will assign)
+- Unmapped: 29 ⚠️ (pending roadmap creation)
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after roadmap creation — all 20 requirements mapped*
+*Last updated: 2026-03-09 — Milestone 7 requirements added (29 new requirements across 8 categories)*
