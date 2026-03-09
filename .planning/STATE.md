@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 09-03-PLAN.md
-last_updated: "2026-03-09T08:47:25.810Z"
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-03-09T15:09:40.488Z"
 last_activity: "2026-03-07 — Plan 06-02c complete: edge cases validated (jq-absent fallback, no-runtime error, non-root behavior)."
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 13
+  completed_plans: 11
   percent: 40
 ---
 
@@ -49,6 +49,7 @@ Progress: [████░░░░░░] 40% (3 of 10 phases complete)
 | Phase 09-triggermanager-dashboard-ui P01 | 2 | 2 tasks | 4 files |
 | Phase 09 P02 | 2 | 2 tasks | 1 files |
 | Phase 09-triggermanager-dashboard-ui P03 | 5 | 2 tasks | 0 files |
+| Phase 10-windows-installer-fix P01 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Progress: [████░░░░░░] 40% (3 of 10 phases complete)
 - [Phase 09]: Copy Token uses navigator.clipboard directly with no confirmation dialog for immediate UX
 - [Phase 09]: Enable trigger sends PATCH immediately; only Disable requires AlertDialog confirmation
 - [Phase 09-triggermanager-dashboard-ui]: All 9 TriggerManager verification steps passed in browser — feature confirmed working end-to-end
+- [Phase 10-windows-installer-fix]: Inline function stubs in BeforeEach (not dot-source) for Wave 0 — target functions don't exist in ps1 yet; dot-source added in Plan 02
+- [Phase 10-windows-installer-fix]: Fedora 40 base for loader/Containerfile — ships podman in default repos without multi-step manual install
 
 ### Pending Todos
 - Plan 02b: Fix node-compose.yaml image reference in main.py (localhost/ → 192.168.50.148:5000/).
@@ -84,7 +87,7 @@ Progress: [████░░░░░░] 40% (3 of 10 phases complete)
 
 ## Session Continuity
 
-Last session: 2026-03-09T08:47:25.808Z
-Stopped at: Completed 09-03-PLAN.md
+Last session: 2026-03-09T15:09:40.486Z
+Stopped at: Completed 10-01-PLAN.md
 Resume file: None
 Next plan: 09-trigger-manager-dashboard (Cross-Network Validation) — create .planning/phases/08-cross-network/
