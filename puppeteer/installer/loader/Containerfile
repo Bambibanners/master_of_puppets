@@ -1,0 +1,38 @@
+# Master of Puppets — Loader Container
+# Runs the puppeteer server stack deployment from inside a container.
+# The host Podman socket is accessed via TCP relay (DOCKER_HOST env var).
+#
+# Build:
+#   podman build -t puppeteer-loader -f loader/Containerfile .
+#
+# Run (Windows — TCP relay must be started first on host):
+#   podman run --rm -it \
+#       --add-host=host.docker.internal:host-gateway \
+#       -e DOCKER_HOST=tcp://host.docker.internal:2375 \
+#       -v "${PWD}:/app" -w /app puppeteer-loader
+#
+# Run (Linux — direct socket mount):
+#   podman run --rm -it \
+#       -v /var/run/podman.sock:/run/podman/podman.sock \
+#       -v "${PWD}:/app" -w /app puppeteer-loader
+#
+# Note: --add-host=host.docker.internal:host-gateway is required at runtime
+# (not build time) so the container can resolve host.docker.internal to reach
+# the TCP relay started by `podman system service --time=0 tcp:127.0.0.1:2375`.
+
+FROM fedora:40
+
+RUN dnf install -y \
+        podman \
+        podman-compose \
+        python3 \
+        python3-pip \
+        curl \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
+WORKDIR /app
+
+# Default: bring up the server stack.
+# Overridden by podman run ... <custom command> for other operations.
+CMD ["podman-compose", "-f", "compose.server.yaml", "up", "-d"]
