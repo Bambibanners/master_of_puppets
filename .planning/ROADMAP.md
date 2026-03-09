@@ -49,7 +49,7 @@ Plans:
 ### Phase 10: Windows Installer Fix
 **Goal:** Fix Podman named-pipe socket mapping in `install_universal.ps1` so the Loader deployment method (Method 1) works correctly on Windows.
 **Status:** In Planning
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 - [ ] 10-01-PLAN.md — Wave 0: Pester test stubs (WIN-01..05) + loader/Containerfile (WIN-06)
