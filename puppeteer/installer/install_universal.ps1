@@ -20,7 +20,10 @@ param(
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("Podman", "Docker", "")]
-    [string]$Platform = ""
+    [string]$Platform = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$Tags = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,6 +31,66 @@ $ErrorActionPreference = "Stop"
 function Write-Log {
     param([string]$Message, [string]$Color = "White")
     Write-Host "[Installer] $Message" -ForegroundColor $Color
+}
+
+function Assert-PodmanMachineRunning {
+    $machineJson = podman machine list --format json 2>$null | ConvertFrom-Json
+    $running = $machineJson | Where-Object { $_.Running -eq $true }
+    if (-not $running) {
+        throw "No Podman machine is running. Start one with: podman machine start"
+    }
+    return $running[0].Name
+}
+
+function Get-PodmanSocketInfo {
+    $pipePath = podman machine inspect --format '{{.ConnectionInfo.PodmanPipe.Path}}' 2>$null
+    if ([string]::IsNullOrWhiteSpace($pipePath)) {
+        throw "Could not resolve Podman pipe path. Is a machine running?"
+    }
+    return $pipePath
+}
+
+function Invoke-LoaderContainer {
+    param([string]$WorkDir = $PWD)
+
+    $relayJob = $null
+    $LoaderArgs = @(
+        "run", "--rm", "-it",
+        "-v", "${WorkDir}:/app",
+        "-w", "/app"
+    )
+
+    if ($IsWindows -and -not $env:WSL_DISTRO_NAME) {
+        # Native Windows: start TCP relay, pass DOCKER_HOST into container
+        Write-Log "Starting Podman TCP relay for loader container..." "Cyan"
+        $relayJob = Start-Job -ScriptBlock {
+            podman system service --time=0 tcp:127.0.0.1:2375
+        }
+        Start-Sleep -Seconds 3
+        $LoaderArgs += @(
+            "--add-host=host.docker.internal:host-gateway",
+            "-e", "DOCKER_HOST=tcp://host.docker.internal:2375"
+        )
+    } else {
+        # Linux / WSL: bind-mount unix socket directly
+        $LoaderArgs += @("-v", "/var/run/podman.sock:/run/podman/podman.sock")
+    }
+
+    $LoaderArgs += "puppeteer-loader"
+
+    try {
+        & podman @LoaderArgs
+        $exitCode = $LASTEXITCODE
+    } finally {
+        if ($null -ne $relayJob) {
+            Stop-Job $relayJob -ErrorAction SilentlyContinue
+            Remove-Job $relayJob -ErrorAction SilentlyContinue
+        }
+    }
+
+    if ($exitCode -ne 0) {
+        throw "Loader container failed with exit code $exitCode"
+    }
 }
 
 # --- Platform Detection ---
@@ -71,21 +134,6 @@ Write-Log "Initializing Universal Installer ($Role on $Platform)..." "Cyan"
 if ($Platform -eq "Podman") {
     if (-not $HasPodman) {
         Write-Error "Podman is not installed. Please install Podman first."
-    }
-    if (-not (Get-Command podman-compose -ErrorAction SilentlyContinue)) {
-        # Try to find it in likely python paths
-        $PotentialPaths = @(
-            "$env:APPDATA\Python\Python312\Scripts",
-            "$env:APPDATA\Python\Python311\Scripts",
-            "$env:LOCALAPPDATA\Programs\Python\Python312\Scripts"
-        )
-        foreach ($Path in $PotentialPaths) {
-            if (Test-Path "$Path\podman-compose.exe") {
-                $env:Path += ";$Path"
-                Write-Log "Found podman-compose in $Path, added to PATH." "Green"
-                break
-            }
-        }
     }
 }
 elseif ($Platform -eq "Docker") {
@@ -146,6 +194,9 @@ if ($Role -eq "Node") {
     
     # We use the extracted CA to verify the server identity
     $ComposeUrl = "$ServerUrl/api/node/compose?token=$Token&platform=$Platform"
+    if ($Tags) {
+        $ComposeUrl += "&tags=$Tags"
+    }
     
     # Security Hardening:
     # We rely on the CA being trusted (Step 1). 
@@ -198,53 +249,45 @@ elseif ($Role -eq "Agent") {
     if ($Method -eq "1") {
         # --- PATH 1: LOADER ---
         Write-Log "Launching Puppeteer Loader..." "Cyan"
-        
-        # Build Loader Image locally first (ensure fresh code)
-        # Note: In production we might pull, but here we build from source
-        Write-Log "Building Loader Image..." "Gray"
-        podman build -t puppeteer-loader -f loader/Containerfile .
-        
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to build Loader image."
-        }
-        
-        # Run Loader
-        # -v /var/run/podman.sock:/run/podman/podman.sock : Socket access
-        # --privileged : Required for socket interaction in some setups
-        # -v $PWD:/app : Mount current dir so loader sees compose file and secrets
-        # -w /app : Workdir
-        
-        # Detect socket path based on OS 
-        # (Quick check, assuming Linux default keying off the user's Speedy Mini request, 
-        # but maintaining Windows compat via magic pipe if needed or just assuming user handles socket mapping)
-        
-        # For simplicity in this script (Windows host), we assume Podman Desktop/Machine exposes pipe or socket.
-        # However, "podman run" on Windows usually handles the socket forwarding if we don't map it explicitly?
-        # NO, we must map the control socket so the INSIDE podman can talk to the OUTSIDE podman.
-        
-        # Linux: /var/run/podman.sock
-        # Windows: Pipe is hard to map to file. 
-        # BUT: User asked to test on "Speedy Mini" (Remote). That is likely Linux.
-        # If running on Windows, we might need a specific flag or accept limitation.
-        
-        $SocketMount = "-v /var/run/podman.sock:/run/podman/podman.sock"
+
+        # Guard: Podman machine must be running on Windows
         if ($IsWindows) {
-           Write-Log "Windows detected: Ensure Podman Machine is running. Mapping named pipe might require special setup." "Yellow"
-           # Windows Podman usually connects via ssh or pipe. Simple volume mount won't work for Pipe -> File.
-           # However, if we are just verifying logic, we'll assume Linux for the "Speedy Mini" target.
-           # Or we try to use the user's existing connection.
+            Assert-PodmanMachineRunning | Out-Null
+        }
+
+        # Build loader image from local Containerfile
+        Write-Log "Building Loader Image..." "Gray"
+        & podman @("build", "-t", "puppeteer-loader", "-f", "loader/Containerfile", ".")
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to build Loader image."
         }
 
         Write-Log "Running Loader..." "Cyan"
-        $RunCmd = "podman run --privileged --rm -it $SocketMount -v ${PWD}:/app puppeteer-loader"
-        Write-Host "Command: $RunCmd"
-        Invoke-Expression $RunCmd
-        
-        exit $LASTEXITCODE
+        Invoke-LoaderContainer -WorkDir $PWD
+        exit 0
     }
     else {
         # --- PATH 2: MANUAL (EXISTING LOGIC) ---
         Write-Log "Using Manual Installation..." "Cyan"
+
+        # podman-compose is required for Method 2 (not Method 1)
+        if ($Platform -eq "Podman") {
+            if (-not (Get-Command podman-compose -ErrorAction SilentlyContinue)) {
+                $PotentialPaths = @(
+                    "$env:APPDATA\Python\Python312\Scripts",
+                    "$env:APPDATA\Python\Python311\Scripts",
+                    "$env:LOCALAPPDATA\Programs\Python\Python312\Scripts"
+                )
+                foreach ($Path in $PotentialPaths) {
+                    if (Test-Path "$Path\podman-compose.exe") {
+                        $env:Path += ";$Path"
+                        Write-Log "Found podman-compose in $Path, added to PATH." "Green"
+                        break
+                    }
+                }
+            }
+        }
+
         # 1. Secrets Management
         $SecretsFile = "secrets.env"
         if (-not (Test-Path $SecretsFile)) {
