@@ -81,7 +81,15 @@
   2. Tool records can declare a required runtime dependency (e.g. Scapy requires Python 3.x) and that dependency is stored and exposed via API
   3. Submitting a blueprint that includes a DEBIAN-only tool against an ALPINE base OS returns a 4xx error with a clear rejection message
   4. The Foundry blueprint editor filters the tool selection list in real-time so only tools compatible with the chosen base OS appear
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 11-01-PLAN.md — Wave 0: test stubs for COMP-01 through COMP-04 (5 failing test functions)
+- [ ] 11-02-PLAN.md — DB migration v26 + CapabilityMatrix model/API: is_active, runtime_dependencies, GET filter, PATCH, soft-delete
+- [ ] 11-03-PLAN.md — Blueprint creation validation: os_family required for RUNTIME, two-pass OS mismatch + dep-confirmation flow
+- [ ] 11-04-PLAN.md — Frontend: CreateBlueprintDialog OS dropdown + filtered tool list + dep-confirm overlay
+- [ ] 11-05-PLAN.md — Frontend: Templates.tsx Tools tab with CRUD table + Blueprint os_family badge
+- [ ] 11-06-PLAN.md — Verify: full test suite + migration + human verification of all COMP requirements
 
 ### Phase 12: Smelter Registry
 **Goal**: Admins can maintain a vetted ingredient catalog, known-CVE packages are auto-flagged, and builds using unapproved ingredients are blocked (STRICT) or badged (WARNING)
@@ -145,7 +153,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 11. Compatibility Engine | 0/TBD | Not started | - |
+| 11. Compatibility Engine | 0/6 | Not started | - |
 | 12. Smelter Registry | 0/TBD | Not started | - |
 | 13. Package Management & Custom Repos | 0/TBD | Not started | - |
 | 14. Foundry Wizard UI | 0/TBD | Not started | - |
