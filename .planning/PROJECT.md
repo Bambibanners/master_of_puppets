@@ -71,5 +71,19 @@ The security model is zero-trust by default. Any feature that requires relaxing 
 | Environment tags for CI/CD targeting | Enables DEV→TEST→PROD promotion patterns without separate orchestrator instances | — Pending |
 | Job output stored server-side | Nodes are stateless — results must flow back to orchestrator | — Pending |
 
+## Current Milestone: Milestone 7 — Advanced Foundry & Smelter
+
+**Goal:** Transition the Foundry from a manual blueprint CRUD system to an intelligent, compatibility-aware composition engine with a built-in package registry and governance layer.
+
+**Target features:**
+- Smelter Registry: vetted ingredient catalog with CVE scanning and STRICT enforcement
+- Compatibility Engine: OS-family filtering, runtime dependency mapping, API validation
+- Advanced Package Management: native OS packages, PIP pre-baking, global core injection
+- Custom Repos: APT/APK + GPG, built-in PyPI store (pypiserver sidecar), repo presets
+- Foundry Wizard UI: 5-step guided composition replacing raw JSON blueprint editing
+- Smelt-Check: mandatory dry-run validator (ephemeral container, validation_cmd per tool)
+- Image BOM + Lifecycle: bill of materials in DB, ACTIVE/DEPRECATED/REVOKED enforcement
+- Security: SLSA provenance docs, build-time secrets (docker --secret), resource limits
+
 ---
-*Last updated: 2026-03-04 after initialization*
+*Last updated: 2026-03-09 after Milestone 7 kickoff*
