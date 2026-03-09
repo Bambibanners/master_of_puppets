@@ -1,5 +1,100 @@
 # Roadmap: Master of Puppets
 
+## Milestone 7: Advanced Foundry & Smelter
+**Goal**: Transition the Foundry from a manual blueprint CRUD system to an intelligent, compatibility-aware composition engine with a built-in package registry and governance layer.
+
+### Phases
+- [ ] **Phase 11: Compatibility Engine** - Tag every CapabilityMatrix tool with OS family, declare runtime deps, enforce OS matching at API and UI
+- [ ] **Phase 12: Smelter Registry** - Vetted ingredient catalog with CVE scanning, STRICT/WARNING enforcement, non-compliant badge
+- [ ] **Phase 13: Package Management & Custom Repos** - Native OS + PIP pre-baking, global core set, APT/APK + GPG repos, pypiserver sidecar, repo presets
+- [ ] **Phase 14: Foundry Wizard UI** - 5-step guided composition wizard replacing raw JSON blueprint editing, with real-time OS filtering and registry search
+- [ ] **Phase 15: Smelt-Check, BOM & Lifecycle** - Post-build ephemeral validation, JSON bill of materials, ACTIVE/DEPRECATED/REVOKED image states, node blocking
+- [ ] **Phase 16: Security & Governance** - SLSA provenance docs, Ed25519-signed provenance, enforced build resource limits, docker --secret for credentials
+
+## Phase Details
+
+### Phase 11: Compatibility Engine
+**Goal**: Every Foundry tool carries OS-family and runtime-dependency metadata, and blueprints that violate OS compatibility are rejected at the API and filtered in the UI
+**Depends on**: Nothing (first Milestone 7 phase)
+**Requirements**: COMP-01, COMP-02, COMP-03, COMP-04
+**Success Criteria** (what must be TRUE):
+  1. Every tool in the CapabilityMatrix has an `os_family` field (DEBIAN/ALPINE/etc.) visible in the admin UI
+  2. Tool records can declare a required runtime dependency (e.g. Scapy requires Python 3.x) and that dependency is stored and exposed via API
+  3. Submitting a blueprint that includes a DEBIAN-only tool against an ALPINE base OS returns a 4xx error with a clear rejection message
+  4. The Foundry blueprint editor filters the tool selection list in real-time so only tools compatible with the chosen base OS appear
+**Plans**: TBD
+
+### Phase 12: Smelter Registry
+**Goal**: Admins can maintain a vetted ingredient catalog, known-CVE packages are auto-flagged, and builds using unapproved ingredients are blocked (STRICT) or badged (WARNING)
+**Depends on**: Phase 11
+**Requirements**: SMLT-01, SMLT-02, SMLT-03, SMLT-04, SMLT-05
+**Success Criteria** (what must be TRUE):
+  1. Admin can add a package to the Smelter Registry with name, version constraint, sha256, and OS family; the entry appears in the catalog list
+  2. Running a CVE scan (pip-audit/Safety) auto-flags catalog entries with known vulnerabilities; flagged entries show a warning indicator
+  3. In STRICT mode, attempting to build a template whose blueprint references a package not in the approved catalog fails before Docker build starts
+  4. Admin can toggle enforcement mode between STRICT and WARNING from the system config page without restarting the service
+  5. In WARNING mode, images built with unapproved ingredients display a Non-Compliant badge on the Templates page
+**Plans**: TBD
+
+### Phase 13: Package Management & Custom Repos
+**Goal**: Admins can pre-bake native OS packages and PIP packages into images, define a global Core set, add custom APT/APK repos with GPG keys, and use MoP's built-in PyPI store
+**Depends on**: Phase 12
+**Requirements**: PKG-01, PKG-02, PKG-03, REPO-01, REPO-02, REPO-03, REPO-04
+**Success Criteria** (what must be TRUE):
+  1. Admin can select native OS packages (apt/apk) for a blueprint and they are installed in the built image without requiring node startup time
+  2. Admin can select PIP packages for a blueprint and they are pre-installed at build time, visible in the image's pip list output
+  3. Admin can define a global Core package set that automatically appears pre-baked in every new Puppet image without manual blueprint entry
+  4. Admin can add a custom APT/APK repository URL + GPG key to a blueprint and the repo is configured inside the built image
+  5. Admin can upload a .whl or .tar.gz file to MoP's internal PyPI store (pypiserver sidecar) and it immediately appears as a selectable package in the Foundry package picker
+  6. Admin can create a named repo preset (e.g. "Corporate APT Mirror") and toggle it on or off per blueprint from the UI
+**Plans**: TBD
+
+### Phase 14: Foundry Wizard UI
+**Goal**: Admins can build Puppet images through a guided 5-step wizard rather than editing raw JSON blueprints, with real-time OS-aware filtering and integrated registry search
+**Depends on**: Phase 13
+**Requirements**: WIZ-01, WIZ-02, WIZ-03
+**Success Criteria** (what must be TRUE):
+  1. Admin can open the Foundry Wizard and progress through all 5 steps (Base OS → Runtime → Tools → Packages → Repos) without editing any raw JSON
+  2. When admin selects a base OS in step 1, tools and packages shown in subsequent steps are filtered to only those compatible with that OS in real-time
+  3. Admin can search the Smelter Registry and the internal PyPI store from within the wizard and add results directly to their composition
+**Plans**: TBD
+
+### Phase 15: Smelt-Check, BOM & Lifecycle
+**Goal**: Every completed build is validated by an ephemeral post-build container, produces a JSON Bill of Materials, and carries a lifecycle state that gates job assignment on nodes
+**Depends on**: Phase 14
+**Requirements**: SMCK-01, SMCK-02, SMCK-03, BOM-01, BOM-02, LIFE-01, LIFE-02, LIFE-03
+**Success Criteria** (what must be TRUE):
+  1. After a successful build, an ephemeral container spawned from the new image runs `validation_cmd` for every included tool; results (pass/fail per tool) appear in the build log
+  2. If any `validation_cmd` exits non-zero, the build is marked failed and the image is not tagged or pushed to the registry
+  3. Every completed build produces a JSON Bill of Materials (packages, tools, repos) stored in the DB and viewable from the template detail page
+  4. Template images have lifecycle state (ACTIVE/DEPRECATED/REVOKED) shown as a badge on the Templates page; admin can change state from the UI
+  5. Nodes running a REVOKED image are blocked from receiving new job assignments; the Jobs page reflects this constraint
+**Plans**: TBD
+
+### Phase 16: Security & Governance
+**Goal**: Every build produces a signed SLSA provenance document, runs under enforced resource limits, and credentials are never baked into image history
+**Depends on**: Phase 15
+**Requirements**: GOV-01, GOV-02, GOV-03, GOV-04
+**Success Criteria** (what must be TRUE):
+  1. At build completion a SLSA provenance JSON document is generated listing all ingredients and their hashes, and is stored alongside the BOM
+  2. The provenance document is signed with the control plane's Ed25519 private key; the signature can be verified with the registered public key
+  3. Build containers run with enforced CPU and memory limits (configurable in system config, defaulting to 4 GB RAM); builds that exceed limits are killed and marked failed
+  4. Credentials passed to builds use `docker build --secret` and do not appear in `docker history` output for the resulting image
+**Plans**: TBD
+
+## Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 11. Compatibility Engine | 0/TBD | Not started | - |
+| 12. Smelter Registry | 0/TBD | Not started | - |
+| 13. Package Management & Custom Repos | 0/TBD | Not started | - |
+| 14. Foundry Wizard UI | 0/TBD | Not started | - |
+| 15. Smelt-Check, BOM & Lifecycle | 0/TBD | Not started | - |
+| 16. Security & Governance | 0/TBD | Not started | - |
+
+---
+
 ## Milestone 6: Remote Environment Validation
 **Goal**: Transition from local simulation to true remote infrastructure. Validate the server deployment on remote Linux and prove the universal installer on fresh Debian/Ubuntu nodes.
 

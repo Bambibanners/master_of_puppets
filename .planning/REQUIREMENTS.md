@@ -170,43 +170,43 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TAG-02 | Phase 4 | Pending |
 | TAG-03 | Phase 4 | Pending |
 | TAG-04 | Phase 4 | Pending |
-| SMLT-01 | TBD | Pending |
-| SMLT-02 | TBD | Pending |
-| SMLT-03 | TBD | Pending |
-| SMLT-04 | TBD | Pending |
-| SMLT-05 | TBD | Pending |
-| COMP-01 | TBD | Pending |
-| COMP-02 | TBD | Pending |
-| COMP-03 | TBD | Pending |
-| COMP-04 | TBD | Pending |
-| PKG-01 | TBD | Pending |
-| PKG-02 | TBD | Pending |
-| PKG-03 | TBD | Pending |
-| REPO-01 | TBD | Pending |
-| REPO-02 | TBD | Pending |
-| REPO-03 | TBD | Pending |
-| REPO-04 | TBD | Pending |
-| WIZ-01 | TBD | Pending |
-| WIZ-02 | TBD | Pending |
-| WIZ-03 | TBD | Pending |
-| SMCK-01 | TBD | Pending |
-| SMCK-02 | TBD | Pending |
-| SMCK-03 | TBD | Pending |
-| BOM-01 | TBD | Pending |
-| BOM-02 | TBD | Pending |
-| LIFE-01 | TBD | Pending |
-| LIFE-02 | TBD | Pending |
-| LIFE-03 | TBD | Pending |
-| GOV-01 | TBD | Pending |
-| GOV-02 | TBD | Pending |
-| GOV-03 | TBD | Pending |
-| GOV-04 | TBD | Pending |
+| SMLT-01 | Phase 12 | Pending |
+| SMLT-02 | Phase 12 | Pending |
+| SMLT-03 | Phase 12 | Pending |
+| SMLT-04 | Phase 12 | Pending |
+| SMLT-05 | Phase 12 | Pending |
+| COMP-01 | Phase 11 | Pending |
+| COMP-02 | Phase 11 | Pending |
+| COMP-03 | Phase 11 | Pending |
+| COMP-04 | Phase 11 | Pending |
+| PKG-01 | Phase 13 | Pending |
+| PKG-02 | Phase 13 | Pending |
+| PKG-03 | Phase 13 | Pending |
+| REPO-01 | Phase 13 | Pending |
+| REPO-02 | Phase 13 | Pending |
+| REPO-03 | Phase 13 | Pending |
+| REPO-04 | Phase 13 | Pending |
+| WIZ-01 | Phase 14 | Pending |
+| WIZ-02 | Phase 14 | Pending |
+| WIZ-03 | Phase 14 | Pending |
+| SMCK-01 | Phase 15 | Pending |
+| SMCK-02 | Phase 15 | Pending |
+| SMCK-03 | Phase 15 | Pending |
+| BOM-01 | Phase 15 | Pending |
+| BOM-02 | Phase 15 | Pending |
+| LIFE-01 | Phase 15 | Pending |
+| LIFE-02 | Phase 15 | Pending |
+| LIFE-03 | Phase 15 | Pending |
+| GOV-01 | Phase 16 | Pending |
+| GOV-02 | Phase 16 | Pending |
+| GOV-03 | Phase 16 | Pending |
+| GOV-04 | Phase 16 | Pending |
 
 **Coverage (Milestone 7):**
 - v1 requirements: 29 total
-- Mapped to phases: TBD (roadmapper will assign)
-- Unmapped: 29 ⚠️ (pending roadmap creation)
+- Mapped to phases: 29/29
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-09 — Milestone 7 requirements added (29 new requirements across 8 categories)*
+*Last updated: 2026-03-09 — Milestone 7 requirements added (29 new requirements across 8 categories); all mapped to Phases 11–16*

@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: milestone-7
 milestone_name: Advanced Foundry & Smelter
-status: planning
-stopped_at: Milestone 7 started — defining requirements
+status: roadmapped
+stopped_at: Roadmap created — 6 phases defined (11–16), ready for plan-phase 11
 last_updated: "2026-03-09T00:00:00.000Z"
-last_activity: "2026-03-09 — Milestone 7 kickoff: Advanced Foundry & Smelter"
+last_activity: "2026-03-09 — Milestone 7 roadmap created: 6 phases, 29 requirements mapped"
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Jobs run reliably — on the right node, when scheduled, with output captured — without weakening the security model.
-**Current focus:** Milestone 7 — Advanced Foundry & Smelter (requirements phase)
+**Current focus:** Milestone 7 — Advanced Foundry & Smelter (Phase 11 next)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Phase 11 (not started)
 Plan: —
-Status: Defining requirements for Milestone 7 — Advanced Foundry & Smelter
-Last activity: 2026-03-09 — Milestone 7 started
+Status: Roadmap complete — ready to begin Phase 11: Compatibility Engine
+Last activity: 2026-03-09 — Roadmap created, 29 requirements mapped across 6 phases
 
-Progress: [░░░░░░░░░░] 0% (0 of 0 phases complete)
+Progress: [░░░░░░░░░░] 0% (0 of 6 phases complete)
 
 ## Performance Metrics
 
@@ -82,7 +82,10 @@ Progress: [░░░░░░░░░░] 0% (0 of 0 phases complete)
 - [Phase 10]: Get-PodmanSocketInfo defined but not called in Method-1 — placeholder for future named pipe mounting; current approach uses DOCKER_HOST TCP relay
 - [Phase 10-windows-installer-fix]: WIN-05 Pester assertion narrowed to 'Get-Command podman-compose' — functional check only, not raw string match which falsely triggered on menu description text
 - [Phase 10-windows-installer-fix]: WIN-06/WIN-07 deferred — no local Podman or Windows/WSL2 hardware; phase closed with WIN-01..05 automated green gate; retest when hardware available
-- [Phase 10-windows-installer-fix]: WIN-06/WIN-07 deferred — no local Podman or Windows/WSL2 hardware; phase closed with WIN-01..05 automated green gate; retest when hardware available
+- [Milestone 7 Roadmap]: Phase 11 (Compatibility Engine) is the foundation — OS-family tagging on CapabilityMatrix tools must land before registry enforcement or wizard filtering can work
+- [Milestone 7 Roadmap]: Phase 13 bundles PKG + REPO together — both feed the package picker UI that Phase 14 (Wizard) depends on; splitting them would require the wizard to be built twice
+- [Milestone 7 Roadmap]: Phase 15 bundles SMCK + BOM + LIFE — all three are post-build concerns that fire after the image is produced; natural delivery boundary
+- [Milestone 7 Roadmap]: pypiserver sidecar is infrastructure work inside Phase 13 — needs to exist before wizard can search it (Phase 14)
 
 ### Pending Todos
 - Plan 02b: Fix node-compose.yaml image reference in main.py (localhost/ → 192.168.50.148:5000/).
@@ -94,6 +97,6 @@ Progress: [░░░░░░░░░░] 0% (0 of 0 phases complete)
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Milestone 7 kickoff — research in progress
+Stopped at: Milestone 7 roadmap created — 6 phases (11–16), 29/29 requirements mapped
 Resume file: None
-Next plan: Complete requirements definition → spawn roadmapper → /gsd:plan-phase 11
+Next plan: /gsd:plan-phase 11
