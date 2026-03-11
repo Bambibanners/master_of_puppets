@@ -238,6 +238,7 @@ class Blueprint(Base):
     definition: Mapped[str] = mapped_column(Text) # JSON blob
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    os_family: Mapped[Optional[str]] = mapped_column(String, nullable=True) # DEBIAN, ALPINE — set on RUNTIME blueprints
 
 class Artifact(Base):
     __tablename__ = "artifacts"
