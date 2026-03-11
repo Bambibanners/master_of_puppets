@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Boxes, CheckCircle2, Clock, AlertCircle, Loader2, Plus, Cpu, Globe, Zap, Trash2, RefreshCw } from 'lucide-react';
+import { Boxes, CheckCircle2, Clock, AlertCircle, Loader2, Plus, Cpu, Globe, Zap, Trash2, RefreshCw, Wrench, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,8 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { authenticatedFetch } from '../auth';
 import { CreateBlueprintDialog } from '../components/CreateBlueprintDialog';
 import { CreateTemplateDialog } from '../components/CreateTemplateDialog';
@@ -38,6 +40,18 @@ interface Blueprint {
     definition: any;
     version: number;
     created_at: string;
+    os_family?: string;
+}
+
+interface ToolMatrix {
+    id: number;
+    base_os_family: string;
+    tool_id: string;
+    injection_recipe: string;
+    validation_cmd: string;
+    artifact_id?: string;
+    runtime_dependencies: string[];
+    is_active: boolean;
 }
 
 const TemplateCard = ({ template, baseUpdatedAt }: { template: Template; baseUpdatedAt: string | null }) => {
@@ -262,6 +276,11 @@ const BlueprintItem = ({ blueprint }: { blueprint: Blueprint }) => {
                         <div className="flex items-center gap-2">
                             <h4 className="text-sm font-bold text-white">{blueprint.name}</h4>
                             <Badge variant="outline" className="text-[10px] h-4 px-1 border-zinc-800 text-zinc-500">v{blueprint.version}</Badge>
+                            {blueprint.type === 'RUNTIME' && blueprint.os_family && (
+                                <Badge variant="outline" className={`text-[10px] h-4 px-1 ${blueprint.os_family === 'ALPINE' ? 'border-cyan-600 text-cyan-400' : 'border-amber-600 text-amber-400'}`}>
+                                    {blueprint.os_family}
+                                </Badge>
+                            )}
                         </div>
                         <p className="text-xs text-zinc-500 mt-0.5">
                             {blueprint.type === 'RUNTIME'
@@ -323,6 +342,13 @@ const Templates = () => {
     const [isTemplateOpen, setIsTemplateOpen] = useState(false);
     const [blueprintDialogType, setBlueprintDialogType] = useState<'RUNTIME' | 'NETWORK' | undefined>();
     const [blueprintDialogOpen, setBlueprintDialogOpen] = useState(false);
+    const [showAddTool, setShowAddTool] = useState(false);
+    const [newTool, setNewTool] = useState({
+        tool_id: '', base_os_family: 'DEBIAN' as 'DEBIAN' | 'ALPINE',
+        validation_cmd: '', injection_recipe: '', runtime_dependencies: [] as string[],
+        is_active: true
+    });
+    const [newDepInput, setNewDepInput] = useState('');
 
     const { data: templates = [], isLoading: loadingTemplates } = useQuery<Template[]>({
         queryKey: ['templates'],
@@ -360,6 +386,51 @@ const Templates = () => {
         onError: () => toast.error('Failed to mark base image updated'),
     });
 
+    // Tools (capability matrix) — include_inactive=true for admin view
+    const { data: tools = [], refetch: refetchTools } = useQuery<ToolMatrix[]>({
+        queryKey: ['capability-matrix-admin'],
+        queryFn: async () => {
+            const res = await authenticatedFetch('/api/capability-matrix?include_inactive=true');
+            return await res.json();
+        }
+    });
+
+    // Add tool mutation
+    const addToolMutation = useMutation({
+        mutationFn: async (entry: Omit<ToolMatrix, 'id'>) => {
+            const res = await authenticatedFetch('/api/capability-matrix', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...entry,
+                    runtime_dependencies: entry.runtime_dependencies,
+                    is_active: true
+                })
+            });
+            if (!res.ok) throw new Error('Failed to create tool entry');
+            return res.json();
+        },
+        onSuccess: () => { refetchTools(); toast.success('Tool entry created'); }
+    });
+
+    // Soft-delete tool mutation
+    const deleteToolMutation = useMutation({
+        mutationFn: async (id: number) => {
+            const res = await authenticatedFetch(`/api/capability-matrix/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete tool entry');
+            return res.json();
+        },
+        onSuccess: (data) => {
+            refetchTools();
+            const refs = data.referencing_blueprints?.length || 0;
+            if (refs > 0) {
+                toast.warning(`Tool deactivated. Referenced by ${refs} blueprint(s) — they can still build.`);
+            } else {
+                toast.success('Tool deactivated');
+            }
+        }
+    });
+
     const baseUpdatedAt = baseImageData?.base_node_image_updated_at ?? null;
     const runtimeBlueprints = blueprints.filter((b: Blueprint) => b.type === 'RUNTIME');
     const networkBlueprints = blueprints.filter((b: Blueprint) => b.type === 'NETWORK');
@@ -395,6 +466,10 @@ const Templates = () => {
                         <TabsTrigger value="templates">Templates ({templates.length})</TabsTrigger>
                         <TabsTrigger value="runtime">Runtime Blueprints ({runtimeBlueprints.length})</TabsTrigger>
                         <TabsTrigger value="network">Network Blueprints ({networkBlueprints.length})</TabsTrigger>
+                        <TabsTrigger value="tools">
+                            <Wrench className="mr-1 h-3.5 w-3.5" />
+                            Tools ({tools.length})
+                        </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="templates">
@@ -455,6 +530,159 @@ const Templates = () => {
                         ) : (
                             <BlueprintEmptyState type="NETWORK" />
                         )}
+                    </TabsContent>
+
+                    <TabsContent value="tools">
+                        <div className="space-y-4">
+                            <div className="flex justify-end">
+                                <Button
+                                    variant="outline"
+                                    className="bg-zinc-900 border-zinc-800 text-white h-10 px-4 rounded-xl"
+                                    onClick={() => setShowAddTool(true)}
+                                >
+                                    <Plus className="mr-2 h-4 w-4" /> Add Tool Entry
+                                </Button>
+                            </div>
+
+                            {/* Add tool dialog */}
+                            <Dialog open={showAddTool} onOpenChange={setShowAddTool}>
+                                <DialogContent className="max-w-lg bg-zinc-950 border-zinc-800 text-white">
+                                    <DialogHeader>
+                                        <DialogTitle>Add Capability Matrix Entry</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="grid gap-4 py-2">
+                                        <div className="grid gap-1.5">
+                                            <Label>Tool ID</Label>
+                                            <Input className="bg-zinc-900 border-zinc-800" placeholder="e.g. python-3.11"
+                                                value={newTool.tool_id} onChange={e => setNewTool({...newTool, tool_id: e.target.value})} />
+                                        </div>
+                                        <div className="grid gap-1.5">
+                                            <Label>OS Family</Label>
+                                            <select className="bg-zinc-900 border border-zinc-800 text-white rounded-md px-3 py-2 text-sm"
+                                                value={newTool.base_os_family}
+                                                onChange={e => setNewTool({...newTool, base_os_family: e.target.value as 'DEBIAN' | 'ALPINE'})}>
+                                                <option value="DEBIAN">DEBIAN</option>
+                                                <option value="ALPINE">ALPINE</option>
+                                            </select>
+                                        </div>
+                                        <div className="grid gap-1.5">
+                                            <Label>Validation Command</Label>
+                                            <Input className="bg-zinc-900 border-zinc-800" placeholder="e.g. python --version"
+                                                value={newTool.validation_cmd} onChange={e => setNewTool({...newTool, validation_cmd: e.target.value})} />
+                                        </div>
+                                        <div className="grid gap-1.5">
+                                            <Label>Injection Recipe (Dockerfile snippet)</Label>
+                                            <textarea className="bg-zinc-900 border border-zinc-800 text-white rounded-md px-3 py-2 text-sm font-mono h-20 resize-none"
+                                                value={newTool.injection_recipe}
+                                                onChange={e => setNewTool({...newTool, injection_recipe: e.target.value})}
+                                                placeholder="RUN apt-get install -y python3" />
+                                        </div>
+                                        <div className="grid gap-1.5">
+                                            <Label>Runtime Dependencies (tool_ids)</Label>
+                                            <div className="flex gap-2">
+                                                <Input className="bg-zinc-900 border-zinc-800" placeholder="e.g. python-3.11"
+                                                    value={newDepInput} onChange={e => setNewDepInput(e.target.value)}
+                                                    onKeyDown={e => {
+                                                        if (e.key === 'Enter' && newDepInput) {
+                                                            setNewTool({...newTool, runtime_dependencies: [...newTool.runtime_dependencies, newDepInput]});
+                                                            setNewDepInput('');
+                                                        }
+                                                    }} />
+                                                <Button type="button" size="icon" onClick={() => {
+                                                    if (newDepInput) {
+                                                        setNewTool({...newTool, runtime_dependencies: [...newTool.runtime_dependencies, newDepInput]});
+                                                        setNewDepInput('');
+                                                    }
+                                                }}><Plus className="h-4 w-4" /></Button>
+                                            </div>
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {newTool.runtime_dependencies.map(dep => (
+                                                    <Badge key={dep} variant="outline" className="cursor-pointer text-xs"
+                                                        onClick={() => setNewTool({...newTool, runtime_dependencies: newTool.runtime_dependencies.filter(d => d !== dep)})}>
+                                                        {dep} <X className="h-3 w-3 ml-1" />
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <Button variant="outline" onClick={() => setShowAddTool(false)}>Cancel</Button>
+                                        <Button onClick={() => {
+                                            addToolMutation.mutate(newTool);
+                                            setShowAddTool(false);
+                                            setNewTool({ tool_id: '', base_os_family: 'DEBIAN', validation_cmd: '', injection_recipe: '', runtime_dependencies: [], is_active: true });
+                                        }} disabled={!newTool.tool_id || !newTool.validation_cmd}>
+                                            Add Entry
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+
+                            {/* Tools table */}
+                            <div className="rounded-xl border border-zinc-800 overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-zinc-900 text-zinc-400 uppercase text-xs">
+                                        <tr>
+                                            <th className="text-left px-4 py-3">Tool ID</th>
+                                            <th className="text-left px-4 py-3">OS Family</th>
+                                            <th className="text-left px-4 py-3">Validation Cmd</th>
+                                            <th className="text-left px-4 py-3">Runtime Deps</th>
+                                            <th className="text-left px-4 py-3">Status</th>
+                                            <th className="text-left px-4 py-3">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-zinc-800">
+                                        {tools.map(tool => (
+                                            <tr key={tool.id} className={`${!tool.is_active ? 'opacity-50' : ''} hover:bg-zinc-900/50 transition-colors`}>
+                                                <td className="px-4 py-3 font-mono text-white">{tool.tool_id}</td>
+                                                <td className="px-4 py-3">
+                                                    <Badge variant="outline" className={tool.base_os_family === 'ALPINE' ? 'border-cyan-600 text-cyan-400' : 'border-amber-600 text-amber-400'}>
+                                                        {tool.base_os_family}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-4 py-3 font-mono text-zinc-400 text-xs">{tool.validation_cmd}</td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {(tool.runtime_dependencies || []).map(dep => (
+                                                            <Badge key={dep} variant="secondary" className="text-xs">{dep}</Badge>
+                                                        ))}
+                                                        {(!tool.runtime_dependencies || tool.runtime_dependencies.length === 0) && (
+                                                            <span className="text-zinc-600 text-xs">none</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <Badge variant={tool.is_active ? 'default' : 'secondary'}>
+                                                        {tool.is_active ? 'Active' : 'Inactive'}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {tool.is_active && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-zinc-500 hover:text-red-400"
+                                                            onClick={() => {
+                                                                if (confirm(`Deactivate tool "${tool.tool_id}"? It will be hidden from new blueprints but existing blueprints are unaffected.`)) {
+                                                                    deleteToolMutation.mutate(tool.id);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {tools.length === 0 && (
+                                            <tr>
+                                                <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">No tool entries found</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </TabsContent>
                 </Tabs>
             )}
