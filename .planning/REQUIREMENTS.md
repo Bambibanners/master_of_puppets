@@ -50,10 +50,10 @@
 
 ### Compatibility Engine
 
-- [ ] **COMP-01**: Every tool in the CapabilityMatrix is tagged with an `os_family` (DEBIAN/ALPINE/etc.)
-- [ ] **COMP-02**: Tools can declare a required runtime dependency (e.g. Scapy requires Python 3.x)
-- [ ] **COMP-03**: Foundry API rejects blueprints where any tool's `os_family` doesn't match the selected base OS
-- [ ] **COMP-04**: Foundry UI filters available tools in real-time based on selected base OS
+- [x] **COMP-01**: Every tool in the CapabilityMatrix is tagged with an `os_family` (DEBIAN/ALPINE/etc.)
+- [x] **COMP-02**: Tools can declare a required runtime dependency (e.g. Scapy requires Python 3.x)
+- [x] **COMP-03**: Foundry API rejects blueprints where any tool's `os_family` doesn't match the selected base OS
+- [x] **COMP-04**: Foundry UI filters available tools in real-time based on selected base OS
 
 ### Package Management
 
@@ -219,10 +219,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SMLT-03 | Phase 12 | Pending |
 | SMLT-04 | Phase 12 | Pending |
 | SMLT-05 | Phase 12 | Pending |
-| COMP-01 | Phase 11 | Pending |
-| COMP-02 | Phase 11 | Pending |
-| COMP-03 | Phase 11 | Pending |
-| COMP-04 | Phase 11 | Pending |
+| COMP-01 | Phase 11 | Complete |
+| COMP-02 | Phase 11 | Complete |
+| COMP-03 | Phase 11 | Complete |
+| COMP-04 | Phase 11 | Complete |
 | PKG-01 | Phase 13 | Pending |
 | PKG-02 | Phase 13 | Pending |
 | PKG-03 | Phase 13 | Pending |
