@@ -99,25 +99,33 @@ async def lifespan(app: FastAPI):
                     base_os_family="DEBIAN",
                     tool_id="python-3.11",
                     injection_recipe="RUN apt-get update && apt-get install -y python3.11 python3-pip python3-dev build-essential libssl-dev libffi-dev && ln -sf /usr/bin/python3.11 /usr/bin/python && ln -sf /usr/bin/pip3 /usr/bin/pip && pip config set global.break-system-packages true",
-                    validation_cmd="python --version"
+                    validation_cmd="python --version",
+                    is_active=True,
+                    runtime_dependencies="[]"
                 ),
                 CapabilityMatrix(
                     base_os_family="DEBIAN",
                     tool_id="pwsh-7.4",
                     injection_recipe="RUN apt-get update && apt-get install -y wget && wget https://github.com/PowerShell/PowerShell/releases/download/v7.4.1/powershell_7.4.1-1.deb_amd64.deb && dpkg -i powershell_7.4.1-1.deb_amd64.deb && apt-get install -f",
-                    validation_cmd="pwsh -version"
+                    validation_cmd="pwsh -version",
+                    is_active=True,
+                    runtime_dependencies="[]"
                 ),
                 CapabilityMatrix(
                     base_os_family="ALPINE",
                     tool_id="python-3.11",
                     injection_recipe="RUN apk add --no-cache python3 py3-pip python3-dev build-base libffi-dev openssl-dev && ln -sf /usr/bin/python3 /usr/bin/python && ln -sf /usr/bin/pip3 /usr/bin/pip",
-                    validation_cmd="python3 --version"
+                    validation_cmd="python3 --version",
+                    is_active=True,
+                    runtime_dependencies="[]"
                 ),
                 CapabilityMatrix(
                     base_os_family="ALPINE",
                     tool_id="pwsh-7.4",
                     injection_recipe="RUN apk add --no-cache ca-certificates less ncurses-terminfo-base krb5-libs libgcc libintl libssl3 libstdc++ tzdata userspace-rcu zlib icu-libs curl && curl -L https://github.com/PowerShell/PowerShell/releases/download/v7.4.1/powershell-7.4.1-linux-musl-x64.tar.gz -o /tmp/powershell.tar.gz && mkdir -p /opt/microsoft/powershell/7 && tar zxf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 && chmod +x /opt/microsoft/powershell/7/pwsh && ln -s /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh && rm /tmp/powershell.tar.gz",
-                    validation_cmd="pwsh -Version"
+                    validation_cmd="pwsh -Version",
+                    is_active=True,
+                    runtime_dependencies="[]"
                 ),
             ]
             db.add_all(recipes)
@@ -135,13 +143,17 @@ async def lifespan(app: FastAPI):
                         base_os_family="ALPINE",
                         tool_id="python-3.11",
                         injection_recipe="RUN apk add --no-cache python3 py3-pip python3-dev build-base libffi-dev openssl-dev && ln -sf /usr/bin/python3 /usr/bin/python && ln -sf /usr/bin/pip3 /usr/bin/pip",
-                        validation_cmd="python3 --version"
+                        validation_cmd="python3 --version",
+                        is_active=True,
+                        runtime_dependencies="[]"
                     ),
                     CapabilityMatrix(
                         base_os_family="ALPINE",
                         tool_id="pwsh-7.4",
                         injection_recipe="RUN apk add --no-cache ca-certificates less ncurses-terminfo-base krb5-libs libgcc libintl libssl3 libstdc++ tzdata userspace-rcu zlib icu-libs curl && curl -L https://github.com/PowerShell/PowerShell/releases/download/v7.4.1/powershell-7.4.1-linux-musl-x64.tar.gz -o /tmp/powershell.tar.gz && mkdir -p /opt/microsoft/powershell/7 && tar zxf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 && chmod +x /opt/microsoft/powershell/7/pwsh && ln -s /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh && rm /tmp/powershell.tar.gz",
-                        validation_cmd="pwsh -Version"
+                        validation_cmd="pwsh -Version",
+                        is_active=True,
+                        runtime_dependencies="[]"
                     ),
                 ]
                 db.add_all(alpine_recipes)

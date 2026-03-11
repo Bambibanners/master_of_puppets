@@ -35,6 +35,12 @@ class Job(Base):
     telemetry: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON string: per-job metrics
     memory_limit: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # e.g. "300m", "2g"
     cpu_limit: Mapped[Optional[str]] = mapped_column(String, nullable=True)     # e.g. "0.5", "2"
+    max_retries: Mapped[int] = mapped_column(Integer, default=0)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    retry_after: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    backoff_multiplier: Mapped[float] = mapped_column(Float, default=2.0)
+    timeout_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    depends_on: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON list of GUIDs
 
 
 class RolePermission(Base):
@@ -68,12 +74,16 @@ class ScheduledJob(Base):
     created_by: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    max_retries: Mapped[int] = mapped_column(Integer, default=0)
+    backoff_multiplier: Mapped[float] = mapped_column(Float, default=2.0)
+    timeout_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
 class Token(Base):
     __tablename__ = "tokens"
     token: Mapped[str] = mapped_column(String, primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     used: Mapped[bool] = mapped_column(Boolean, default=False)
+    template_id: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Affinity for enrollment
 
 class Config(Base):
     __tablename__ = "config"
@@ -133,15 +143,46 @@ class Node(Base):
     hostname: Mapped[str] = mapped_column(String)
     ip: Mapped[str] = mapped_column(String)
     last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    status: Mapped[str] = mapped_column(String) # ONLINE, OFFLINE
+    status: Mapped[str] = mapped_column(String) # ONLINE, OFFLINE, TAMPERED
+    base_os_family: Mapped[Optional[str]] = mapped_column(String, nullable=True) # DEBIAN, ALPINE
     stats: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON: cpu, ram
     tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON list of tags e.g. ["linux", "prod"]
-    capabilities: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON dict of node capabilities
-    concurrency_limit: Mapped[Integer] = mapped_column(Integer, default=5)
+    operator_tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON list of operator-assigned tags
+    capabilities: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON map of capabilities
+    expected_capabilities: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON map of authorized capabilities
+    tamper_details: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Description of breach
+    pending_upgrade: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON upgrade task
+    upgrade_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON list of past upgrades
+    concurrency_limit: Mapped[int] = mapped_column(Integer, default=5)
     job_memory_limit: Mapped[String] = mapped_column(String, default="512m")
     machine_id: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Host-bound ID
     node_secret_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Binding secret
     client_cert_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Stored at enrollment for CRL
+
+class Alert(Base):
+    __tablename__ = "alerts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    type: Mapped[str] = mapped_column(String, nullable=False) # job_failure, node_offline, security_tamper
+    severity: Mapped[str] = mapped_column(String, nullable=False) # INFO, WARNING, CRITICAL
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    resource_id: Mapped[Optional[str]] = mapped_column(String, nullable=True) # job_guid or node_id
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
+    acknowledged_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    acknowledged_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class Webhook(Base):
+    __tablename__ = "webhooks"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    url: Mapped[str] = mapped_column(String, nullable=False)
+    secret: Mapped[str] = mapped_column(String, nullable=False) # HMAC secret
+    events: Mapped[str] = mapped_column(String, default="*") # comma separated: job:completed, alert:new, etc.
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_failure: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    failure_count: Mapped[int] = mapped_column(Integer, default=0)
+
 
 class AuditLog(Base):
     __tablename__ = "audit_log"
@@ -180,7 +221,13 @@ class ExecutionRecord(Base):
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     output_log: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     truncated: Mapped[bool] = mapped_column(Boolean, default=False)
-    __table_args__ = (Index("ix_execution_records_job_guid", "job_guid"),)
+    
+    __table_args__ = (
+        Index("ix_execution_records_job_guid", "job_guid"),
+        Index("ix_execution_records_started_at", started_at.desc()),
+        Index("ix_execution_records_node_started", "node_id", started_at.desc()),
+        Index("ix_execution_records_job_started", "job_guid", started_at.desc()),
+    )
 
 
 class Blueprint(Base):
@@ -192,6 +239,38 @@ class Blueprint(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+class Artifact(Base):
+    __tablename__ = "artifacts"
+    id: Mapped[str] = mapped_column(String, primary_key=True) # UUID
+    filename: Mapped[str] = mapped_column(String)
+    content_type: Mapped[str] = mapped_column(String)
+    sha256: Mapped[str] = mapped_column(String)
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class ApprovedOS(Base):
+    __tablename__ = "approved_os"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, unique=True) # e.g. Debian 12
+    image_uri: Mapped[str] = mapped_column(String) # e.g. debian:12-slim
+    os_family: Mapped[str] = mapped_column(String) # DEBIAN, ALPINE, etc.
+
+class Trigger(Base):
+    __tablename__ = "triggers"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    slug: Mapped[str] = mapped_column(String, unique=True)
+    name: Mapped[str] = mapped_column(String)
+    job_definition_id: Mapped[str] = mapped_column(String, ForeignKey("scheduled_jobs.id"))
+    secret_token: Mapped[str] = mapped_column(String)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class Signal(Base):
+    __tablename__ = "signals"
+    name: Mapped[str] = mapped_column(String, primary_key=True)
+    payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON string
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
 class CapabilityMatrix(Base):
     __tablename__ = "capability_matrix"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -199,6 +278,9 @@ class CapabilityMatrix(Base):
     tool_id: Mapped[str] = mapped_column(String) # e.g., python-3.11
     injection_recipe: Mapped[str] = mapped_column(Text) # Dockerfile snippet
     validation_cmd: Mapped[str] = mapped_column(String)
+    artifact_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("artifacts.id"), nullable=True)
+    runtime_dependencies: Mapped[str] = mapped_column(Text, default="[]", server_default="[]")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
 class PuppetTemplate(Base):
     __tablename__ = "puppet_templates"
