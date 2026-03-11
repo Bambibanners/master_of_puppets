@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 11-02-PLAN.md
-last_updated: "2026-03-11T10:21:37.527Z"
+stopped_at: Completed 11-03-PLAN.md
+last_updated: "2026-03-11T10:28:01.352Z"
 last_activity: 2026-03-09 — Milestone 8 roadmap created, 20 requirements mapped across 3 phases
 progress:
   total_phases: 14
   completed_phases: 0
   total_plans: 6
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0% (0 of 3 phases complete)
 | Phase 10 P02 | 2 | 2 tasks | 2 files |
 | Phase 11-compatibility-engine P01 | 2 | 1 tasks | 1 files |
 | Phase 11-compatibility-engine P02 | 3 | 2 tasks | 4 files |
+| Phase 11-compatibility-engine P03 | 3 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,9 @@ Progress: [░░░░░░░░░░] 0% (0 of 3 phases complete)
 - [Phase 11-compatibility-engine]: Soft-delete over hard-delete for CapabilityMatrix: preserves history, reversible, admin can view inactive entries with ?include_inactive=true
 - [Phase 11-compatibility-engine]: JSON string storage for runtime_dependencies (TEXT column with DEFAULT '[]'): consistent with existing target_tags pattern in this codebase — avoids JSON column type that SQLite doesn't natively support
 - [Phase 11-compatibility-engine]: PUT replaced by PATCH with CapabilityMatrixUpdate for partial update semantics: breaking change acceptable since Plans 04/05 frontend not yet built
+- [Phase 11-compatibility-engine]: RUNTIME blueprints: os_family required via model_validator (422 from Pydantic before hitting DB); NETWORK blueprints bypass all validation
+- [Phase 11-compatibility-engine]: Two-pass blueprint validation: Pass 1 hard rejects OS mismatches (offending_tools), Pass 2 soft rejects missing deps (deps_to_confirm) with confirmed_deps auto-add
+- [Phase 11-compatibility-engine]: foundry_service uses rt_bp.os_family as primary source with derived string fallback for backwards compat with pre-Phase-11 blueprints
 
 ### Pending Todos
 - Plan 02b: Fix node-compose.yaml image reference in main.py (localhost/ → 192.168.50.148:5000/).
@@ -107,7 +111,7 @@ Progress: [░░░░░░░░░░] 0% (0 of 3 phases complete)
 
 ## Session Continuity
 
-Last session: 2026-03-11T10:21:37.524Z
-Stopped at: Completed 11-02-PLAN.md
+Last session: 2026-03-11T10:28:01.349Z
+Stopped at: Completed 11-03-PLAN.md
 Resume file: None
 Next plan: /gsd:plan-phase 17
