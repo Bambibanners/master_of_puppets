@@ -23,7 +23,7 @@ Archive: `.planning/milestones/v8.0-ROADMAP.md`
 
 - [x] **Phase 11: Compatibility Engine** — OS family tagging, runtime deps, API/UI enforcement (completed 2026-03-11)
 - [x] **Phase 12: Smelter Registry** — Vetted ingredient catalog, CVE scanning, STRICT/WARNING enforcement (completed 2026-03-15)
-- [ ] **Phase 13: Package Management & Custom Repos** — Native OS + PIP pre-baking, global core set, APT/APK + GPG repos, pypiserver sidecar
+- [ ] **Phase 13: Package Management & Custom Repos** — Local PyPI + APT mirror sidecars, auto-sync on ingredient add, air-gapped manual upload, pip.conf/sources.list build injection, sync log capture, mirror health UI
 - [ ] **Phase 14: Foundry Wizard UI** — 5-step guided composition wizard with real-time OS filtering
 - [ ] **Phase 15: Smelt-Check, BOM & Lifecycle** — Post-build ephemeral validation, JSON BOM, image ACTIVE/DEPRECATED/REVOKED states
 - [ ] **Phase 16: Security & Governance** — SLSA provenance, Ed25519-signed build provenance, resource limits, --secret credentials
@@ -47,15 +47,22 @@ Plans:
 - [x] 12-09-PLAN.md — Bookkeeping wrap-up
 
 ### Phase 13: Package Management & Custom Repos
-**Goal**: Operators can pre-bake native and PIP packages into images and consume packages from custom or internal repos
+**Goal**: Operators can pre-bake native and PIP packages into images and consume packages from local mirrors with full air-gapped support
 **Depends on**: Phase 12
-**Requirements**: PKG-01, PKG-02, PKG-03, REPO-01, REPO-02, REPO-03, REPO-04
+**Requirements**:
+- PKG-01: Auto-sync — mirror a package to local storage automatically when it is added to the Smelter Catalog
+- PKG-02: Status tracking — approved_ingredients.mirror_status tracks PENDING / MIRRORED / FAILED per ingredient
+- PKG-03: Air-gapped manual upload — admins can upload .whl / .deb files directly to the mirror for environments without internet access
+- REPO-01: Mirror sidecars — pypiserver + Caddy APT sidecar run as Docker Compose services sharing a mirror-data volume; health endpoint returns sidecar uptime and disk usage
+- REPO-02: Fail-fast enforcement — Foundry build raises HTTP 403 if any blueprint package is approved but not yet mirrored; no emergency external fetching
+- REPO-03: pip redirect — Foundry build injects pip.conf into the Docker build context so pip uses the local pypiserver instead of the public PyPI index
+- REPO-04: APT redirect — Foundry build injects sources.list into the Docker build context (DEBIAN builds only) so apt uses the local Caddy-hosted APT repo
 **Plans**: 5 plans
 Plans:
-- [ ] 13-01-PLAN.md — Infrastructure + DB schema (sidecars, mirror-data volume, migration)
-- [ ] 13-02-PLAN.md — MirrorService + auto-sync hook in SmelterService
+- [ ] 13-01-PLAN.md — Infrastructure + DB schema (sidecars, mirror-data volume, migration, mirror_log column)
+- [ ] 13-02-PLAN.md — MirrorService + auto-sync hook in SmelterService (captures subprocess output to mirror_log)
 - [ ] 13-03-PLAN.md — Foundry fail-fast enforcement + pip.conf/sources.list injection
-- [ ] 13-04-PLAN.md — Admin UI (MirrorStatusBadge, upload, health card) + API endpoints
+- [ ] 13-04-PLAN.md — Admin UI (MirrorStatusBadge, sync log viewer, upload, health card + file browser link) + API endpoints
 - [ ] 13-05-PLAN.md — Phase verification + human checkpoint
 
 ### Phase 14: Foundry Wizard UI
