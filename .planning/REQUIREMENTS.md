@@ -159,7 +159,7 @@
 - [ ] **DASH-01**: Dashboard shows a Staging/Drafts view listing all DRAFT jobs
 - [ ] **DASH-02**: Operator can inspect a draft job's script content (read-only)
 - [ ] **DASH-03**: Operator can finalize scheduling (cron, target tags) on a draft from the dashboard
-- [ ] **DASH-04**: One-click "Publish" promotes a DRAFT to ACTIVE
+- [x] **DASH-04**: One-click "Publish" promotes a DRAFT to ACTIVE
 - [ ] **DASH-05**: Job list shows status badge (DRAFT / ACTIVE / DEPRECATED / REVOKED) on all jobs
 
 ### Governance
@@ -261,7 +261,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-01 | Phase 19 | Pending |
 | DASH-02 | Phase 19 | Pending |
 | DASH-03 | Phase 19 | Pending |
-| DASH-04 | Phase 19 | Pending |
+| DASH-04 | Phase 19 | Complete |
 | DASH-05 | Phase 19 | Pending |
 | GOV-CLI-01 | Phase 17 | Pending |
 | GOV-CLI-02 | Phase 19 | Pending |

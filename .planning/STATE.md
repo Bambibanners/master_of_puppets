@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 19-03-PLAN.md — OIDC architecture doc and UserGuide staging section
-last_updated: "2026-03-15T15:32:59.796Z"
+stopped_at: Completed 19-05-PLAN.md — DASH-04 status assignment gap closure
+last_updated: "2026-03-15T15:53:21.533Z"
 last_activity: 2026-03-15 — Phase review. Import blocker identified. Phase 19 UI/docs work found in working tree without summaries.
 progress:
   total_phases: 14
-  completed_phases: 7
-  total_plans: 34
-  completed_plans: 41
+  completed_phases: 8
+  total_plans: 35
+  completed_plans: 43
   percent: 83
 ---
 
@@ -65,6 +65,7 @@ Progress: [▓▓▓▓▓▓▓▓░░] 83% (5 of 6 phases in Milestone 7 com
 | Phase 11-compatibility-engine P06 | 5 | 2 tasks | 0 files |
 | Phase 19-dashboard-staging-view-and-governance-doc P01 | 1min | 3 tasks | 2 files |
 | Phase 19 P03 | 5 | 2 tasks | 2 files |
+| Phase 19 P05 | 4 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,7 @@ Progress: [▓▓▓▓▓▓▓▓░░] 83% (5 of 6 phases in Milestone 7 com
 - [Phase 19-01]: Publish action reuses PATCH /jobs/definitions/{id} with { status: 'ACTIVE' } — no new backend route needed
 - [Phase 19]: Expandable row as sibling TableRow with colSpan=7 gives full-width script panel without breaking table layout
 - [Phase 19]: Publish button guard checks both prop presence and def.status === DRAFT to prevent ghost buttons on non-draft jobs
+- [Phase 19]: No new validation needed in service layer: upstream REVOKED gate in main.py already blocks invalid transitions before reaching update_job_definition()
 
 ### Pending Todos
 - [ ] **BLOCKER**: Fix `ImageBOMResponse` + `PackageIndexResponse` missing from `main.py` import block (line 21-42) — NameError at module load prevents backend from starting and all agent_service tests from collecting.
@@ -132,7 +134,7 @@ Progress: [▓▓▓▓▓▓▓▓░░] 83% (5 of 6 phases in Milestone 7 com
 
 ## Session Continuity
 
-Last session: 2026-03-15T15:32:59.793Z
-Stopped at: Completed 19-03-PLAN.md — OIDC architecture doc and UserGuide staging section
+Last session: 2026-03-15T15:53:21.531Z
+Stopped at: Completed 19-05-PLAN.md — DASH-04 status assignment gap closure
 Resume file: None
 Next plan: Fix import blocker in main.py, then write Phase 19 summaries and run /gsd:execute-phase 19 for Plan 04.
