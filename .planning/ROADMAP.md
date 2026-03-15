@@ -72,7 +72,9 @@ Plans:
 **Goal**: A guided multi-step wizard replaces raw JSON blueprint editing for composing node images
 **Depends on**: Phase 13
 **Requirements**: WIZ-01, WIZ-02, WIZ-03
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 14-01-PLAN.md — BlueprintWizard vitest test suite (9 test cases covering WIZ-01, WIZ-02, WIZ-03)
 
 ### Phase 15: Smelt-Check, BOM & Lifecycle
 **Goal**: Every built image is validated by a smoke test, receives a JSON bill of materials, and carries a lifecycle status
@@ -96,7 +98,7 @@ Plans:
 | 11. Compatibility Engine | v7.0 | 6/6 | Complete | 2026-03-11 |
 | 12. Smelter Registry | 10/10 | Complete    | 2026-03-15 | 2026-03-15 |
 | 13. Package Management & Custom Repos | 8/8 | Complete    | 2026-03-15 | - |
-| 14. Foundry Wizard UI | v7.0 | 0/TBD | Not started | - |
+| 14. Foundry Wizard UI | v7.0 | 0/1 | In progress | - |
 | 15. Smelt-Check, BOM & Lifecycle | v7.0 | 0/TBD | Not started | - |
 | 16. Security & Governance | v7.0 | 0/TBD | Not started | - |
 
