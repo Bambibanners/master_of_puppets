@@ -22,7 +22,7 @@ Archive: `.planning/milestones/v8.0-ROADMAP.md`
 ### 🚧 v7.0 — Advanced Foundry & Smelter (In Progress)
 
 - [x] **Phase 11: Compatibility Engine** — OS family tagging, runtime deps, API/UI enforcement (completed 2026-03-11)
-- [ ] **Phase 12: Smelter Registry** — Vetted ingredient catalog, CVE scanning, STRICT/WARNING enforcement
+- [x] **Phase 12: Smelter Registry** — Vetted ingredient catalog, CVE scanning, STRICT/WARNING enforcement (completed 2026-03-15)
 - [ ] **Phase 13: Package Management & Custom Repos** — Native OS + PIP pre-baking, global core set, APT/APK + GPG repos, pypiserver sidecar
 - [ ] **Phase 14: Foundry Wizard UI** — 5-step guided composition wizard with real-time OS filtering
 - [ ] **Phase 15: Smelt-Check, BOM & Lifecycle** — Post-build ephemeral validation, JSON BOM, image ACTIVE/DEPRECATED/REVOKED states
@@ -34,7 +34,17 @@ Archive: `.planning/milestones/v8.0-ROADMAP.md`
 **Goal**: Admin can curate a vetted ingredient catalog; builds fail or warn when unapproved packages are used
 **Depends on**: Phase 11
 **Requirements**: SMLT-01, SMLT-02, SMLT-03, SMLT-04, SMLT-05
-**Plans**: TBD
+**Plans**: 9 plans
+Plans:
+- [x] 12-01-PLAN.md — Wave 0 test stubs
+- [x] 12-02-PLAN.md — DB model + CRUD API
+- [x] 12-03-PLAN.md — SmelterService implementation
+- [x] 12-04-PLAN.md — pip-audit CVE scan integration
+- [x] 12-05-PLAN.md — Foundry enforcement (STRICT/WARNING)
+- [x] 12-06-PLAN.md — Template compliance badging (backend)
+- [x] 12-07-PLAN.md — Dashboard compliance badges (frontend)
+- [x] 12-08-PLAN.md — Phase verification
+- [x] 12-09-PLAN.md — Bookkeeping wrap-up
 
 ### Phase 13: Package Management & Custom Repos
 **Goal**: Operators can pre-bake native and PIP packages into images and consume packages from custom or internal repos
@@ -68,7 +78,7 @@ Archive: `.planning/milestones/v8.0-ROADMAP.md`
 | 18. mop-push CLI | v8.0 | 4/4 | Complete | 2026-03-12 |
 | 19. Dashboard Staging View & Governance Doc | v8.0 | 5/5 | Complete | 2026-03-15 |
 | 11. Compatibility Engine | v7.0 | 6/6 | Complete | 2026-03-11 |
-| 12. Smelter Registry | v7.0 | 0/TBD | Not started | - |
+| 12. Smelter Registry | v7.0 | 9/9 | Complete | 2026-03-15 |
 | 13. Package Management & Custom Repos | v7.0 | 0/TBD | Not started | - |
 | 14. Foundry Wizard UI | v7.0 | 0/TBD | Not started | - |
 | 15. Smelt-Check, BOM & Lifecycle | v7.0 | 0/TBD | Not started | - |
