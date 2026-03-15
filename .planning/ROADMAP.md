@@ -57,13 +57,16 @@ Plans:
 - REPO-02: Fail-fast enforcement — Foundry build raises HTTP 403 if any blueprint package is approved but not yet mirrored; no emergency external fetching
 - REPO-03: pip redirect — Foundry build injects pip.conf into the Docker build context so pip uses the local pypiserver instead of the public PyPI index
 - REPO-04: APT redirect — Foundry build injects sources.list into the Docker build context (DEBIAN builds only) so apt uses the local Caddy-hosted APT repo
-**Plans**: 5 plans
+**Plans**: 8 plans (5 original + 3 gap-closure)
 Plans:
-- [ ] 13-01-PLAN.md — Infrastructure + DB schema (sidecars, mirror-data volume, migration, mirror_log column)
-- [ ] 13-02-PLAN.md — MirrorService + auto-sync hook in SmelterService (captures subprocess output to mirror_log)
-- [ ] 13-03-PLAN.md — Foundry fail-fast enforcement + pip.conf/sources.list injection
-- [ ] 13-04-PLAN.md — Admin UI (MirrorStatusBadge, sync log viewer, upload, health card + file browser link) + API endpoints
-- [ ] 13-05-PLAN.md — Phase verification + human checkpoint
+- [x] 13-01-PLAN.md — Infrastructure + DB schema (sidecars, mirror-data volume, migration, mirror_log column)
+- [x] 13-02-PLAN.md — MirrorService + auto-sync hook in SmelterService (captures subprocess output to mirror_log)
+- [x] 13-03-PLAN.md — Foundry fail-fast enforcement + pip.conf/sources.list injection
+- [x] 13-04-PLAN.md — Admin UI (MirrorStatusBadge, sync log viewer, upload, health card + file browser link) + API endpoints
+- [x] 13-05-PLAN.md — Phase verification + human checkpoint
+- [x] 13-06-PLAN.md — Backend gap closure: mirror_log, is_active, migration rewrite, unconditional fail-fast, soft-purge delete, upload routing, mirror-config GET/PUT
+- [ ] 13-07-PLAN.md — Gap closure (UI/frontend fixes)
+- [ ] 13-08-PLAN.md — Gap closure (remaining)
 
 ### Phase 14: Foundry Wizard UI
 **Goal**: A guided multi-step wizard replaces raw JSON blueprint editing for composing node images

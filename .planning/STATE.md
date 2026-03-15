@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v7.0
 milestone_name: — Advanced Foundry & Smelter
 status: completed
-stopped_at: Completed 12-10-PLAN.md — SMLT-04 mirror-status enforcement gate gap closure
-last_updated: "2026-03-15T18:55:30.690Z"
-last_activity: 2026-03-15 — Phase review. Import blocker identified. Phase 19 UI/docs work found in working tree without summaries.
+stopped_at: Completed 13-06-PLAN.md — backend gap closure (mirror_log, is_active, mirror-config endpoints, unconditional fail-fast)
+last_updated: "2026-03-15T19:30:00.000Z"
+last_activity: 2026-03-15 — Executed 13-06: closed 6 backend gaps in VERIFICATION.md.
 progress:
   total_phases: 5
   completed_phases: 4
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: Phase 19 (Dashboard Staging View & Governance Doc)
-Plan: 0/4 summaries written (but plans 01-03 are already implemented in working tree)
-Status: BLOCKED — backend import error prevents app from starting; Phase 19 summaries need to be written; Plan 04 (E2E) not yet done.
-Last activity: 2026-03-15 — Phase review. Import blocker identified. Phase 19 UI/docs work found in working tree without summaries.
+Phase: Phase 13 (Package Repository Mirroring) — gap closure plans
+Plan: 13-06 complete (6/8 gap-closure plans done)
+Status: In progress — 13-07 and 13-08 remain
+Last activity: 2026-03-15 — Completed 13-06: closed all 6 backend gaps (mirror_log, is_active, migration, MirrorService log capture, foundry fail-fast fix, soft-purge delete, upload routing, mirror-config GET/PUT).
 
 Progress: [▓▓▓▓▓▓▓▓░░] 83% (5 of 6 phases in Milestone 7 complete)
 
@@ -130,20 +130,24 @@ Progress: [▓▓▓▓▓▓▓▓░░] 83% (5 of 6 phases in Milestone 7 com
 - [Phase 12-smelter-registry]: pip-audit added without version pin — consistent with rest of requirements.txt; semver stable
 - [Phase 12-smelter-registry]: ROADMAP.md Phase 12 detail block expanded with all 9 plan entries for audit trail
 - [Phase 12-smelter-registry]: Mirror-status 403 gated by enforcement_mode == STRICT; WARNING mode logs warning and sets is_compliant=False
+- [Phase 13-06]: Mirror fail-fast raises 403 unconditionally — enforcement_mode only gates unapproved-ingredients check (separate concern)
+- [Phase 13-06]: Soft-purge (is_active=False) used for ingredient delete to preserve mirror files and history
+- [Phase 13-06]: Upload routing by file extension (.deb -> apt, else -> pypi) replaces os_family-based routing
 
 ### Pending Todos
-- [ ] **BLOCKER**: Fix `ImageBOMResponse` + `PackageIndexResponse` missing from `main.py` import block (line 21-42) — NameError at module load prevents backend from starting and all agent_service tests from collecting.
-- [ ] Write SUMMARY.md for Phase 19 Plans 01-03 (work is already in the working tree but no summaries were written — GSD thinks these are unstarted).
+- [ ] Execute Phase 13 Plan 07 (mirror service UI gap closure)
+- [ ] Execute Phase 13 Plan 08 (remaining gap closure)
+- [ ] Write SUMMARY.md for Phase 19 Plans 01-03 (work is already in the working tree but no summaries were written).
 - [ ] Execute Phase 19 Plan 04: E2E walkthrough (push DRAFT via CLI → verify in Staging tab → publish → verify in Active tab) + regression check.
 - [ ] Investigate `test_report_result` pre-existing failure (noted in Phase 17 summary as baseline, not a regression).
 
 ### Blockers/Concerns
-- **BLOCKER**: `main.py` fails to import — `ImageBOMResponse` (used at line 2050) and `PackageIndexResponse` (used at line 2063) are defined in `models.py` but missing from the `from .models import (...)` block. The app cannot start. Phase 17/18 tests (test_device_flow.py, test_job_staging.py) fail to collect as a result.
 - **Phase 19 tracking gap**: Plans 19-01, 19-02, 19-03 are implemented in the working tree (status badges, staging tab, publish button, script inspection, OIDC doc, UserGuide staging section) but no SUMMARY.md files exist. GSD reports 4 plans / 0 summaries.
+- Note: ImageBOMResponse + PackageIndexResponse import blocker is resolved (both are in the import block at line 41).
 
 ## Session Continuity
 
-Last session: 2026-03-15T18:26:33.093Z
-Stopped at: Completed 12-10-PLAN.md — SMLT-04 mirror-status enforcement gate gap closure
+Last session: 2026-03-15T19:30:00.000Z
+Stopped at: Completed 13-06-PLAN.md — backend gap closure (mirror_log, is_active, mirror-config endpoints)
 Resume file: None
-Next plan: Fix import blocker in main.py, then write Phase 19 summaries and run /gsd:execute-phase 19 for Plan 04.
+Next plan: Execute Phase 13 Plan 07 (mirror service UI gaps).
