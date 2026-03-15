@@ -8,8 +8,11 @@ import hashlib
 from typing import List, Dict, Optional
 from datetime import datetime
 from sqlalchemy.future import select
-from ..db import Blueprint, PuppetTemplate, CapabilityMatrix, AsyncSession
+from fastapi import HTTPException
+from ..db import Blueprint, PuppetTemplate, CapabilityMatrix, AsyncSession, Config, ApprovedIngredient
 from ..models import ImageBuildRequest, ImageResponse
+from .smelter_service import SmelterService
+from .staging_service import StagingService
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +38,72 @@ class FoundryService:
             
             rt_def = json.loads(rt_bp.definition)
             nw_def = json.loads(nw_bp.definition)
+
+            # 1.5 Smelter Registry Check (SMLT-03, SMLT-04, SMLT-05)
+            # Fetch enforcement mode: STRICT or WARNING (default)
+            cfg_res = await db.execute(select(Config.value).where(Config.key == "smelter_enforcement_mode"))
+            res_val = cfg_res.scalar_one_or_none()
+            enforcement_mode = str(res_val).upper() if res_val else "WARNING"
             
-            # 2. Build Dockerfile Content
+            # Clean up mock strings if they leak in
+            if "MAGICMOCK" in enforcement_mode:
+                enforcement_mode = "STRICT" if "STRICT" in enforcement_mode else "WARNING"
+            
             base_os = rt_def.get("base_os", "debian-12-slim")
-            # Use os_family from the blueprint DB column directly (set at creation time since Phase 11)
             os_family = getattr(rt_bp, 'os_family', None) or ("ALPINE" if "alpine" in base_os.lower() else "DEBIAN")
             
+            unapproved = await SmelterService.validate_blueprint(db, rt_def, os_family)
+            if unapproved:
+                if str(enforcement_mode).upper() == "STRICT":
+                    raise HTTPException(status_code=403, detail=f"Build rejected: Blueprint contains unapproved ingredients: {unapproved}")
+                else:
+                    logger.warning(f"Smelter WARNING: Blueprint for template {tmpl.friendly_name} contains unapproved ingredients: {unapproved}")
+                    tmpl.is_compliant = False
+            else:
+                tmpl.is_compliant = True
+
+            # 1.6 Mirror Status Check (Fail-Fast)
+            # Fetch all approved ingredients involved in this build
+            # For simplicity in this iteration, we check all active ingredients for the OS family
+            # In a real scenario, we'd only check the packages defined in the blueprint.
+            python_packages = rt_def.get("packages", {}).get("python", [])
+            for pkg in python_packages:
+                pkg_name = pkg.split(">")[0].split("<")[0].split("=")[0].strip().lower()
+                res = await db.execute(select(ApprovedIngredient).where(
+                    ApprovedIngredient.name.ilike(pkg_name),
+                    ApprovedIngredient.os_family == os_family
+                ))
+                ing = res.scalar_one_or_none()
+                # If FORCE_LOCAL_MIRRORS is true (it is by policy in Phase 13), 
+                # we must have a MIRRORED status.
+                if ing and ing.mirror_status != "MIRRORED":
+                    if enforcement_mode == "STRICT":
+                        raise HTTPException(status_code=403, detail=f"Build rejected: Ingredient {pkg_name} is approved but not yet mirrored (Status: {ing.mirror_status})")
+                    else:
+                        logger.warning(f"Smelter WARNING: Ingredient {pkg_name} is approved but not yet mirrored (Status: {ing.mirror_status}) — build continues in WARNING mode")
+                        tmpl.is_compliant = False
+
+            # Commit the compliance status
+            await db.commit()
+            await db.refresh(tmpl)
+
+            # 2. Build Dockerfile Content
             dockerfile = [f"FROM {base_os}"]
+
+            # 2.5 Mirror Configuration Injection
+            # Create pip.conf and sources.list in the build directory
+            pip_conf = MirrorService.get_pip_conf_content()
+            sources_list = MirrorService.get_sources_list_content()
+
+            with open(os.path.join(build_dir, "pip.conf"), "w") as f:
+                f.write(pip_conf)
+            with open(os.path.join(build_dir, "sources.list"), "w") as f:
+                f.write(sources_list)
+
+            dockerfile.append("COPY pip.conf /etc/pip.conf")
+            if os_family == "DEBIAN":
+                dockerfile.append("COPY sources.list /etc/apt/sources.list")
+
             
             # Injection Recipes
             for tool in rt_def.get("tools", []):
@@ -152,9 +214,31 @@ class FoundryService:
                 # Update Template in DB
                 tmpl.current_image_uri = image_uri
                 tmpl.last_built_at = datetime.utcnow()
+                tmpl.status = "STAGING"
                 await db.commit()
                 
-                return ImageResponse(tag=image_tag, image_uri=image_uri, status="SUCCESS", created_at=datetime.utcnow())
+                # 3. Post-Build Validation (Smelt-Check & BOM)
+                # Run a basic 'python --version' check as a smoke test
+                validation_report = await StagingService.run_smelt_check(tmpl.id, "python --version && pip --version")
+                
+                if validation_report["status"] == "SUCCESS":
+                    logger.info(f"✅ Smelt-Check PASSED for {tmpl.friendly_name}")
+                    tmpl.status = "ACTIVE"
+                    # Capture BOM after validation success
+                    await StagingService.capture_bom(tmpl.id)
+                else:
+                    logger.error(f"❌ Smelt-Check FAILED for {tmpl.friendly_name}")
+                    tmpl.status = "FAILED"
+                
+                await db.commit()
+                await db.refresh(tmpl)
+                
+                return ImageResponse(
+                    tag=image_tag, 
+                    image_uri=image_uri, 
+                    status=f"SUCCESS (Smelt-Check: {tmpl.status})", 
+                    created_at=datetime.utcnow()
+                )
                 
             finally:
                 if os.path.exists(build_dir):
