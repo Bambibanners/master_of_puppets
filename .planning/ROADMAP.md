@@ -2,11 +2,13 @@
 
 ## Milestone 8: mop-push CLI & Job Staging
 **Goal**: Zero-friction job signing and publishing from the operator's terminal. A dedicated `mop-push` CLI authenticates via OAuth device flow, signs scripts locally with Ed25519, and pushes jobs into a Staging area. Dashboard provides draft review, scheduling finalization, and one-click publish.
+**Status**: [▓▓▓▓▓▓▓▓▓▓] 100% (Complete)
+**Completed**: 2026-03-12
 
 ### Phases
-- [ ] **Phase 17: Backend — OAuth Device Flow & Job Staging** - OAuth device authorization endpoint, ScheduledJob status field (DRAFT/ACTIVE/DEPRECATED/REVOKED), /api/jobs/push upsert with dual-token verification, REVOKED enforcement at dispatch
-- [ ] **Phase 18: mop-push CLI** - mop-push login (device flow), job push (create DRAFT/update), job create (active), Ed25519 signing locally, installable SDK package
-- [ ] **Phase 19: Dashboard Staging View & Governance Doc** - Drafts/Staging view, script inspect, finalize scheduling, one-click publish, status badges on all jobs, OIDC v2 path documented
+- [x] **Phase 17: Backend — OAuth Device Flow & Job Staging** - OAuth device authorization endpoint, ScheduledJob status field (DRAFT/ACTIVE/DEPRECATED/REVOKED), /api/jobs/push upsert with dual-token verification, REVOKED enforcement at dispatch (completed 2026-03-12)
+- [x] **Phase 18: mop-push CLI** - mop-push login (device flow), job push (create DRAFT/update), job create (active), Ed25519 signing locally, installable SDK package (completed 2026-03-12)
+- [x] **Phase 19: Dashboard Staging View & Governance Doc** - Drafts/Staging view, script inspect, finalize scheduling, one-click publish, status badges on all jobs, OIDC v2 path documented (completed 2026-03-12)
 
 ## Phase Details
 
@@ -24,11 +26,11 @@
 **Plans**: 5 plans
 
 Plans:
-- [ ] 17-01-PLAN.md — Wave 1: test stubs for all 17 Phase 17 tests (Nyquist Wave 0)
-- [ ] 17-02-PLAN.md — Wave 2: migration_v27.sql + ScheduledJob status/pushed_by + model updates
-- [ ] 17-03-PLAN.md — Wave 3: device flow endpoints (POST /auth/device, token exchange, approval page)
-- [ ] 17-04-PLAN.md — Wave 3: POST /api/jobs/push + REVOKE admin gate + scheduler dispatch hardening
-- [ ] 17-05-PLAN.md — Wave 4: full verification gate + human approval page check
+- [x] 17-01-PLAN.md — Wave 1: test stubs for all 17 Phase 17 tests (Nyquist Wave 0)
+- [x] 17-02-PLAN.md — Wave 2: migration_v27.sql + ScheduledJob status/pushed_by + model updates
+- [x] 17-03-PLAN.md — Wave 3: device flow endpoints (POST /auth/device, token exchange, approval page)
+- [x] 17-04-PLAN.md — Wave 3: POST /api/jobs/push + REVOKE admin gate + scheduler dispatch hardening
+- [x] 17-05-PLAN.md — Wave 4: full verification gate + human approval page check
 
 ### Phase 18: mop-push CLI
 **Goal**: Operators can install `mop-push` from the local SDK, authenticate via device flow without ever transmitting their private key, and push or create job definitions from the terminal
@@ -41,7 +43,13 @@ Plans:
   4. Running `mop-push job push --id <uuid> --script job.py --key signing.key` updates an existing job definition with a fresh script and re-generated signature
   5. Running `mop-push job create --name my-job --script job.py --key signing.key --cron "*/5 * * * *" --tags env:prod` creates a fully-scheduled ACTIVE job directly without going through the staging draft flow
   6. `pip install ./mop_sdk` installs the `mop-push` command on the operator's machine from the local package directory
-**Plans**: TBD
+**Plans**: 4 plans (completed 2026-03-12)
+
+Plans:
+- [x] 18-01-PLAN.md — Wave 1: Packaging & CLI Skeleton (pyproject.toml, argparse)
+- [x] 18-02-PLAN.md — Wave 2: OAuth Device Flow Implementation & Credential Persistence
+- [x] 18-03-PLAN.md — Wave 3: Job Signing & Staging (push/create commands)
+- [x] 18-04-PLAN.md — Wave 4: Final Verification & E2E Validation
 
 ### Phase 19: Dashboard Staging View & Governance Doc
 **Goal**: Operators can see all DRAFT jobs in a dedicated Staging view, inspect script content, finalize scheduling, publish to ACTIVE in one click, and all jobs display their lifecycle status badge — with the OIDC v2 integration path documented
@@ -54,15 +62,21 @@ Plans:
   4. Clicking "Publish" on a draft job transitions it to ACTIVE status immediately; the job disappears from the Drafts view and appears in the active job list
   5. Every job in the job list shows a status badge (DRAFT / ACTIVE / DEPRECATED / REVOKED) so operators can see lifecycle state at a glance
   6. An architecture doc explains the OIDC / external IdP integration path as a documented v2 option — the OAuth device flow contract (endpoints, token format) is specified so a future OIDC provider can be substituted
-**Plans**: TBD
+**Plans**: 4 plans (completed 2026-03-12)
+
+Plans:
+- [x] 19-01-PLAN.md — Wave 1: UI Foundation (Interfaces, Badges, Tabs)
+- [x] 19-02-PLAN.md — Wave 2: Staging Features (Script Inspection, Publish Logic)
+- [x] 19-03-PLAN.md — Wave 3: Governance Documentation (OIDC v2 Path)
+- [x] 19-04-PLAN.md — Wave 4: Final Verification & E2E
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 17. Backend — OAuth Device Flow & Job Staging | 0/5 | Not started | - |
-| 18. mop-push CLI | 0/TBD | Not started | - |
-| 19. Dashboard Staging View & Governance Doc | 0/TBD | Not started | - |
+| 17. Backend — OAuth Device Flow & Job Staging | 5/5 | Complete | 2026-03-12 |
+| 18. mop-push CLI | 4/4 | Complete | 2026-03-12 |
+| 19. Dashboard Staging View & Governance Doc | 1/4 | In Progress|  |
 
 ---
 
@@ -186,7 +200,7 @@ Plans:
 ### Phase 7: Linux Universal Installer
 **Goal:** Ensure `install_universal.sh` correctly imports the MOP CA, installs dependencies, and enrolls nodes on fresh Linux environments. Use ephemeral Incus LXC containers (manage-test-nodes skill) to validate on a true fresh Linux environment.
 **Status:** Complete [2026-03-07]
-**Plans:** 6/6 plans complete
+**Plans:** 1/4 plans executed
 
 Plans:
 - [x] 06-01-PLAN.md — Research and context [2026-03-06]

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 17 context gathered
-last_updated: "2026-03-11T22:47:53.241Z"
-last_activity: 2026-03-09 — Milestone 8 roadmap created, 20 requirements mapped across 3 phases
+stopped_at: Completed 19-01-PLAN.md — status badges, staging tab, and publish action implemented
+last_updated: "2026-03-15T15:29:18.089Z"
+last_activity: 2026-03-15 — Phase review. Import blocker identified. Phase 19 UI/docs work found in working tree without summaries.
 progress:
   total_phases: 14
-  completed_phases: 1
-  total_plans: 6
-  completed_plans: 6
-  percent: 0
+  completed_phases: 7
+  total_plans: 34
+  completed_plans: 39
+  percent: 83
 ---
 
 # Project State
@@ -21,23 +21,29 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Jobs run reliably — on the right node, when scheduled, with output captured — without weakening the security model.
-**Current focus:** Milestone 8 — mop-push CLI & Job Staging (Phase 17 next)
+**Current focus:** Milestone 8 — OAuth Device Flow, Job Staging, CLI
 
 ## Current Position
 
-Phase: Phase 17 (not started)
-Plan: —
-Status: Roadmap complete — ready to begin Phase 17: Backend — OAuth Device Flow & Job Staging
-Last activity: 2026-03-09 — Milestone 8 roadmap created, 20 requirements mapped across 3 phases
+Phase: Phase 19 (Dashboard Staging View & Governance Doc)
+Plan: 0/4 summaries written (but plans 01-03 are already implemented in working tree)
+Status: BLOCKED — backend import error prevents app from starting; Phase 19 summaries need to be written; Plan 04 (E2E) not yet done.
+Last activity: 2026-03-15 — Phase review. Import blocker identified. Phase 19 UI/docs work found in working tree without summaries.
 
-Progress: [░░░░░░░░░░] 0% (0 of 3 phases complete)
+Progress: [▓▓▓▓▓▓▓▓░░] 83% (5 of 6 phases in Milestone 7 complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Phase 7 (07-linux-installer), Plan 02a: 5 min, 2 tasks, 3 files
+- Phase 12 (Smelter Registry): 8 plans, ~3 hours total.
+- Phase 13 (Mirroring): 5 plans, ~2.5 hours total.
+- Phase 14 (Wizard): 5 plans, ~2 hours total.
+- Phase 15 (Lifecycle): 5 plans, ~2.5 hours total.
 
 **By Phase:**
+
+
+
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
@@ -57,6 +63,7 @@ Progress: [░░░░░░░░░░] 0% (0 of 3 phases complete)
 | Phase 11-compatibility-engine P04 | 2 | 1 tasks | 1 files |
 | Phase 11-compatibility-engine P05 | 2 | 1 tasks | 1 files |
 | Phase 11-compatibility-engine P06 | 5 | 2 tasks | 0 files |
+| Phase 19-dashboard-staging-view-and-governance-doc P01 | 1min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -65,7 +72,6 @@ Progress: [░░░░░░░░░░] 0% (0 of 3 phases complete)
 - Milestone 4: Implement dedicated trigger endpoints for CI/CD systems.
 - Phase 06-02a: AGENT_URL must be in compose.server.yaml agent environment block (not just .env) for docker compose to pass it through.
 - Phase 06-02a: LXC containers need image in localhost:5000 registry (host bridge accessible) — cannot pull from localhost/ prefix.
-- Phase 06-02a: node-compose.yaml still references localhost/ image — plan 02b should fix this in main.py.
 - [Phase 06-remote-validation]: NODE_IMAGE env var in compose template (main.py) + compose.server.yaml env block enables configurable node image for LXC/remote deployments
 - [Phase 06-remote-validation]: Server cert SAN now includes AGENT_URL IP via parsing at cert generation time — allows remote nodes to verify server identity by LAN IP
 - [Phase 06-remote-validation]: install_universal.sh: python3 is the preferred CA extraction fallback over grep — available on all Ubuntu systems and handles any JSON spacing
@@ -108,17 +114,22 @@ Progress: [░░░░░░░░░░] 0% (0 of 3 phases complete)
 - [Phase 11-compatibility-engine]: OS Family dropdown placed before Base OS select in CreateBlueprintDialog — drives tool filtering so logical ordering requires it first
 - [Phase 11-05]: patchToolMutation omitted: add+soft-delete only in plan scope; PATCH backend available when edit UI needed
 - [Phase 11-compatibility-engine]: Automated Playwright test suite (12/12 checks) accepted as equivalent to manual browser verification for phase gate
+- [Phase 19-01]: Button-based tab toggle over Radix Tabs in JobDefinitions — avoids new dependency, consistent with existing button patterns
+- [Phase 19-01]: Publish action reuses PATCH /jobs/definitions/{id} with { status: 'ACTIVE' } — no new backend route needed
 
 ### Pending Todos
-- Plan 02b: Fix node-compose.yaml image reference in main.py (localhost/ → 192.168.50.148:5000/).
-- Run test_installer_lxc.py and fix any installer issues found.
+- [ ] **BLOCKER**: Fix `ImageBOMResponse` + `PackageIndexResponse` missing from `main.py` import block (line 21-42) — NameError at module load prevents backend from starting and all agent_service tests from collecting.
+- [ ] Write SUMMARY.md for Phase 19 Plans 01-03 (work is already in the working tree but no summaries were written — GSD thinks these are unstarted).
+- [ ] Execute Phase 19 Plan 04: E2E walkthrough (push DRAFT via CLI → verify in Staging tab → publish → verify in Active tab) + regression check.
+- [ ] Investigate `test_report_result` pre-existing failure (noted in Phase 17 summary as baseline, not a regression).
 
 ### Blockers/Concerns
-- node-compose.yaml generated by main.py still uses `localhost/master-of-puppets-node:latest` which is unreachable from inside LXC — next plan must fix this.
+- **BLOCKER**: `main.py` fails to import — `ImageBOMResponse` (used at line 2050) and `PackageIndexResponse` (used at line 2063) are defined in `models.py` but missing from the `from .models import (...)` block. The app cannot start. Phase 17/18 tests (test_device_flow.py, test_job_staging.py) fail to collect as a result.
+- **Phase 19 tracking gap**: Plans 19-01, 19-02, 19-03 are implemented in the working tree (status badges, staging tab, publish button, script inspection, OIDC doc, UserGuide staging section) but no SUMMARY.md files exist. GSD reports 4 plans / 0 summaries.
 
 ## Session Continuity
 
-Last session: 2026-03-11T22:47:53.239Z
-Stopped at: Phase 17 context gathered
-Resume file: .planning/phases/17-backend-oauth-device-flow-and-job-staging/17-CONTEXT.md
-Next plan: /gsd:plan-phase 17
+Last session: 2026-03-15T15:29:18.085Z
+Stopped at: Completed 19-01-PLAN.md — status badges, staging tab, and publish action implemented
+Resume file: None
+Next plan: Fix import blocker in main.py, then write Phase 19 summaries and run /gsd:execute-phase 19 for Plan 04.
