@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mop-sdk"
+version = "0.1.0"
+description = "Master of Puppets (MoP) SDK and CLI"
+authors = [
+    { name = "Thomas", email = "thomas@example.com" }
+]
+dependencies = [
+    "httpx",
+    "cryptography",
+    "pydantic",
+    "python-jose[cryptography]"
+]
+requires-python = ">=3.10"
+
+[project.scripts]
+mop-push = "mop_sdk.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mop_sdk*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["puppeteer"]
+asyncio_mode = "auto"
