@@ -23,7 +23,7 @@ Archive: `.planning/milestones/v8.0-ROADMAP.md`
 
 - [x] **Phase 11: Compatibility Engine** — OS family tagging, runtime deps, API/UI enforcement (completed 2026-03-11)
 - [x] **Phase 12: Smelter Registry** — Vetted ingredient catalog, CVE scanning, STRICT/WARNING enforcement (completed 2026-03-15)
-- [ ] **Phase 13: Package Management & Custom Repos** — Local PyPI + APT mirror sidecars, auto-sync on ingredient add, air-gapped manual upload, pip.conf/sources.list build injection, sync log capture, mirror health UI
+- [x] **Phase 13: Package Management & Custom Repos** — Local PyPI + APT mirror sidecars, auto-sync on ingredient add, air-gapped manual upload, pip.conf/sources.list build injection, sync log capture, mirror health UI (completed 2026-03-15)
 - [ ] **Phase 14: Foundry Wizard UI** — 5-step guided composition wizard with real-time OS filtering
 - [ ] **Phase 15: Smelt-Check, BOM & Lifecycle** — Post-build ephemeral validation, JSON BOM, image ACTIVE/DEPRECATED/REVOKED states
 - [ ] **Phase 16: Security & Governance** — SLSA provenance, Ed25519-signed build provenance, resource limits, --secret credentials
@@ -95,7 +95,7 @@ Plans:
 | 19. Dashboard Staging View & Governance Doc | v8.0 | 5/5 | Complete | 2026-03-15 |
 | 11. Compatibility Engine | v7.0 | 6/6 | Complete | 2026-03-11 |
 | 12. Smelter Registry | 10/10 | Complete    | 2026-03-15 | 2026-03-15 |
-| 13. Package Management & Custom Repos | 7/8 | In Progress|  | - |
+| 13. Package Management & Custom Repos | 8/8 | Complete    | 2026-03-15 | - |
 | 14. Foundry Wizard UI | v7.0 | 0/TBD | Not started | - |
 | 15. Smelt-Check, BOM & Lifecycle | v7.0 | 0/TBD | Not started | - |
 | 16. Security & Governance | v7.0 | 0/TBD | Not started | - |

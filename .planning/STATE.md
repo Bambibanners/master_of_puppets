@@ -4,7 +4,7 @@ milestone: v7.0
 milestone_name: — Advanced Foundry & Smelter
 status: executing
 stopped_at: Completed 13-08-PLAN.md — Mirror test suite repair (test_mirror.py + test_foundry_mirror.py)
-last_updated: "2026-03-15T20:39:51.330Z"
+last_updated: "2026-03-15T20:43:43.379Z"
 last_activity: "2026-03-15 — Completed 13-06: closed all 6 backend gaps (mirror_log, is_active, migration, MirrorService log capture, foundry fail-fast fix, soft-purge delete, upload routing, mirror-config GET/PUT)."
 progress:
   total_phases: 5
