@@ -1976,6 +1976,9 @@ async def list_templates(current_user: User = Depends(require_permission("foundr
         "last_built_image": t.current_image_uri,
         "last_built_at": t.last_built_at,
         "created_at": t.created_at,
+        "is_compliant": t.is_compliant if t.is_compliant is not None else True,
+        "status": t.status or "DRAFT",
+        "bom_captured": t.bom_captured or False,
     } for t in templates]
 
 @app.post("/api/templates/{id}/build", response_model=ImageResponse)

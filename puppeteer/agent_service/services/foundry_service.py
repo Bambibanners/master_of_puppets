@@ -13,6 +13,7 @@ from ..db import Blueprint, PuppetTemplate, CapabilityMatrix, AsyncSession, Conf
 from ..models import ImageBuildRequest, ImageResponse
 from .smelter_service import SmelterService
 from .staging_service import StagingService
+from .mirror_service import MirrorService
 
 logger = logging.getLogger(__name__)
 
@@ -90,16 +91,9 @@ class FoundryService:
             # 2. Build Dockerfile Content
             dockerfile = [f"FROM {base_os}"]
 
-            # 2.5 Mirror Configuration Injection
-            # Create pip.conf and sources.list in the build directory
+            # 2.5 Mirror Configuration Injection (content computed now, files written after build_dir exists)
             pip_conf = MirrorService.get_pip_conf_content()
             sources_list = MirrorService.get_sources_list_content()
-
-            with open(os.path.join(build_dir, "pip.conf"), "w") as f:
-                f.write(pip_conf)
-            with open(os.path.join(build_dir, "sources.list"), "w") as f:
-                f.write(sources_list)
-
             dockerfile.append("COPY pip.conf /etc/pip.conf")
             if os_family == "DEBIAN":
                 dockerfile.append("COPY sources.list /etc/apt/sources.list")
@@ -159,6 +153,12 @@ class FoundryService:
 
             build_dir = f"/tmp/puppet_build_{tmpl.id}_{hashlib.md5(str(datetime.utcnow()).encode()).hexdigest()[:8]}"
             await asyncio.to_thread(os.makedirs, build_dir, exist_ok=True)
+
+            # Write mirror config files now that build_dir exists
+            with open(os.path.join(build_dir, "pip.conf"), "w") as f:
+                f.write(pip_conf)
+            with open(os.path.join(build_dir, "sources.list"), "w") as f:
+                f.write(sources_list)
 
             # Copy puppet source files into the build context
             env_src = os.path.join(puppets_src, "environment_service")
