@@ -1,11 +1,14 @@
-from fastapi import FastAPI, HTTPException, Request, Depends, Header, status, WebSocket, WebSocketDisconnect, UploadFile, File, Query
-from fastapi.responses import Response, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request, Depends, Header, status, WebSocket, WebSocketDisconnect, UploadFile, File, Query, Form
+from fastapi.responses import Response, StreamingResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from pydantic import BaseModel
+import secrets as _secrets
 import uuid
 import json
 import os
+import shutil
 import subprocess
 import socket
 from typing import Optional, List, Dict
@@ -19,9 +22,10 @@ from .models import (
     JobCreate, RegisterRequest, RegisterResponse, JobResponse, WorkResponse,
     ResultReport, TokenResponse, HeartbeatPayload, NodeConfig, PollResponse,
     NodeResponse, SignatureCreate, SignatureResponse, JobDefinitionCreate, JobDefinitionUpdate,
-    JobDefinitionResponse, PingRequest, NetworkMount, MountsConfig,
+    JobDefinitionResponse, JobPushRequest, PingRequest, NetworkMount, MountsConfig,
     ImageBuildRequest, ImageResponse, EnrollmentRequest,
     BlueprintCreate, BlueprintResponse, PuppetTemplateCreate, PuppetTemplateResponse,
+    ApprovedIngredientCreate, ApprovedIngredientUpdate, ApprovedIngredientResponse,
     CapabilityMatrixEntry, CapabilityMatrixUpdate, UploadKeyRequest, UserCreate, UserResponse, PermissionGrant,
     ArtifactResponse, ApprovedOSResponse,
     EnrollmentTokenCreate,
@@ -34,6 +38,7 @@ from .models import (
     ExecutionRecordResponse,
     AlertResponse,
     WebhookCreate, WebhookResponse,
+    ImageBOMResponse, PackageIndexResponse,
     ALLOWED_ROLES,
 )
 from .security import (
@@ -53,8 +58,8 @@ from sqlalchemy.future import select
 from sqlalchemy import update, desc, func, delete
 from collections import defaultdict
 from cryptography import x509 as _x509
-from .db import init_db, get_db, Job, Token, Config, User, Node, NodeStats, AsyncSession, Signature, ScheduledJob, Ping, AsyncSessionLocal, CapabilityMatrix, Blueprint, PuppetTemplate, RolePermission, AuditLog, RevokedCert, UserSigningKey, UserApiKey, ServicePrincipal, ExecutionRecord, Artifact, ApprovedOS, Trigger, Signal, Alert
-from .auth import verify_password, get_password_hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from .db import init_db, get_db, Job, Token, Config, User, Node, NodeStats, AsyncSession, Signature, ScheduledJob, Ping, AsyncSessionLocal, CapabilityMatrix, Blueprint, PuppetTemplate, RolePermission, AuditLog, RevokedCert, UserSigningKey, UserApiKey, ServicePrincipal, ExecutionRecord, Artifact, ApprovedOS, Trigger, Signal, Alert, ApprovedIngredient
+from .auth import verify_password, get_password_hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, verify_token
 from .services.job_service import JobService
 from .services.signature_service import SignatureService
 from .services.scheduler_service import scheduler_service
@@ -62,6 +67,7 @@ from .services.pki_service import pki_service
 from .services.vault_service import vault_service
 from .services.foundry_service import foundry_service
 from .services.trigger_service import trigger_service
+from .services.smelter_service import SmelterService
 from .services.alert_service import AlertService
 from .services.webhook_service import WebhookService
 
@@ -521,7 +527,7 @@ async def get_node_compose(token: str, mounts: Optional[str] = None, tags: Optio
 version: '3.8'
 services:
   puppet:
-    image: {os.getenv("NODE_IMAGE", "localhost/master-of-puppets-node:latest")}
+    image: {os.getenv("NODE_IMAGE", "192.168.50.148:5000/puppet-node:latest")}
     network_mode: host
     environment:
       - AGENT_URL={os.getenv("AGENT_URL", "https://localhost:8001")}
@@ -767,6 +773,220 @@ def audit(db: AsyncSession, user: User, action: str, resource_id: str = None, de
     ))
 
 # --- Auth Endpoints ---
+
+# --- OAuth Device Flow (RFC 8628) ---
+_device_codes: dict[str, dict] = {}
+_user_code_index: dict[str, str] = {}  # user_code -> device_code (reverse index)
+_USER_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # excludes 0,O,1,I,L
+_DEVICE_TTL_SECONDS = 300   # 5 minutes
+_POLL_INTERVAL_SECONDS = 5
+
+def _generate_user_code() -> str:
+    p1 = "".join(_secrets.choice(_USER_CODE_ALPHABET) for _ in range(4))
+    p2 = "".join(_secrets.choice(_USER_CODE_ALPHABET) for _ in range(4))
+    return f"{p1}-{p2}"
+
+@app.post("/auth/device")
+async def device_authorization():
+    """RFC 8628 Device Authorization Request — issues device_code and user_code."""
+    now = datetime.utcnow()
+    # Lazy cleanup: evict expired entries (2x TTL = 10 min grace)
+    expired_keys = [k for k, v in list(_device_codes.items()) if v["expiry"] < now]
+    for k in expired_keys:
+        uc = _device_codes.pop(k, {}).get("user_code")
+        if uc:
+            _user_code_index.pop(uc, None)
+
+    device_code = _secrets.token_urlsafe(32)
+    user_code = _generate_user_code()
+    expiry = now + timedelta(seconds=_DEVICE_TTL_SECONDS)
+
+    _device_codes[device_code] = {
+        "user_code": user_code,
+        "expiry": expiry,
+        "status": "pending",
+        "approved_by": None,
+        "last_poll": None,
+    }
+    _user_code_index[user_code] = device_code
+
+    agent_url = os.getenv("AGENT_URL", "https://localhost:8001")
+    return {
+        "device_code": device_code,
+        "user_code": user_code,
+        "verification_uri": f"{agent_url}/auth/device/approve",
+        "verification_uri_complete": f"{agent_url}/auth/device/approve?user_code={user_code}",
+        "expires_in": _DEVICE_TTL_SECONDS,
+        "interval": _POLL_INTERVAL_SECONDS,
+    }
+
+class DeviceTokenRequest(BaseModel):
+    device_code: str
+    grant_type: str = "urn:ietf:params:oauth:grant-type:device_code"
+
+@app.post("/auth/device/token")
+async def device_token_exchange(req: DeviceTokenRequest, db: AsyncSession = Depends(get_db)):
+    """RFC 8628 Device Access Token Request — exchange device_code for JWT."""
+    entry = _device_codes.get(req.device_code)
+    now = datetime.utcnow()
+
+    if not entry:
+        raise HTTPException(400, detail={"error": "expired_token"})
+    if entry["expiry"] < now:
+        uc = _device_codes.pop(req.device_code, {}).get("user_code")
+        if uc:
+            _user_code_index.pop(uc, None)
+        raise HTTPException(400, detail={"error": "expired_token"})
+    if entry["status"] == "denied":
+        raise HTTPException(400, detail={"error": "access_denied"})
+
+    # RFC 8628 slow_down: if polled again before interval
+    last_poll = entry.get("last_poll")
+    if last_poll and (now - last_poll).total_seconds() < _POLL_INTERVAL_SECONDS:
+        entry["last_poll"] = now
+        raise HTTPException(400, detail={"error": "slow_down"})
+    entry["last_poll"] = now
+
+    if entry["status"] == "pending":
+        raise HTTPException(400, detail={"error": "authorization_pending"})
+
+    # status == "approved"
+    username = entry["approved_by"]
+    result = await db.execute(select(User).where(User.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(400, detail={"error": "access_denied"})
+
+    token = create_access_token(
+        data={"sub": user.username, "role": user.role, "tv": user.token_version, "type": "device_flow"},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    # Consume code — one-time use
+    _device_codes.pop(req.device_code, None)
+    _user_code_index.pop(entry["user_code"], None)
+
+    audit(db, user, "device_flow:token_issued", None, {"username": user.username})
+    await db.commit()
+    return {"access_token": token, "token_type": "bearer", "role": user.role}
+
+@app.get("/auth/device/approve", response_class=HTMLResponse)
+async def device_approve_page(user_code: str = ""):
+    """Serve the device authorization approval page (inline HTML, no build step)."""
+    return HTMLResponse(content=f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Authorize Device — Master of Puppets</title>
+  <style>
+    body {{ font-family: system-ui, sans-serif; max-width: 480px; margin: 80px auto; padding: 0 1rem; color: #1a1a1a; }}
+    .card {{ background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 2rem; text-align: center; }}
+    .code {{ font-family: monospace; font-size: 2rem; font-weight: bold; letter-spacing: 0.2em; color: #0d6efd; margin: 1rem 0; }}
+    .btn {{ display: inline-block; padding: 0.6rem 1.6rem; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; margin: 0.3rem; }}
+    .btn-approve {{ background: #198754; color: white; }}
+    .btn-deny {{ background: #dc3545; color: white; }}
+    .btn-approve:hover {{ background: #157347; }}
+    .btn-deny:hover {{ background: #bb2d3b; }}
+    .msg {{ margin-top: 1rem; font-size: 0.9rem; color: #6c757d; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Authorize Device</h2>
+    <p>A CLI device is requesting access to <strong>Master of Puppets</strong>.</p>
+    <p>Confirm that your terminal displays this code:</p>
+    <div class="code" id="display-code">{user_code or "(no code provided)"}</div>
+    <form id="approve-form" method="POST" action="/auth/device/approve">
+      <input type="hidden" name="user_code" value="{user_code}">
+      <input type="hidden" name="token" id="token-field" value="">
+      <button type="submit" class="btn btn-approve">Approve</button>
+    </form>
+    <form id="deny-form" method="POST" action="/auth/device/deny">
+      <input type="hidden" name="user_code" value="{user_code}">
+      <input type="hidden" name="token" id="deny-token-field" value="">
+      <button type="submit" class="btn btn-deny">Deny</button>
+    </form>
+    <p class="msg" id="auth-msg"></p>
+  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {{
+      var token = localStorage.getItem('access_token') || '';
+      document.getElementById('token-field').value = token;
+      document.getElementById('deny-token-field').value = token;
+      if (!token) {{
+        document.getElementById('auth-msg').textContent = 'You must be logged in to authorize a device.';
+        document.getElementById('auth-msg').style.color = '#dc3545';
+        var next = encodeURIComponent(window.location.href);
+        setTimeout(function() {{ window.location.href = '/login?next=' + next; }}, 2000);
+      }}
+    }});
+  </script>
+</body>
+</html>""")
+
+@app.post("/auth/device/approve", response_class=HTMLResponse)
+async def device_approve_submit(
+    user_code: str = Form(...),
+    token: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    """Process device approval — sets status='approved' on matching device code."""
+    # Validate the user's JWT from the form
+    try:
+        payload = verify_token(token)
+        username = payload.get("sub")
+    except Exception:
+        return HTMLResponse(content="<h2>Error: Invalid or missing session token. Please log in and try again.</h2>", status_code=401)
+
+    device_code = _user_code_index.get(user_code)
+    if not device_code or device_code not in _device_codes:
+        return HTMLResponse(content="<h2>Error: Device code not found or expired.</h2>", status_code=404)
+
+    entry = _device_codes[device_code]
+    if entry["expiry"] < datetime.utcnow():
+        return HTMLResponse(content="<h2>Error: Device code has expired.</h2>", status_code=410)
+
+    entry["status"] = "approved"
+    entry["approved_by"] = username
+
+    result = await db.execute(select(User).where(User.username == username))
+    user = result.scalar_one_or_none()
+    if user:
+        audit(db, user, "device_flow:approved", None, {"user_code": user_code})
+        await db.commit()
+
+    return HTMLResponse(content="""<!DOCTYPE html><html><head><title>Authorized</title>
+<style>body{font-family:system-ui,sans-serif;max-width:480px;margin:80px auto;text-align:center;}</style>
+</head><body><h2 style="color:#198754">Device authorized.</h2>
+<p>You may close this tab. Your CLI session is now active.</p></body></html>""")
+
+@app.post("/auth/device/deny", response_class=HTMLResponse)
+async def device_deny_submit(
+    user_code: str = Form(...),
+    token: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    """Process device denial — sets status='denied' on matching device code."""
+    try:
+        payload = verify_token(token)
+        username = payload.get("sub")
+    except Exception:
+        username = "unknown"
+
+    device_code = _user_code_index.get(user_code)
+    if device_code and device_code in _device_codes:
+        _device_codes[device_code]["status"] = "denied"
+
+    result = await db.execute(select(User).where(User.username == username))
+    user = result.scalar_one_or_none()
+    if user:
+        audit(db, user, "device_flow:denied", None, {"user_code": user_code})
+        await db.commit()
+
+    return HTMLResponse(content="""<!DOCTYPE html><html><head><title>Denied</title>
+<style>body{font-family:system-ui,sans-serif;max-width:480px;margin:80px auto;text-align:center;}</style>
+</head><body><h2 style="color:#dc3545">Device authorization denied.</h2>
+<p>The CLI request has been rejected. You may close this tab.</p></body></html>""")
 
 @app.post("/auth/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
@@ -1528,7 +1748,9 @@ async def enroll_node(req: EnrollmentRequest, request: Request, db: AsyncSession
             tmpl_res = await db.execute(select(PuppetTemplate).where(PuppetTemplate.id == token_entry.template_id))
             tmpl = tmpl_res.scalar_one_or_none()
             if tmpl:
-                os_family = tmpl.base_os_family
+                if tmpl.status == "REVOKED":
+                    raise HTTPException(status_code=403, detail="Blueprint for this enrollment has been REVOKED")
+                os_family = tmpl.os_family
                 # Load runtime blueprint
                 rt_res = await db.execute(select(Blueprint).where(Blueprint.id == tmpl.runtime_blueprint_id))
                 rt_bp = rt_res.scalar_one_or_none()
@@ -1550,6 +1772,7 @@ async def enroll_node(req: EnrollmentRequest, request: Request, db: AsyncSession
             node.last_seen = datetime.utcnow()
             node.client_cert_pem = signed_cert
             node.base_os_family = os_family
+            node.template_id = token_entry.template_id
             if expected_caps:
                 node.expected_capabilities = json.dumps(expected_caps)
         else:
@@ -1559,18 +1782,22 @@ async def enroll_node(req: EnrollmentRequest, request: Request, db: AsyncSession
                 ip=node_ip,
                 status="ONLINE",
                 base_os_family=os_family,
+                template_id=token_entry.template_id,
                 machine_id=req.machine_id,
                 node_secret_hash=req.node_secret_hash,
                 client_cert_pem=signed_cert,
                 expected_capabilities=json.dumps(expected_caps) if expected_caps else None
             )
-            db.add(node)            
+            db.add(node)
         await db.commit()
         
         return {
             "client_cert_pem": signed_cert,
             "ca_url": f"{request.base_url}" 
         }
+    except HTTPException:
+        await db.rollback()
+        raise
     except Exception as e:
         logger.error(f"Enrollment Error: {e}")
         await db.rollback()
@@ -1796,6 +2023,55 @@ async def delete_template(id: str, current_user: User = Depends(require_permissi
     await db.delete(tmpl)
     await db.commit()
     return {"status": "deleted"}
+
+# --- Image BOM & Lifecycle Management ---
+
+@app.patch("/api/templates/{id}/status", tags=["Foundry"])
+async def update_template_status(
+    id: str,
+    req: Dict[str, str],
+    current_user: User = Depends(require_permission("foundry:write")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update the lifecycle status of an image (ACTIVE, DEPRECATED, REVOKED)."""
+    new_status = req.get("status")
+    if new_status not in ["ACTIVE", "DEPRECATED", "REVOKED"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    result = await db.execute(select(PuppetTemplate).where(PuppetTemplate.id == id))
+    tmpl = result.scalar_one_or_none()
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    
+    tmpl.status = new_status
+    audit(db, current_user, "foundry:image_status_updated", f"{id}:{new_status}")
+    await db.commit()
+    return {"id": id, "status": new_status}
+
+@app.get("/api/templates/{id}/bom", response_model=ImageBOMResponse, tags=["Foundry"])
+async def get_template_bom(
+    id: str,
+    current_user: User = Depends(require_permission("foundry:read")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get the full Bill of Materials for a specific image."""
+    result = await db.execute(select(ImageBOM).where(ImageBOM.template_id == id))
+    bom = result.scalar_one_or_none()
+    if not bom:
+        raise HTTPException(status_code=404, detail="BOM not found for this image")
+    return bom
+
+@app.get("/api/foundry/search-packages", response_model=List[PackageIndexResponse], tags=["Foundry"])
+async def search_packages(
+    q: str,
+    current_user: User = Depends(require_permission("foundry:read")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Search for images containing a specific package name/version across the fleet."""
+    result = await db.execute(
+        select(PackageIndex).where(PackageIndex.name.ilike(f"%{q}%")).limit(100)
+    )
+    return result.scalars().all()
 
 @app.get("/api/capability-matrix", response_model=List[CapabilityMatrixEntry])
 async def get_capability_matrix(
@@ -2074,8 +2350,73 @@ async def toggle_job_definition(id: str, current_user: User = Depends(require_pe
 async def get_job_definition(id: str, current_user: User = Depends(require_permission("definitions:read")), db: AsyncSession = Depends(get_db)):
     return await scheduler_service.get_job_definition(id, db)
 
-@app.patch("/jobs/definitions/{id}", response_model=JobDefinitionResponse)
+@app.post("/api/jobs/push", response_model=JobDefinitionResponse, status_code=201)
+async def push_job_definition(
+    req: JobPushRequest,
+    current_user: User = Depends(require_permission("definitions:write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """RFC-compliant push endpoint: creates DRAFT or updates existing job with dual JWT+Ed25519 verification."""
+    # 1. Validate Ed25519 signature BEFORE any DB write (STAGE-03)
+    sig_result = await db.execute(select(Signature).where(Signature.id == req.signature_id))
+    sig = sig_result.scalar_one_or_none()
+    if not sig:
+        raise HTTPException(404, detail="Signature ID not found")
+    try:
+        SignatureService.verify_payload_signature(sig.public_key, req.signature, req.script_content)
+    except Exception as e:
+        raise HTTPException(422, detail=f"Invalid Ed25519 signature: {e}")
+
+    # 2. Identity attribution (STAGE-04)
+    pushed_by = current_user.username  # "username" or "sp:name" for service principals
+
+    # 3. Upsert logic (STAGE-02)
+    if req.id:
+        # Update existing job by ID
+        result = await db.execute(select(ScheduledJob).where(ScheduledJob.id == req.id))
+        job = result.scalar_one_or_none()
+        if not job:
+            raise HTTPException(404, detail="Job definition not found")
+        if job.status == "REVOKED":
+            raise HTTPException(409, detail={"error": "job_revoked", "id": job.id,
+                                             "message": "Job is REVOKED. Un-REVOKE to DEPRECATED before re-pushing."})
+        job.script_content = req.script_content
+        job.signature_id = req.signature_id
+        job.signature_payload = req.signature
+        job.pushed_by = pushed_by
+        job.updated_at = datetime.utcnow()
+    else:
+        # Create new job by name — check for name conflict first
+        existing_result = await db.execute(select(ScheduledJob).where(ScheduledJob.name == req.name))
+        existing = existing_result.scalar_one_or_none()
+        if existing:
+            raise HTTPException(409, detail={"error": "name_conflict", "id": existing.id,
+                                             "message": f"Job '{req.name}' already exists. Use id to update."})
+        job = ScheduledJob(
+            id=uuid.uuid4().hex,
+            name=req.name,
+            script_content=req.script_content,
+            signature_id=req.signature_id,
+            signature_payload=req.signature,
+            schedule_cron="",  # DRAFT jobs have no schedule yet
+            status="DRAFT",
+            pushed_by=pushed_by,
+            created_by=pushed_by,
+        )
+        db.add(job)
+
+    audit(db, current_user, "job:pushed", job.id if req.id else None,
+          {"name": req.name or job.name, "pushed_by": pushed_by, "action": "update" if req.id else "create"})
+    await db.commit()
+    await db.refresh(job)
+    return JobDefinitionResponse.model_validate(job)
+
+@app.patch("/api/jobs/definitions/{id}", response_model=JobDefinitionResponse)
 async def update_job_definition(id: str, update_req: JobDefinitionUpdate, current_user: User = Depends(require_permission("definitions:write")), db: AsyncSession = Depends(get_db)):
+    # Admin-only REVOKE gate (GOV-CLI-01)
+    if update_req.status == "REVOKED" and current_user.role != "admin":
+        raise HTTPException(403, detail="Only admin can set a job to REVOKED status")
+
     return await scheduler_service.update_job_definition(id, update_req, current_user, db)
 
 # --- Artifact Vault API ---
@@ -2403,6 +2744,137 @@ async def get_crl(db: AsyncSession = Depends(get_db)):
     serials = [r.serial_number for r in revoked]
     crl_pem = pki_service.ca_authority.generate_crl(serials)
     return Response(content=crl_pem, media_type="application/x-pem-file")
+
+# --- Smelter Registry API ---
+
+@app.get("/api/smelter/ingredients", response_model=List[ApprovedIngredientResponse], tags=["Smelter Registry"])
+async def list_smelter_ingredients(
+    os_family: Optional[str] = None,
+    current_user: User = Depends(require_permission("foundry:read")),
+    db: AsyncSession = Depends(get_db)
+):
+    """List all approved ingredients in the Smelter Catalog (Admin/Operator)."""
+    return await SmelterService.list_ingredients(db, os_family)
+
+@app.post("/api/smelter/ingredients", response_model=ApprovedIngredientResponse, tags=["Smelter Registry"])
+async def add_smelter_ingredient(
+    ingredient: ApprovedIngredientCreate,
+    current_user: User = Depends(require_permission("foundry:write")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a new vetted ingredient to the Smelter Catalog (Admin Only)."""
+    item = await SmelterService.add_ingredient(db, ingredient)
+    audit(db, current_user, "smelter:ingredient_added", item.name)
+    return item
+
+@app.delete("/api/smelter/ingredients/{id}", tags=["Smelter Registry"])
+async def remove_smelter_ingredient(
+    id: str,
+    current_user: User = Depends(require_permission("foundry:write")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Remove an ingredient from the Smelter Catalog (Admin Only)."""
+    success = await SmelterService.delete_ingredient(db, id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Ingredient not found")
+    audit(db, current_user, "smelter:ingredient_removed", id)
+    return {"status": "deleted"}
+
+@app.get("/api/smelter/config", tags=["Smelter Registry"])
+async def get_smelter_config(
+    current_user: User = Depends(require_permission("foundry:read")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get the current Smelter enforcement mode (STRICT vs WARNING)."""
+    result = await db.execute(select(Config).where(Config.key == "smelter_enforcement_mode"))
+    cfg = result.scalar_one_or_none()
+    return {"smelter_enforcement_mode": cfg.value if cfg else "WARNING"}
+
+@app.patch("/api/smelter/config", tags=["Smelter Registry"])
+async def update_smelter_config(
+    req: Dict[str, str],
+    current_user: User = Depends(require_permission("foundry:write")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update the Smelter enforcement mode (STRICT vs WARNING)."""
+    mode = req.get("smelter_enforcement_mode")
+    if mode not in ["STRICT", "WARNING"]:
+        raise HTTPException(status_code=400, detail="Mode must be STRICT or WARNING")
+    
+    result = await db.execute(select(Config).where(Config.key == "smelter_enforcement_mode"))
+    cfg = result.scalar_one_or_none()
+    if cfg:
+        cfg.value = mode
+    else:
+        db.add(Config(key="smelter_enforcement_mode", value=mode))
+    
+    audit(db, current_user, "smelter:config_updated", mode)
+    await db.commit()
+    return {"smelter_enforcement_mode": mode}
+
+@app.get("/api/smelter/mirror-health", tags=["Smelter Registry"])
+async def get_smelter_mirror_health(
+    current_user: User = Depends(require_permission("foundry:read"))
+):
+    """Get metrics for the local package mirrors (Disk usage, sidecar status)."""
+    mirror_path = os.getenv("MIRROR_DATA_PATH", "/app/mirror_data")
+    stats = {"pypi_online": False, "apt_online": False, "disk_used_gb": 0, "disk_total_gb": 0}
+    
+    # 1. Disk Usage
+    if os.path.exists(mirror_path):
+        usage = shutil.disk_usage(mirror_path)
+        stats["disk_used_gb"] = round(usage.used / (1024**3), 2)
+        stats["disk_total_gb"] = round(usage.total / (1024**3), 2)
+    
+    # 2. Sidecar Heartbeats (simple socket check)
+    def check_port(host, port):
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                return True
+        except:
+            return False
+
+    stats["pypi_online"] = check_port("pypi", 8080)
+    stats["apt_online"] = check_port("mirror", 80)
+    
+    return stats
+
+@app.post("/api/smelter/ingredients/{id}/upload", tags=["Smelter Registry"])
+async def upload_smelter_package(
+    id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_permission("foundry:write")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Manually upload a package (.whl, .deb) to the local mirror."""
+    res = await db.execute(select(ApprovedIngredient).where(ApprovedIngredient.id == id))
+    ing = res.scalar_one_or_none()
+    if not ing:
+        raise HTTPException(status_code=404, detail="Ingredient not found")
+    
+    target_dir = os.path.join(os.getenv("MIRROR_DATA_PATH", "/app/mirror_data"), "pypi" if ing.os_family != "DEBIAN" else "apt")
+    os.makedirs(target_dir, exist_ok=True)
+    
+    file_path = os.path.join(target_dir, file.filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    ing.mirror_status = "MIRRORED"
+    ing.mirror_path = target_dir
+    await db.commit()
+    
+    audit(db, current_user, "smelter:package_uploaded", f"{ing.name}:{file.filename}")
+    return {"status": "MIRRORED", "filename": file.filename}
+
+@app.post("/api/smelter/scan", tags=["Smelter Registry"])
+async def trigger_smelter_scan(
+    current_user: User = Depends(require_permission("foundry:write")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Manually trigger a vulnerability scan of the Smelter Catalog (Admin Only)."""
+    summary = await SmelterService.scan_vulnerabilities(db)
+    audit(db, current_user, "smelter:scan_triggered", json.dumps(summary))
+    return summary
 
 # --- Trigger API (Automation) ---
 
