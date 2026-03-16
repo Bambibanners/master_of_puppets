@@ -37,7 +37,18 @@ Jobs run reliably — on the right node, when scheduled, with their output captu
 - ✓ Foundry Wizard UI — 5-step guided composition wizard with OS filtering and Smelter integration — v7.0
 - ✓ Smelt-Check + BOM + Image Lifecycle — post-build validation, JSON BOM, package index, ACTIVE/DEPRECATED/REVOKED enforcement — v7.0
 
-### Active
+### Active — v9.0 Enterprise Documentation
+
+- [ ] MkDocs Material container — docs service in compose.server.yaml, git-backed markdown in `docs/`
+- [ ] Dashboard integration — replace in-app Docs view with link/redirect to docs container
+- [ ] Auto-generated API reference — built from FastAPI's `/openapi.json`, rendered in MkDocs
+- [ ] Developer documentation — architecture guide, setup & deployment, contributing guide
+- [ ] User getting started guide — end-to-end first-run walkthrough (install → node → job)
+- [ ] Feature guides — Foundry, Smelter, mop-push CLI, job scheduling, RBAC, OAuth, Staging
+- [ ] Security & compliance guide — mTLS setup, cert rotation, RBAC config, audit log, air-gap
+- [ ] Runbooks & troubleshooting — common failures, node recovery, cert issues, FAQ
+
+### Planned — Future Milestones
 
 - [ ] Job output capture — stdout/stderr, exit codes, per-execution records
 - [ ] Execution history — queryable timeline of past runs per job and per node
@@ -46,7 +57,7 @@ Jobs run reliably — on the right node, when scheduled, with their output captu
 - [ ] Environment node tags — DEV / TEST / PROD tags for CI/CD promotion targeting
 - [ ] CI/CD API integration — documented, machine-friendly endpoints for dispatching jobs from pipelines
 - [ ] Conditional triggers — run job based on outcome of previous job or external signal
-- [ ] SLSA provenance — Ed25519-signed build provenance, resource limits, --secret credentials (Phase 16, deferred from v7.0)
+- [ ] SLSA provenance — Ed25519-signed build provenance, resource limits, --secret credentials (deferred from v7.0)
 
 ### Out of Scope
 
@@ -90,7 +101,18 @@ The security model is zero-trust by default. Any feature that requires relaxing 
 | Image lifecycle status (ACTIVE/DEPRECATED/REVOKED) on puppet_templates | Enrollment and work-pull enforcement without DB joins; status is the authority | ✓ Good |
 | Phase 16 (Security & Governance) deferred | No production blockers; provenance/--secret deferred to avoid over-engineering v7.0 | ⚠️ Revisit |
 
-## Current State — v7.0 & v8.0 Shipped (2026-03-16)
+## Current Milestone: v9.0 Enterprise Documentation
+
+**Goal:** Bring all technical and user documentation to enterprise standard, hosted as a containerised MkDocs wiki within the stack and linked from the dashboard.
+
+**Target features:**
+- MkDocs Material container — standalone docs service in compose.server.yaml, git-backed markdown, portable
+- Dashboard integration — replace existing in-app Docs view with link to the docs container
+- Auto-generated API reference — OpenAPI-driven, always in sync with the code
+- Developer documentation — architecture guide, setup/deployment, contributing guide
+- User documentation — getting started E2E walkthrough, per-feature guides, security & compliance, runbooks/troubleshooting
+
+## Current State — v7.0, v8.0 & v9.0 In Progress (2026-03-16)
 
 The Foundry is now a fully governed build pipeline. Operators compose images through a 5-step wizard that filters tools by OS family and sources packages from the Smelter Registry. Every build is validated by an ephemeral Smelt-Check container, produces a JSON Bill of Materials, and carries a lifecycle status (ACTIVE/DEPRECATED/REVOKED) enforced at node enrollment and job dispatch.
 
@@ -100,4 +122,4 @@ In parallel, the operator toolchain gained `mop-push` (v8.0): sign and push jobs
 **Shipped in v8.0:** OAuth device flow, `mop-push` CLI, job lifecycle status, Dashboard Staging view, OIDC v2 architecture doc.
 
 ---
-*Last updated: 2026-03-16 after v7.0 milestone*
+*Last updated: 2026-03-16 after v8.0 milestone — v9.0 started*
