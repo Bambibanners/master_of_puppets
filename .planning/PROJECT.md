@@ -31,7 +31,11 @@ Jobs run reliably — on the right node, when scheduled, with their output captu
 - ✓ `mop-push` CLI — login/push/create, Ed25519 signing locally, private key never transmitted — v8.0
 - ✓ Job lifecycle status (DRAFT/ACTIVE/DEPRECATED/REVOKED) + REVOKED dispatch enforcement — v8.0
 - ✓ Dashboard Staging view — inspect drafts, finalize scheduling, one-click Publish — v8.0
-- ✓ Foundry Compatibility Engine — OS-family tagging, runtime deps, API/UI enforcement — v7.0 partial
+- ✓ Foundry Compatibility Engine — OS-family tagging, runtime deps, two-pass blueprint validation, real-time tool filtering — v7.0
+- ✓ Smelter Registry — vetted ingredient catalog, CVE scanning (pip-audit), STRICT/WARNING enforcement, compliance badging — v7.0
+- ✓ Package Repository Mirroring — local PyPI + APT sidecars, auto-sync, air-gapped upload, pip.conf/sources.list injection, fail-fast — v7.0
+- ✓ Foundry Wizard UI — 5-step guided composition wizard with OS filtering and Smelter integration — v7.0
+- ✓ Smelt-Check + BOM + Image Lifecycle — post-build validation, JSON BOM, package index, ACTIVE/DEPRECATED/REVOKED enforcement — v7.0
 
 ### Active
 
@@ -42,10 +46,7 @@ Jobs run reliably — on the right node, when scheduled, with their output captu
 - [ ] Environment node tags — DEV / TEST / PROD tags for CI/CD promotion targeting
 - [ ] CI/CD API integration — documented, machine-friendly endpoints for dispatching jobs from pipelines
 - [ ] Conditional triggers — run job based on outcome of previous job or external signal
-- [ ] Smelter Registry — vetted ingredient catalog with CVE scanning and enforcement modes
-- [ ] Advanced Package Management — native OS + PIP pre-baking, internal PyPI sidecar
-- [ ] Foundry Wizard UI — 5-step guided composition wizard
-- [ ] Smelt-Check + Image BOM — post-build validation, bill of materials, image lifecycle
+- [ ] SLSA provenance — Ed25519-signed build provenance, resource limits, --secret credentials (Phase 16, deferred from v7.0)
 
 ### Out of Scope
 
@@ -82,18 +83,21 @@ The security model is zero-trust by default. Any feature that requires relaxing 
 | MoP-native OAuth device flow (not external OIDC) | Avoids external IdP dependency for v1; OIDC documented as v2 path | ✓ Good |
 | Job staging (DRAFT→ACTIVE via dashboard) | Operators review and finalize scheduling before jobs run in production | ✓ Good |
 | Private key stays on operator machine | Ed25519 signing in CLI; only signature transmitted to server | ✓ Good |
+| Soft-delete for CapabilityMatrix tools | Preserves tool history; reversible; admin can view inactive entries | ✓ Good |
+| Smelter enforcement_mode in Config table | No new table; reuses existing key/value store; runtime-configurable | ✓ Good |
+| Mirror fail-fast unconditional (enforcement_mode gates only unapproved check) | Prevents silent external fetching; two separate enforcement concerns | ✓ Good |
+| Soft-purge for ingredient delete | Preserves mirror files and audit history; is_active=False flag | ✓ Good |
+| Image lifecycle status (ACTIVE/DEPRECATED/REVOKED) on puppet_templates | Enrollment and work-pull enforcement without DB joins; status is the authority | ✓ Good |
+| Phase 16 (Security & Governance) deferred | No production blockers; provenance/--secret deferred to avoid over-engineering v7.0 | ⚠️ Revisit |
 
-## Current State — v8.0 Shipped (2026-03-15)
+## Current State — v7.0 & v8.0 Shipped (2026-03-16)
 
-Operators can now sign and publish jobs from the terminal via `mop-push`. Jobs enter a Staging area as DRAFTs, are reviewed in the dashboard, and published to ACTIVE with one click. The full job lifecycle (DRAFT → ACTIVE → DEPRECATED → REVOKED) is enforced at dispatch.
+The Foundry is now a fully governed build pipeline. Operators compose images through a 5-step wizard that filters tools by OS family and sources packages from the Smelter Registry. Every build is validated by an ephemeral Smelt-Check container, produces a JSON Bill of Materials, and carries a lifecycle status (ACTIVE/DEPRECATED/REVOKED) enforced at node enrollment and job dispatch.
 
+In parallel, the operator toolchain gained `mop-push` (v8.0): sign and push jobs from the terminal, review in the Staging dashboard, publish with one click. The full job lifecycle (DRAFT → ACTIVE → DEPRECATED → REVOKED) is enforced at dispatch.
+
+**Shipped in v7.0:** Compatibility Engine, Smelter Registry (CVE scanning + enforcement), Package Mirroring (PyPI + APT sidecars), Foundry Wizard UI, Smelt-Check + BOM + Lifecycle.
 **Shipped in v8.0:** OAuth device flow, `mop-push` CLI, job lifecycle status, Dashboard Staging view, OIDC v2 architecture doc.
 
-## Current Milestone: v7.0 — Advanced Foundry & Smelter (In Progress)
-
-**Goal:** Transition the Foundry from manual blueprint CRUD to an intelligent, compatibility-aware composition engine with a built-in package registry and governance layer.
-
-**Remaining phases:** 12 (Smelter Registry), 13 (Package Management), 14 (Foundry Wizard), 15 (Smelt-Check + BOM), 16 (Security & Governance).
-
 ---
-*Last updated: 2026-03-15 after v8.0 milestone*
+*Last updated: 2026-03-16 after v7.0 milestone*

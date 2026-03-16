@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v7.0
-milestone_name: — Advanced Foundry & Smelter
+milestone_name: Advanced Foundry & Smelter
 status: complete
-stopped_at: Milestone 7 complete — all phases 12–19 done, committed, and human-verified
-last_updated: "2026-03-16T16:20:00.000Z"
-last_activity: "2026-03-16 — Committed all M7 work (145 files, phases 12–19). Phase 19 UI verified: STAGING/ACTIVE tabs, script inspect, pushed_by, Publish flow all pass."
+stopped_at: "v7.0 archived 2026-03-16. MILESTONES.md, ROADMAP.md, PROJECT.md updated. Git tag v7.0 pending."
+last_updated: "2026-03-16T17:30:00.000Z"
+last_activity: "2026-03-16 — Completed /gsd:complete-milestone for v7.0. Archived 5 phases (11–15), 34 plans."
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 33
-  completed_plans: 33
+  total_phases: 5
+  completed_phases: 5
+  total_plans: 34
+  completed_plans: 34
   percent: 100
 ---
 
@@ -18,10 +18,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-09)
+See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Jobs run reliably — on the right node, when scheduled, with output captured — without weakening the security model.
-**Current focus:** Milestone 8 — OAuth Device Flow, Job Staging, CLI
+**Current focus:** Planning next milestone — /gsd:new-milestone
 
 ## Current Position
 
