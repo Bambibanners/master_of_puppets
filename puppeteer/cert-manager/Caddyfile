@@ -28,6 +28,11 @@
         }
     }
 
+    # Docs
+    handle /docs/* {
+        reverse_proxy docs:80
+    }
+
     # Dashboard fallback
     handle {
         reverse_proxy dashboard:80
@@ -72,6 +77,11 @@
                 tls_insecure_skip_verify
             }
         }
+    }
+
+    # Docs
+    handle /docs/* {
+        reverse_proxy docs:80
     }
 
     # Dashboard fallback
