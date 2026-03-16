@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v9.0
 milestone_name: — Enterprise Documentation
-status: planning
-stopped_at: Completed 20-01-PLAN.md
-last_updated: "2026-03-16T21:40:44.120Z"
-last_activity: 2026-03-16 — v9.0 roadmap created, phases 20–25 defined
+status: executing
+stopped_at: "Checkpoint: 20-02 Task 3 awaiting CF Access human verification"
+last_updated: "2026-03-16T21:45:38.045Z"
+last_activity: 2026-03-16 — Plan 20-01 complete (MkDocs container infrastructure)
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 100
 ---
 
 # Project State
@@ -46,6 +46,7 @@ Progress: [██████████] 100% (plans completed vs total discov
 - [Phase 20]: mkdocs build --strict enforced in builder stage — any MkDocs warning fails Docker build
 - [Phase 20]: nginx alias (not root) used for /docs/ location — root breaks subpath asset resolution
 - [Phase 20]: Privacy plugin downloads external assets at build time — zero outbound font/JS requests at runtime
+- [Phase 20-container-infrastructure-routing]: handle /docs/* used (not handle_path) in Caddy — preserves URI prefix for nginx alias subpath routing
 
 ### Pending Todos
 
@@ -59,6 +60,6 @@ Progress: [██████████] 100% (plans completed vs total discov
 
 ## Session Continuity
 
-Last session: 2026-03-16T21:40:44.118Z
-Stopped at: Completed 20-01-PLAN.md
+Last session: 2026-03-16T21:45:38.043Z
+Stopped at: Checkpoint: 20-02 Task 3 awaiting CF Access human verification
 Resume file: None

@@ -12,8 +12,8 @@ Requirements for the v9.0 milestone. Each maps to roadmap phases.
 - [x] **INFRA-01**: Operator can run `docker compose up` and have the docs container serve the MkDocs site at `/docs/`
 - [x] **INFRA-02**: Docs container is a separate service in `compose.server.yaml` (portable, no coupling to agent or dashboard)
 - [x] **INFRA-03**: Docs site builds with `--strict` flag (warnings treated as errors)
-- [ ] **INFRA-04**: Caddy routes `/docs/*` to the docs container with correct asset URL handling (`site_url` aligned)
-- [ ] **INFRA-05**: `/docs/*` path is protected by Cloudflare Access policy (not publicly exposed)
+- [x] **INFRA-04**: Caddy routes `/docs/*` to the docs container with correct asset URL handling (`site_url` aligned)
+- [x] **INFRA-05**: `/docs/*` path is protected by Cloudflare Access policy (not publicly exposed)
 - [x] **INFRA-06**: Docs site works offline / air-gapped (no external CDN assets at runtime)
 
 ### Dashboard Integration
@@ -98,8 +98,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INFRA-01 | Phase 20 | Complete |
 | INFRA-02 | Phase 20 | Complete |
 | INFRA-03 | Phase 20 | Complete |
-| INFRA-04 | Phase 20 | Pending |
-| INFRA-05 | Phase 20 | Pending |
+| INFRA-04 | Phase 20 | Complete |
+| INFRA-05 | Phase 20 | Complete |
 | INFRA-06 | Phase 20 | Complete |
 | DASH-01 | Phase 21 | Pending |
 | DASH-02 | Phase 21 | Pending |
