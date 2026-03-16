@@ -1,57 +1,103 @@
-# Master of Puppets - Orchestration Toolkit
+# Master of Puppets (MoP)
 
-> **Status**: Production-Ready / Zero-Trust / Observable
-> **Current Version**: v0.8 (Refactored Backend & Self-Healing Quality Loop)
+[![Status](https://img.shields.io/badge/Status-Production--Ready-success.svg)](#)
+[![Security](https://img.shields.io/badge/Security-Zero--Trust-blue.svg)](#)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](#)
 
-## Overview
-**Master of Puppets** is a secure, scalable, and containerized orchestration framework designed for executing defined automation tasks with strict security and observability. It features a Pull-based architecture, Zero-Trust security (mTLS/JWT/Signatures), a comprehensive React Dashboard, and is fully deployable via Docker/Podman.
+**Master of Puppets (MoP)** is a high-performance, enterprise-grade orchestration framework designed for secure and observable task execution across distributed environments. Built with a **Zero-Trust** architecture, MoP ensures that every component is mutually authenticated and every workload is cryptographically verified.
 
-## Recent Updates (v0.8)
-- **Backend Refactor**: `agent_service/main.py` has been split into `models.py` and `security.py` for improved maintainability.
-- **Automated Quality**: Introduced a "Self-Healing Quality Loop" workflow that maps features, identifies test gaps, and generates `pytest` coverage.
-- **Documentation**: New automated asset generation pipeline (in progress) and comprehensive Feature Manifests.
+## 🚀 Key Value Propositions
 
-## System Architecture
+*   **Zero-Trust Security**: Mutual TLS (mTLS) by default for all Control Plane <-> Node communications.
+*   **Pull-Based Execution**: Nodes (Puppets) proactively poll for work, eliminating the need for inbound firewall rules on execution targets.
+*   **Cryptographic Integrity**: All jobs must be signed using Ed25519 keys, ensuring only authorized workloads are executed.
+*   **Enterprise Observability**: Real-time telemetry, job status tracking, and node health monitoring via a modern React Dashboard.
+*   **Stateless Scaling**: Execution nodes are stateless and ephemeral, designed to run in isolated container environments (Podman/Docker).
+
+---
+
+## 🏗 Architecture Overview
+
+MoP is comprised of three primary pillars:
 
 ### 1. The Puppeteer (Control Plane)
-*   **Directory**: `/puppeteer`
-*   **Port**: `8001` (HTTPS, mTLS Required)
-*   **Components**: Agent Service, Model Service, Database, Dashboard.
-*   **Role**: The brain. Manages Job Queue, Node Registration, Authentication (JWT), PKI (CA), and State.
-*   **Security**: Enforces strict mutual TLS. Rejects any connection without a valid client certificate signed by the internal Root CA.
+The central nervous system of the platform.
+*   **API Gateway**: FastAPI-based RESTful API with OIDC/OAuth2 integration.
+*   **PKI Authority**: Manages node enrollment, CSR signing, and certificate rotation.
+*   **Scheduler**: Advanced recurring task engine and job queue management.
+*   **Persistence**: PostgreSQL for robust state and history management.
 
 ### 2. The Puppet (Execution Node)
-*   **Directory**: `/puppets`
-*   **Role**: The efficient worker. Proactively heartbeats (stats) and polls for work from the Puppeteer. Executes tasks in isolated subprocesses.
-*   **Security**: 
-    *   **Self-Bootstrapping**: Bootstraps trust via a secure `JOIN_TOKEN` (embedded Root CA).
-    *   **Signature Verification**: Verifies digital signatures (RSA-2048) of all jobs before execution.
-    *   **Strict mTLS**: Refuses to connect to an unverified Puppeteer.
+Lightweight, secure worker agents.
+*   **Secure Enrollment**: Bootstraps trust via one-time join tokens and automated CSR generation.
+*   **Workload Isolation**: Executes tasks in isolated subprocesses or containerized environments.
+*   **Proactive Reporting**: Continuous heartbeats including system metrics and job lifecycle events.
 
-### 3. Dashboard Health Centre
-*   **Directory**: `/puppeteer/dashboard` (Built into Puppeteer stack)
-*   **Port**: `5173` (HTTP)
-*   **Tech**: React, Vite, TypeScript, TanStack Query, Recharts, Shadcn/ui.
-*   **Role**: Real-time telemetry and control.
+### 3. MoP SDK & CLI
+The primary interface for developers and automated CI/CD pipelines.
+*   **Device Flow Auth**: Modern OAuth2 Device Flow for secure CLI authentication.
+*   **Job Signing**: Built-in utilities for signing scripts before deployment.
+*   **Programmatic Access**: Full Python SDK for integrating MoP into existing platforms.
 
-## Deployment & Operations
+---
 
-### 1. Puppeteer (Server) Deployment
-The control plane is designed to be run as a containerized stack.
-*   **Deploy**: `docker compose -f compose.server.yaml up -d`
-*   **Config**: Ensure `secrets.env` (see `.env.example`) and necessary certificates are present in `/puppeteer/secrets`.
+## 🚦 Getting Started
 
-### 2. Verified Workflows
-New agentic workflows have been added to `.agent/workflows`:
-*   `full_audit.md`: Runs a complete 9-step audit (Security, Backend, Frontend, Docs, etc.).
-*   `self_healing_quality_loop.md`: Automatically finds missing tests and fills the gaps.
+### Prerequisites
+*   Python 3.12+
+*   Docker & Docker Compose (for full stack deployment)
+*   Node.js & npm (for dashboard development)
 
-## Development
-- **Puppeteer (Central)**: `puppeteer/agent_service` (Backend), `puppeteer/dashboard` (Frontend)
-- **Puppets (Nodes)**: `puppets/environment_service`
-- **Validation**: `mop_validation/` (Tests & Reports)
+### Deployment (Quick Start)
+Deploy the full control plane stack using Docker Compose:
 
-### Local Dev Setup
-1.  `pip install -r requirements.txt`
-2.  `cd puppeteer/dashboard && npm install`
-3.  `pytest` (Now enabled for backend!)
+```bash
+docker compose -f puppeteer/compose.server.yaml up -d
+```
+
+### CLI Installation & Authentication
+Install the MoP SDK and authenticate via the CLI:
+
+```bash
+# Install SDK
+pip install ./mop_sdk
+
+# Login via Device Flow
+mop-push login --url https://mop.your-enterprise.com
+```
+
+### Deploying a Job
+1.  **Generate Keys**: Create an Ed25519 key pair for job signing.
+2.  **Push Job**:
+    ```bash
+    mop-push job create \
+      --name "System-Cleanup" \
+      --script "./scripts/cleanup.py" \
+      --key "./keys/private.pem" \
+      --key-id "ops-team-01" \
+      --cron "0 0 * * *" \
+      --tags "prod,linux"
+    ```
+
+---
+
+## 🛡 Security & Compliance
+
+MoP is designed to meet the rigorous security requirements of modern enterprise environments:
+*   **Identity**: Each node has a unique X.509 identity.
+*   **Encryption**: All data in transit is encrypted via TLS 1.3.
+*   **Provenance**: Strict Ed25519 signature verification prevents unauthorized code execution.
+*   **Auditability**: Comprehensive logging of all API access, job submissions, and execution results.
+
+For detailed security documentation, see [docs/security.md](docs/security.md).
+
+---
+
+## 📖 Documentation
+*   [Architecture Deep Dive](docs/architecture.md)
+*   [Deployment Guide](docs/deployment_guide.md)
+*   [API Reference](docs/API_REFERENCE.md)
+*   [User Guide](docs/UserGuide.md)
+
+---
+*© 2026 Master of Puppets Project. Built for security, scale, and simplicity.*
