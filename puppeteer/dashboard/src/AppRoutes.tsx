@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import { getToken } from './auth';
 
@@ -10,7 +10,6 @@ const Jobs = lazy(() => import('./views/Jobs'));
 const JobDefinitions = lazy(() => import('./views/JobDefinitions'));
 const Signatures = lazy(() => import('./views/Signatures'));
 const Admin = lazy(() => import('./views/Admin'));
-const Docs = lazy(() => import('./views/Docs'));
 const Templates = lazy(() => import('./views/Templates'));
 const AuditLog = lazy(() => import('./views/AuditLog'));
 const History = lazy(() => import('./views/History'));
@@ -46,12 +45,12 @@ const AppRoutes = () => {
                     <Route path="signatures" element={<Signatures />} />
                     <Route path="templates" element={<Templates />} />
                     <Route path="admin" element={<Admin />} />
-                    <Route path="docs" element={<Docs />} />
                     <Route path="audit" element={<AuditLog />} />
                     <Route path="users" element={<Users />} />
                     <Route path="account" element={<Account />} />
                     <Route path="service-principals" element={<ServicePrincipals />} />
                     <Route path="webhooks" element={<Webhooks />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
             </Routes>
         </Suspense>
