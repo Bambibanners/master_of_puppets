@@ -367,7 +367,7 @@ def require_permission(perm: str):
 
 # --- ALERTS ---
 
-@app.get("/api/alerts", response_model=List[AlertResponse])
+@app.get("/api/alerts", response_model=List[AlertResponse], tags=["Alerts & Webhooks"])
 async def list_alerts(
     skip: int = 0,
     limit: int = 50,
@@ -378,7 +378,7 @@ async def list_alerts(
     """List system alerts with optional filtering."""
     return await AlertService.list_alerts(db, skip, limit, unacknowledged_only)
 
-@app.post("/api/alerts/{alert_id}/acknowledge")
+@app.post("/api/alerts/{alert_id}/acknowledge", tags=["Alerts & Webhooks"])
 async def acknowledge_alert(
     alert_id: int,
     current_user: User = Depends(require_permission("alerts:write")),
@@ -393,7 +393,7 @@ async def acknowledge_alert(
 
 # --- WEBHOOKS ---
 
-@app.get("/api/webhooks", response_model=List[WebhookResponse])
+@app.get("/api/webhooks", response_model=List[WebhookResponse], tags=["Alerts & Webhooks"])
 async def list_webhooks(
     current_user: User = Depends(require_permission("webhooks:read")),
     db: AsyncSession = Depends(get_db)
@@ -401,7 +401,7 @@ async def list_webhooks(
     """List all registered outbound webhooks."""
     return await WebhookService.list_webhooks(db)
 
-@app.post("/api/webhooks", response_model=WebhookResponse)
+@app.post("/api/webhooks", response_model=WebhookResponse, tags=["Alerts & Webhooks"])
 async def create_webhook(
     hook: WebhookCreate,
     current_user: User = Depends(require_permission("webhooks:write")),
@@ -412,7 +412,7 @@ async def create_webhook(
     await db.commit()
     return wh
 
-@app.delete("/api/webhooks/{webhook_id}")
+@app.delete("/api/webhooks/{webhook_id}", tags=["Alerts & Webhooks"])
 async def delete_webhook(
     webhook_id: int,
     current_user: User = Depends(require_permission("webhooks:write")),
@@ -427,7 +427,7 @@ async def delete_webhook(
 
 # --- Execution History ---
 
-@app.get("/api/executions", response_model=List[ExecutionRecordResponse])
+@app.get("/api/executions", response_model=List[ExecutionRecordResponse], tags=["Execution Records"])
 async def list_executions(
     skip: int = 0,
     limit: int = 50,
@@ -477,7 +477,7 @@ async def list_executions(
         ))
     return responses
 
-@app.get("/api/executions/{id}", response_model=ExecutionRecordResponse)
+@app.get("/api/executions/{id}", response_model=ExecutionRecordResponse, tags=["Execution Records"])
 async def get_execution(
     id: int,
     db: AsyncSession = Depends(get_db),
@@ -514,8 +514,8 @@ async def get_execution(
     )
 
 # Serve Installer Scripts
-@app.get("/api/node/compose")
-@app.get("/api/installer/compose")
+@app.get("/api/node/compose", tags=["System"])
+@app.get("/api/installer/compose", tags=["System"])
 async def get_node_compose(token: str, mounts: Optional[str] = None, tags: Optional[str] = None, execution_mode: Optional[str] = None):
     """Dynamic Compose File generator for Nodes."""
     effective_tags = tags if tags else "general,linux,arm64"
@@ -545,7 +545,7 @@ if not os.path.exists("installer"):
     os.makedirs("installer")
 app.mount("/installer", StaticFiles(directory="installer"), name="installer")
 
-@app.get("/verification-key")
+@app.get("/verification-key", tags=["System"])
 async def get_verification_key():
     """Serves the Public Verification Key for Code Signing."""
     key_path = "/app/secrets/verification.key"
@@ -558,7 +558,7 @@ async def get_verification_key():
     with open(key_path, "r") as f:
         return Response(content=f.read(), media_type="text/plain")
 
-@app.get("/installer")
+@app.get("/installer", tags=["System"])
 async def get_installer_ps1():
     """Serves the Universal PowerShell Installer (One-Liner)."""
     file_path = "installer/install_universal.ps1"
@@ -567,7 +567,7 @@ async def get_installer_ps1():
     with open(file_path, "r") as f:
         return Response(content=f.read(), media_type="text/plain")
 
-@app.get("/installer.sh")
+@app.get("/installer.sh", tags=["System"])
 async def get_installer_sh():
     """Serves the Universal Bash Installer."""
     file_path = "installer/install_universal.sh"
@@ -576,7 +576,7 @@ async def get_installer_sh():
     with open(file_path, "r") as f:
         return Response(content=f.read(), media_type="text/plain")
 
-@app.get("/system/root-ca")
+@app.get("/system/root-ca", tags=["System"])
 async def get_root_ca():
     """Download the Internal Root CA (Public Key)."""
     try:
@@ -601,7 +601,7 @@ def _get_dashboard_ca_pem() -> str:
             return f.read()
     return pki_service.get_root_cert_pem()
 
-@app.get("/system/root-ca-installer")
+@app.get("/system/root-ca-installer", tags=["System"])
 async def get_ca_installer_bash():
     """
     Returns a self-contained bash script that installs the MoP Root CA into
@@ -703,7 +703,7 @@ echo "[MoP] Done. You can now access the dashboard at https://<host>:8443"
     return Response(content=script, media_type="text/plain",
                     headers={"Content-Disposition": "inline; filename=mop-install-ca.sh"})
 
-@app.get("/system/root-ca-installer.ps1")
+@app.get("/system/root-ca-installer.ps1", tags=["System"])
 async def get_ca_installer_ps1():
     """
     Returns a PowerShell script that installs the MoP Root CA on Windows.
@@ -786,7 +786,7 @@ def _generate_user_code() -> str:
     p2 = "".join(_secrets.choice(_USER_CODE_ALPHABET) for _ in range(4))
     return f"{p1}-{p2}"
 
-@app.post("/auth/device")
+@app.post("/auth/device", tags=["Authentication"])
 async def device_authorization():
     """RFC 8628 Device Authorization Request — issues device_code and user_code."""
     now = datetime.utcnow()
@@ -824,7 +824,7 @@ class DeviceTokenRequest(BaseModel):
     device_code: str
     grant_type: str = "urn:ietf:params:oauth:grant-type:device_code"
 
-@app.post("/auth/device/token")
+@app.post("/auth/device/token", tags=["Authentication"])
 async def device_token_exchange(req: DeviceTokenRequest, db: AsyncSession = Depends(get_db)):
     """RFC 8628 Device Access Token Request — exchange device_code for JWT."""
     entry = _device_codes.get(req.device_code)
@@ -869,7 +869,7 @@ async def device_token_exchange(req: DeviceTokenRequest, db: AsyncSession = Depe
     await db.commit()
     return {"access_token": token, "token_type": "bearer", "role": user.role}
 
-@app.get("/auth/device/approve", response_class=HTMLResponse)
+@app.get("/auth/device/approve", response_class=HTMLResponse, tags=["Authentication"])
 async def device_approve_page(user_code: str = ""):
     """Serve the device authorization approval page (inline HTML, no build step)."""
     return HTMLResponse(content=f"""<!DOCTYPE html>
@@ -924,7 +924,7 @@ async def device_approve_page(user_code: str = ""):
 </body>
 </html>""")
 
-@app.post("/auth/device/approve", response_class=HTMLResponse)
+@app.post("/auth/device/approve", response_class=HTMLResponse, tags=["Authentication"])
 async def device_approve_submit(
     user_code: str = Form(...),
     token: str = Form(""),
@@ -960,7 +960,7 @@ async def device_approve_submit(
 </head><body><h2 style="color:#198754">Device authorized.</h2>
 <p>You may close this tab. Your CLI session is now active.</p></body></html>""")
 
-@app.post("/auth/device/deny", response_class=HTMLResponse)
+@app.post("/auth/device/deny", response_class=HTMLResponse, tags=["Authentication"])
 async def device_deny_submit(
     user_code: str = Form(...),
     token: str = Form(""),
@@ -988,7 +988,7 @@ async def device_deny_submit(
 </head><body><h2 style="color:#dc3545">Device authorization denied.</h2>
 <p>The CLI request has been rejected. You may close this tab.</p></body></html>""")
 
-@app.post("/auth/login", response_model=TokenResponse)
+@app.post("/auth/login", response_model=TokenResponse, tags=["Authentication"])
 @limiter.limit("5/minute")
 async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.username == form_data.username))
@@ -1007,12 +1007,12 @@ async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequ
     return {"access_token": access_token, "token_type": "bearer", "role": user.role,
             "must_change_password": bool(user.must_change_password)}
 
-@app.get("/auth/me")
+@app.get("/auth/me", tags=["Authentication"])
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return {"username": current_user.username, "role": current_user.role,
             "must_change_password": bool(current_user.must_change_password)}
 
-@app.patch("/auth/me")
+@app.patch("/auth/me", tags=["Authentication"])
 async def update_self(req: dict, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Allow a logged-in user to change their own password.
     Returns a fresh access token so the current session continues uninterrupted."""
@@ -1038,7 +1038,7 @@ async def update_self(req: dict, current_user: User = Depends(get_current_user),
 
 # --- User Signing Keys ---
 
-@app.post("/auth/me/signing-keys")
+@app.post("/auth/me/signing-keys", tags=["Authentication"])
 async def create_signing_key(
     req: UserSigningKeyCreate,
     current_user: User = Depends(get_current_user),
@@ -1107,7 +1107,7 @@ async def create_signing_key(
     )
 
 
-@app.get("/auth/me/signing-keys", response_model=list[UserSigningKeyResponse])
+@app.get("/auth/me/signing-keys", response_model=list[UserSigningKeyResponse], tags=["Authentication"])
 async def list_signing_keys(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -1118,7 +1118,7 @@ async def list_signing_keys(
     return result.scalars().all()
 
 
-@app.delete("/auth/me/signing-keys/{key_id}")
+@app.delete("/auth/me/signing-keys/{key_id}", tags=["Authentication"])
 async def delete_signing_key(
     key_id: str,
     current_user: User = Depends(get_current_user),
@@ -1150,7 +1150,7 @@ async def delete_signing_key(
 
 # --- User API Keys ---
 
-@app.post("/auth/me/api-keys")
+@app.post("/auth/me/api-keys", tags=["Authentication"])
 async def create_api_key(
     req: UserApiKeyCreate,
     current_user: User = Depends(get_current_user),
@@ -1185,7 +1185,7 @@ async def create_api_key(
     )
 
 
-@app.get("/auth/me/api-keys", response_model=list[UserApiKeyResponse])
+@app.get("/auth/me/api-keys", response_model=list[UserApiKeyResponse], tags=["Authentication"])
 async def list_api_keys(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -1196,7 +1196,7 @@ async def list_api_keys(
     return result.scalars().all()
 
 
-@app.delete("/auth/me/api-keys/{key_id}")
+@app.delete("/auth/me/api-keys/{key_id}", tags=["Authentication"])
 async def revoke_api_key(
     key_id: str,
     current_user: User = Depends(get_current_user),
@@ -1220,7 +1220,7 @@ async def revoke_api_key(
 
 # --- Service Principals ---
 
-@app.post("/auth/token")
+@app.post("/auth/token", tags=["Authentication"])
 async def authenticate_service_principal(
     req: ServicePrincipalTokenRequest,
     db: AsyncSession = Depends(get_db),
@@ -1261,7 +1261,7 @@ async def authenticate_service_principal(
     return {"access_token": access_token, "token_type": "bearer", "role": sp.role}
 
 
-@app.post("/admin/service-principals")
+@app.post("/admin/service-principals", tags=["Service Principals"])
 async def create_service_principal(
     req: ServicePrincipalCreate,
     current_user: User = Depends(require_permission("users:write")),
@@ -1300,7 +1300,7 @@ async def create_service_principal(
     )
 
 
-@app.get("/admin/service-principals", response_model=list[ServicePrincipalResponse])
+@app.get("/admin/service-principals", response_model=list[ServicePrincipalResponse], tags=["Service Principals"])
 async def list_service_principals(
     current_user: User = Depends(require_permission("users:write")),
     db: AsyncSession = Depends(get_db),
@@ -1309,7 +1309,7 @@ async def list_service_principals(
     return result.scalars().all()
 
 
-@app.patch("/admin/service-principals/{sp_id}")
+@app.patch("/admin/service-principals/{sp_id}", tags=["Service Principals"])
 async def update_service_principal(
     sp_id: str,
     req: ServicePrincipalUpdate,
@@ -1338,7 +1338,7 @@ async def update_service_principal(
     return ServicePrincipalResponse.model_validate(sp)
 
 
-@app.delete("/admin/service-principals/{sp_id}")
+@app.delete("/admin/service-principals/{sp_id}", tags=["Service Principals"])
 async def delete_service_principal(
     sp_id: str,
     current_user: User = Depends(require_permission("users:write")),
@@ -1355,7 +1355,7 @@ async def delete_service_principal(
     return {"status": "deleted"}
 
 
-@app.post("/admin/service-principals/{sp_id}/rotate-secret")
+@app.post("/admin/service-principals/{sp_id}/rotate-secret", tags=["Service Principals"])
 async def rotate_sp_secret(
     sp_id: str,
     current_user: User = Depends(require_permission("users:write")),
@@ -1382,15 +1382,15 @@ async def rotate_sp_secret(
 
 # --- Core Endpoints ---
 
-@app.get("/")
+@app.get("/", tags=["System"])
 async def health_check():
     return {"status": "healthy", "service": "Agent Service v0.7"}
 
-@app.get("/jobs", response_model=List[JobResponse])
+@app.get("/jobs", response_model=List[JobResponse], tags=["Jobs"])
 async def list_jobs(skip: int = 0, limit: int = 50, status: Optional[str] = None, current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
     return await JobService.list_jobs(db, skip=skip, limit=limit, status=status)
 
-@app.get("/jobs/count")
+@app.get("/jobs/count", tags=["Jobs"])
 async def count_jobs(status: Optional[str] = None, current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
     from sqlalchemy import func as sqlfunc
     query = select(sqlfunc.count()).select_from(Job).where(Job.task_type != 'system_heartbeat')
@@ -1399,12 +1399,12 @@ async def count_jobs(status: Optional[str] = None, current_user: User = Depends(
     result = await db.execute(query)
     return {"total": result.scalar()}
 
-@app.get("/api/jobs/stats")
+@app.get("/api/jobs/stats", tags=["Jobs"])
 async def get_job_stats(current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
     """Backend Stats for Dashboard charts."""
     return await JobService.get_job_stats(db)
 
-@app.post("/jobs", response_model=JobResponse)
+@app.post("/jobs", response_model=JobResponse, tags=["Jobs"])
 async def create_job(job_req: JobCreate, current_user: User = Depends(require_permission("jobs:write")), db: AsyncSession = Depends(get_db)):
     try:
         result = await JobService.create_job(job_req, db)
@@ -1413,7 +1413,7 @@ async def create_job(job_req: JobCreate, current_user: User = Depends(require_pe
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.patch("/jobs/{guid}/cancel")
+@app.patch("/jobs/{guid}/cancel", tags=["Jobs"])
 async def cancel_job(guid: str, current_user: User = Depends(require_permission("jobs:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Job).where(Job.guid == guid))
     job = result.scalar_one_or_none()
@@ -1428,7 +1428,7 @@ async def cancel_job(guid: str, current_user: User = Depends(require_permission(
     await ws_manager.broadcast("job:updated", {"guid": guid, "status": "CANCELLED"})
     return {"status": "cancelled", "guid": guid}
 
-@app.post("/jobs/{guid}/retry")
+@app.post("/jobs/{guid}/retry", tags=["Jobs"])
 async def retry_job(
     guid: str,
     current_user: User = Depends(require_permission("jobs:write")),
@@ -1454,7 +1454,7 @@ async def retry_job(
     await ws_manager.broadcast("job:updated", {"guid": guid, "status": "PENDING"})
     return {"status": "PENDING", "guid": guid}
 
-@app.get("/jobs/{guid}/executions")
+@app.get("/jobs/{guid}/executions", tags=["Jobs"])
 async def list_executions(
     guid: str,
     current_user: User = Depends(require_permission("jobs:read")),
@@ -1485,7 +1485,7 @@ async def list_executions(
         for r in records
     ]
 
-@app.post("/work/pull", response_model=PollResponse)
+@app.post("/work/pull", response_model=PollResponse, tags=["Node Agent"])
 async def pull_work(request: Request, node_id: str = Depends(verify_node_secret), api_key: str = Depends(verify_api_key), db: AsyncSession = Depends(get_db)):
     node_ip = request.client.host
     r = await db.execute(select(Node).where(Node.node_id == node_id))
@@ -1494,14 +1494,14 @@ async def pull_work(request: Request, node_id: str = Depends(verify_node_secret)
         raise HTTPException(status_code=403, detail="Node is revoked")
     return await JobService.pull_work(node_id, node_ip, db)
 
-@app.post("/heartbeat")
+@app.post("/heartbeat", tags=["Node Agent"])
 async def receive_heartbeat(req: Request, hb: HeartbeatPayload, node_id: str = Depends(verify_node_secret), api_key: str = Depends(verify_api_key), db: AsyncSession = Depends(get_db)):
     node_ip = req.client.host
     result = await JobService.receive_heartbeat(node_id, node_ip, hb, db)
     await ws_manager.broadcast("node:heartbeat", {"node_id": node_id, "status": "ONLINE", "stats": hb.stats})
     return result
 
-@app.post("/work/{guid}/result")
+@app.post("/work/{guid}/result", tags=["Node Agent"])
 async def report_result(guid: str, report: ResultReport, req: Request, node_id: str = Depends(verify_node_secret), api_key: str = Depends(verify_api_key), db: AsyncSession = Depends(get_db)):
     node_ip = req.client.host
     if report.result:
@@ -1513,7 +1513,7 @@ async def report_result(guid: str, report: ResultReport, req: Request, node_id: 
     await ws_manager.broadcast("job:updated", {"guid": guid, "status": updated.get("status", "COMPLETED")})
     return updated
 
-@app.get("/nodes", response_model=List[NodeResponse])
+@app.get("/nodes", response_model=List[NodeResponse], tags=["Nodes"])
 async def list_nodes(current_user: User = Depends(require_permission("nodes:read")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Node))
     nodes = result.scalars().all()
@@ -1565,7 +1565,7 @@ async def list_nodes(current_user: User = Depends(require_permission("nodes:read
         })
     return resp
 
-@app.patch("/nodes/{node_id}")
+@app.patch("/nodes/{node_id}", tags=["Nodes"])
 async def update_node_config(node_id: str, config: NodeConfig, current_user: User = Depends(require_permission("nodes:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Node).where(Node.node_id == node_id))
     node = result.scalar_one_or_none()
@@ -1585,7 +1585,7 @@ async def update_node_config(node_id: str, config: NodeConfig, current_user: Use
         "tags": config.tags
     }
 
-@app.delete("/nodes/{node_id}", status_code=204)
+@app.delete("/nodes/{node_id}", status_code=204, tags=["Nodes"])
 async def delete_node(node_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Only admins can remove nodes")
@@ -1600,7 +1600,7 @@ async def delete_node(node_id: str, current_user: User = Depends(get_current_use
     await db.commit()
     return Response(status_code=204)
 
-@app.post("/nodes/{node_id}/revoke")
+@app.post("/nodes/{node_id}/revoke", tags=["Nodes"])
 async def revoke_node(node_id: str, current_user: User = Depends(require_permission("nodes:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Node).where(Node.node_id == node_id))
     node = result.scalar_one_or_none()
@@ -1619,7 +1619,7 @@ async def revoke_node(node_id: str, current_user: User = Depends(require_permiss
     await db.commit()
     return {"status": "revoked", "node_id": node_id}
 
-@app.post("/api/nodes/{node_id}/clear-tamper")
+@app.post("/api/nodes/{node_id}/clear-tamper", tags=["Nodes"])
 async def clear_node_tamper(node_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Resets a node from TAMPERED to ONLINE after administrator review."""
     if current_user.role != "admin":
@@ -1640,7 +1640,7 @@ async def clear_node_tamper(node_id: str, current_user: User = Depends(get_curre
     audit(db, current_user, "node:clear_tamper", node_id)
     return {"status": "cleared", "node_id": node_id}
 
-@app.post("/api/nodes/{node_id}/upgrade")
+@app.post("/api/nodes/{node_id}/upgrade", tags=["Nodes"])
 async def stage_node_upgrade(
     node_id: str, 
     capability_id: int, 
@@ -1689,7 +1689,7 @@ async def stage_node_upgrade(
     
     return {"status": "staged", "node_id": node_id, "tool_id": cap.tool_id}
 
-@app.post("/nodes/{node_id}/reinstate")
+@app.post("/nodes/{node_id}/reinstate", tags=["Nodes"])
 async def reinstate_node(node_id: str, current_user: User = Depends(require_permission("nodes:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Node).where(Node.node_id == node_id))
     node = result.scalar_one_or_none()
@@ -1702,7 +1702,7 @@ async def reinstate_node(node_id: str, current_user: User = Depends(require_perm
     await db.commit()
     return {"status": "reinstated", "node_id": node_id}
 
-@app.post("/auth/register", response_model=RegisterResponse)
+@app.post("/auth/register", response_model=RegisterResponse, tags=["Authentication"])
 async def register_node(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Token).where(Token.token == req.client_secret))
     token_entry = result.scalar_one_or_none()
@@ -1720,7 +1720,7 @@ async def register_node(req: RegisterRequest, db: AsyncSession = Depends(get_db)
         logger.error(f"CSR Signing Error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to sign CSR: {str(e)}")
 
-@app.post("/api/enroll", response_model=RegisterResponse)
+@app.post("/api/enroll", response_model=RegisterResponse, tags=["Node Agent"])
 async def enroll_node(req: EnrollmentRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Public endpoint for secure node enrollment using a one-time token."""
     # 1. Verify Token
@@ -1807,7 +1807,7 @@ async def enroll_node(req: EnrollmentRequest, request: Request, db: AsyncSession
 
 import base64
 
-@app.post("/admin/generate-token")
+@app.post("/admin/generate-token", tags=["Admin"])
 @limiter.limit("10/minute")
 async def generate_token(request: Request, current_user: User = Depends(require_permission("tokens:write")), db: AsyncSession = Depends(get_db)):
          
@@ -1828,7 +1828,7 @@ async def generate_token(request: Request, current_user: User = Depends(require_
 
 # --- Blueprint & Template Management ---
 
-@app.post("/api/blueprints", response_model=BlueprintResponse, status_code=201)
+@app.post("/api/blueprints", response_model=BlueprintResponse, status_code=201, tags=["Foundry"])
 async def create_blueprint(
     req: BlueprintCreate,
     current_user: User = Depends(require_permission("foundry:write")),
@@ -1906,7 +1906,7 @@ async def create_blueprint(
         "os_family": new_bp.os_family,
     }
 
-@app.get("/api/blueprints", response_model=List[BlueprintResponse])
+@app.get("/api/blueprints", response_model=List[BlueprintResponse], tags=["Foundry"])
 async def list_blueprints(current_user: User = Depends(require_permission("foundry:read")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Blueprint))
     bps = result.scalars().all()
@@ -1921,17 +1921,17 @@ async def list_blueprints(current_user: User = Depends(require_permission("found
     } for bp in bps]
 
 # Legacy/Frontend Aliases
-@app.get("/foundry/definitions")
+@app.get("/foundry/definitions", tags=["Foundry"])
 async def foundry_definitions(current_user: User = Depends(require_permission("foundry:read")), db: AsyncSession = Depends(get_db)):
     """Dashboard expects /foundry/definitions instead of /api/blueprints"""
     return await list_blueprints(current_user, db)
 
-@app.get("/job-definitions")
+@app.get("/job-definitions", tags=["Job Definitions"])
 async def dashboard_job_definitions(current_user: User = Depends(require_permission("definitions:read")), db: AsyncSession = Depends(get_db)):
     """Dashboard expects /job-definitions instead of /jobs/definitions"""
     return await scheduler_service.list_job_definitions(db)
 
-@app.post("/api/templates", response_model=PuppetTemplateResponse)
+@app.post("/api/templates", response_model=PuppetTemplateResponse, tags=["Foundry"])
 async def create_template(req: PuppetTemplateCreate, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
     
     # Verify Blueprints exist
@@ -1962,7 +1962,7 @@ async def create_template(req: PuppetTemplateCreate, current_user: User = Depend
     
     return new_tmpl
 
-@app.get("/api/templates", response_model=List[PuppetTemplateResponse])
+@app.get("/api/templates", response_model=List[PuppetTemplateResponse], tags=["Foundry"])
 async def list_templates(current_user: User = Depends(require_permission("foundry:read")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(PuppetTemplate))
     templates = result.scalars().all()
@@ -1981,7 +1981,7 @@ async def list_templates(current_user: User = Depends(require_permission("foundr
         "bom_captured": t.bom_captured or False,
     } for t in templates]
 
-@app.post("/api/templates/{id}/build", response_model=ImageResponse)
+@app.post("/api/templates/{id}/build", response_model=ImageResponse, tags=["Foundry"])
 async def build_template(id: str, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
     result = await foundry_service.build_template(id, db)
     if not result.status.startswith("SUCCESS"):
@@ -1990,7 +1990,7 @@ async def build_template(id: str, current_user: User = Depends(require_permissio
     await db.commit()
     return result
 
-@app.post("/foundry/build")
+@app.post("/foundry/build", tags=["Foundry"])
 async def dashboard_foundry_build(req: dict, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
     """Dashboard expects /foundry/build with template_id in body"""
     template_id = req.get("template_id")
@@ -1998,7 +1998,7 @@ async def dashboard_foundry_build(req: dict, current_user: User = Depends(requir
         raise HTTPException(status_code=400, detail="Missing template_id in body")
     return await build_template(template_id, current_user, db)
 
-@app.delete("/api/blueprints/{id}")
+@app.delete("/api/blueprints/{id}", tags=["Foundry"])
 async def delete_blueprint(id: str, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(PuppetTemplate).where(
@@ -2016,7 +2016,7 @@ async def delete_blueprint(id: str, current_user: User = Depends(require_permiss
     await db.commit()
     return {"status": "deleted"}
 
-@app.delete("/api/templates/{id}")
+@app.delete("/api/templates/{id}", tags=["Foundry"])
 async def delete_template(id: str, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(PuppetTemplate).where(PuppetTemplate.id == id))
     tmpl = result.scalar_one_or_none()
@@ -2076,7 +2076,7 @@ async def search_packages(
     )
     return result.scalars().all()
 
-@app.get("/api/capability-matrix", response_model=List[CapabilityMatrixEntry])
+@app.get("/api/capability-matrix", response_model=List[CapabilityMatrixEntry], tags=["Foundry"])
 async def get_capability_matrix(
     os_family: Optional[str] = Query(None),
     include_inactive: bool = Query(False),
@@ -2093,17 +2093,17 @@ async def get_capability_matrix(
 
 # --- Foundry & Enrollment Endpoints ---
 
-@app.post("/api/images", response_model=ImageResponse)
+@app.post("/api/images", response_model=ImageResponse, tags=["Foundry"])
 async def create_image(req: ImageBuildRequest, current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin Only")
     return await foundry_service.build_image(req)
 
-@app.get("/api/images", response_model=List[ImageResponse])
+@app.get("/api/images", response_model=List[ImageResponse], tags=["Foundry"])
 async def list_images(current_user: User = Depends(get_current_user)):
     return await foundry_service.list_images()
 
-@app.post("/api/enrollment-tokens")
+@app.post("/api/enrollment-tokens", tags=["Node Agent"])
 async def create_enrollment_token(req: Optional[EnrollmentTokenCreate] = None, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Only admins can create enrollment tokens")
@@ -2116,7 +2116,7 @@ async def create_enrollment_token(req: Optional[EnrollmentTokenCreate] = None, c
     db.add(token_entry)
     await db.commit()
     return {"token": token_str}
-@app.post("/admin/upload-key")
+@app.post("/admin/upload-key", tags=["Admin"])
 async def upload_public_key(req: UploadKeyRequest, current_user: User = Depends(require_permission("signatures:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Config).where(Config.key == "signing_public_key"))
     row = result.scalar_one_or_none()
@@ -2130,13 +2130,13 @@ async def upload_public_key(req: UploadKeyRequest, current_user: User = Depends(
 
 # --- User Management Endpoints ---
 
-@app.get("/admin/users", response_model=List[UserResponse])
+@app.get("/admin/users", response_model=List[UserResponse], tags=["User Management"])
 async def list_users(current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User))
     users = result.scalars().all()
     return [{"id": u.username, "username": u.username, "role": u.role, "created_at": u.created_at} for u in users]
 
-@app.post("/admin/users", response_model=UserResponse, status_code=201)
+@app.post("/admin/users", response_model=UserResponse, status_code=201, tags=["User Management"])
 async def create_user(req: UserCreate, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.username == req.username))
     if result.scalar_one_or_none():
@@ -2147,7 +2147,7 @@ async def create_user(req: UserCreate, current_user: User = Depends(require_perm
     await db.commit()
     return {"id": new_user.username, "username": new_user.username, "role": new_user.role, "created_at": new_user.created_at}
 
-@app.delete("/admin/users/{username}")
+@app.delete("/admin/users/{username}", tags=["User Management"])
 async def delete_user(username: str, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
     if username == current_user.username:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
@@ -2160,7 +2160,7 @@ async def delete_user(username: str, current_user: User = Depends(require_permis
     await db.commit()
     return {"status": "deleted", "username": username}
 
-@app.patch("/admin/users/{username}", response_model=UserResponse)
+@app.patch("/admin/users/{username}", response_model=UserResponse, tags=["User Management"])
 async def update_user_role(username: str, req: dict, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
@@ -2174,13 +2174,13 @@ async def update_user_role(username: str, req: dict, current_user: User = Depend
 
 # --- Role Permission Management Endpoints ---
 
-@app.get("/admin/roles/{role}/permissions")
+@app.get("/admin/roles/{role}/permissions", tags=["User Management"])
 async def list_role_permissions(role: str, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(RolePermission).where(RolePermission.role == role))
     perms = result.scalars().all()
     return [{"id": p.id, "role": p.role, "permission": p.permission} for p in perms]
 
-@app.post("/admin/roles/{role}/permissions", status_code=201)
+@app.post("/admin/roles/{role}/permissions", status_code=201, tags=["User Management"])
 async def grant_role_permission(role: str, req: PermissionGrant, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(RolePermission).where(RolePermission.role == role, RolePermission.permission == req.permission))
     if result.scalar_one_or_none():
@@ -2191,7 +2191,7 @@ async def grant_role_permission(role: str, req: PermissionGrant, current_user: U
     _invalidate_perm_cache(role)
     return {"status": "granted", "role": role, "permission": req.permission}
 
-@app.delete("/admin/roles/{role}/permissions/{permission}")
+@app.delete("/admin/roles/{role}/permissions/{permission}", tags=["User Management"])
 async def revoke_role_permission(role: str, permission: str, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(RolePermission).where(RolePermission.role == role, RolePermission.permission == permission))
     perm = result.scalar_one_or_none()
@@ -2203,7 +2203,7 @@ async def revoke_role_permission(role: str, permission: str, current_user: User 
     _invalidate_perm_cache(role)
     return {"status": "revoked", "role": role, "permission": permission}
 
-@app.patch("/admin/users/{username}/reset-password")
+@app.patch("/admin/users/{username}/reset-password", tags=["User Management"])
 async def admin_reset_password(username: str, req: dict, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
     """Admin sets a new password for any user."""
     result = await db.execute(select(User).where(User.username == username))
@@ -2219,7 +2219,7 @@ async def admin_reset_password(username: str, req: dict, current_user: User = De
     await db.commit()
     return {"status": "ok"}
 
-@app.patch("/admin/users/{username}/force-password-change")
+@app.patch("/admin/users/{username}/force-password-change", tags=["User Management"])
 async def admin_force_password_change(username: str, req: dict, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
     """Set or clear the must_change_password flag for a user."""
     result = await db.execute(select(User).where(User.username == username))
@@ -2233,7 +2233,7 @@ async def admin_force_password_change(username: str, req: dict, current_user: Us
     await db.commit()
     return {"status": "ok", "must_change_password": enabled}
 
-@app.get("/config/public-key")
+@app.get("/config/public-key", tags=["System"])
 async def get_public_key(x_join_token: str = Header(None), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Token).where(Token.token == x_join_token))
     if not result.scalar_one_or_none():
@@ -2247,7 +2247,7 @@ async def get_public_key(x_join_token: str = Header(None), db: AsyncSession = De
 
 # --- Configuration Endpoints ---
 
-@app.get("/config/mounts", response_model=List[NetworkMount])
+@app.get("/config/mounts", response_model=List[NetworkMount], tags=["System"])
 async def get_network_mounts(
     db: AsyncSession = Depends(get_db), 
     user: Optional[User] = Depends(get_current_user_optional),
@@ -2274,7 +2274,7 @@ async def get_network_mounts(
     except:
         return []
 
-@app.post("/config/mounts")
+@app.post("/config/mounts", tags=["System"])
 async def update_network_mounts(config: MountsConfig, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin Only")
@@ -2297,15 +2297,15 @@ async def update_network_mounts(config: MountsConfig, current_user: User = Depen
 
 # --- Signature Registry API ---
 
-@app.post("/signatures", response_model=SignatureResponse)
+@app.post("/signatures", response_model=SignatureResponse, tags=["Signatures"])
 async def upload_signature(sig: SignatureCreate, current_user: User = Depends(require_permission("signatures:write")), db: AsyncSession = Depends(get_db)):
     return await SignatureService.upload_signature(sig, current_user, db)
 
-@app.get("/signatures", response_model=List[SignatureResponse])
+@app.get("/signatures", response_model=List[SignatureResponse], tags=["Signatures"])
 async def list_signatures(current_user: User = Depends(require_permission("signatures:read")), db: AsyncSession = Depends(get_db)):
     return await SignatureService.list_signatures(db)
 
-@app.delete("/signatures/{id}")
+@app.delete("/signatures/{id}", tags=["Signatures"])
 async def delete_signature(id: str, current_user: User = Depends(require_permission("signatures:write")), db: AsyncSession = Depends(get_db)):
     success = await SignatureService.delete_signature(id, db)
     if not success:
@@ -2316,15 +2316,15 @@ async def delete_signature(id: str, current_user: User = Depends(require_permiss
 
 # --- Job Definitions API ---
 
-@app.post("/jobs/definitions", response_model=JobDefinitionResponse)
+@app.post("/jobs/definitions", response_model=JobDefinitionResponse, tags=["Job Definitions"])
 async def create_job_definition(def_req: JobDefinitionCreate, current_user: User = Depends(require_permission("definitions:write")), db: AsyncSession = Depends(get_db)):
     return await scheduler_service.create_job_definition(def_req, current_user, db)
 
-@app.get("/jobs/definitions", response_model=List[JobDefinitionResponse])
+@app.get("/jobs/definitions", response_model=List[JobDefinitionResponse], tags=["Job Definitions"])
 async def list_job_definitions(current_user: User = Depends(require_permission("definitions:read")), db: AsyncSession = Depends(get_db)):
     return await scheduler_service.list_job_definitions(db)
 
-@app.delete("/jobs/definitions/{id}")
+@app.delete("/jobs/definitions/{id}", tags=["Job Definitions"])
 async def delete_job_definition(id: str, current_user: User = Depends(require_permission("definitions:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(ScheduledJob).where(ScheduledJob.id == id))
     job_def = result.scalar_one_or_none()
@@ -2338,7 +2338,7 @@ async def delete_job_definition(id: str, current_user: User = Depends(require_pe
     await db.commit()
     return {"status": "deleted"}
 
-@app.patch("/jobs/definitions/{id}/toggle")
+@app.patch("/jobs/definitions/{id}/toggle", tags=["Job Definitions"])
 async def toggle_job_definition(id: str, current_user: User = Depends(require_permission("definitions:write")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(ScheduledJob).where(ScheduledJob.id == id))
     job_def = result.scalar_one_or_none()
@@ -2349,11 +2349,11 @@ async def toggle_job_definition(id: str, current_user: User = Depends(require_pe
     await scheduler_service.sync_scheduler()
     return {"id": id, "is_active": job_def.is_active}
 
-@app.get("/jobs/definitions/{id}", response_model=JobDefinitionResponse)
+@app.get("/jobs/definitions/{id}", response_model=JobDefinitionResponse, tags=["Job Definitions"])
 async def get_job_definition(id: str, current_user: User = Depends(require_permission("definitions:read")), db: AsyncSession = Depends(get_db)):
     return await scheduler_service.get_job_definition(id, db)
 
-@app.post("/api/jobs/push", response_model=JobDefinitionResponse, status_code=201)
+@app.post("/api/jobs/push", response_model=JobDefinitionResponse, status_code=201, tags=["Job Definitions"])
 async def push_job_definition(
     req: JobPushRequest,
     current_user: User = Depends(require_permission("definitions:write")),
@@ -2414,7 +2414,7 @@ async def push_job_definition(
     await db.refresh(job)
     return JobDefinitionResponse.model_validate(job)
 
-@app.patch("/jobs/definitions/{id}", response_model=JobDefinitionResponse)
+@app.patch("/jobs/definitions/{id}", response_model=JobDefinitionResponse, tags=["Job Definitions"])
 async def update_job_definition(id: str, update_req: JobDefinitionUpdate, current_user: User = Depends(require_permission("definitions:write")), db: AsyncSession = Depends(get_db)):
     # Admin-only REVOKE gate (GOV-CLI-01)
     if update_req.status == "REVOKED" and current_user.role != "admin":
@@ -2424,7 +2424,7 @@ async def update_job_definition(id: str, update_req: JobDefinitionUpdate, curren
 
 # --- Artifact Vault API ---
 
-@app.post("/api/artifacts", response_model=ArtifactResponse)
+@app.post("/api/artifacts", response_model=ArtifactResponse, tags=["Artifacts"])
 async def upload_artifact(
     file: UploadFile = File(...),
     current_user: User = Depends(require_permission("foundry:write")),
@@ -2433,7 +2433,7 @@ async def upload_artifact(
     """Upload a binary artifact to the secure vault."""
     return await vault_service.store_artifact(file, db)
 
-@app.get("/api/artifacts", response_model=List[ArtifactResponse])
+@app.get("/api/artifacts", response_model=List[ArtifactResponse], tags=["Artifacts"])
 async def list_artifacts(
     current_user: User = Depends(require_permission("foundry:read")),
     db: AsyncSession = Depends(get_db)
@@ -2441,7 +2441,7 @@ async def list_artifacts(
     """List all stored artifacts."""
     return await vault_service.list_artifacts(db)
 
-@app.get("/api/artifacts/{id}/download")
+@app.get("/api/artifacts/{id}/download", tags=["Artifacts"])
 async def download_artifact(
     id: str,
     current_user: User = Depends(require_permission("foundry:read")),
@@ -2467,7 +2467,7 @@ async def download_artifact(
         headers={"Content-Disposition": f"attachment; filename={artifact.filename}"}
     )
 
-@app.delete("/api/artifacts/{id}")
+@app.delete("/api/artifacts/{id}", tags=["Artifacts"])
 async def delete_artifact(
     id: str,
     current_user: User = Depends(require_permission("foundry:write")),
@@ -2481,7 +2481,7 @@ async def delete_artifact(
 
 # --- Approved OS API ---
 
-@app.get("/api/approved-os", response_model=List[ApprovedOSResponse])
+@app.get("/api/approved-os", response_model=List[ApprovedOSResponse], tags=["Foundry"])
 async def list_approved_os(
     current_user: User = Depends(require_permission("foundry:read")),
     db: AsyncSession = Depends(get_db)
@@ -2490,7 +2490,7 @@ async def list_approved_os(
     result = await db.execute(select(ApprovedOS).order_by(ApprovedOS.name))
     return result.scalars().all()
 
-@app.post("/api/approved-os", response_model=ApprovedOSResponse)
+@app.post("/api/approved-os", response_model=ApprovedOSResponse, tags=["Foundry"])
 async def create_approved_os(
     req: ApprovedOSResponse, 
     current_user: User = Depends(require_permission("foundry:write")),
@@ -2503,7 +2503,7 @@ async def create_approved_os(
     await db.refresh(new_os)
     return new_os
 
-@app.delete("/api/approved-os/{id}")
+@app.delete("/api/approved-os/{id}", tags=["Foundry"])
 async def delete_approved_os(
     id: int,
     current_user: User = Depends(require_permission("foundry:write")),
@@ -2520,7 +2520,7 @@ async def delete_approved_os(
 
 # --- Dynamic Capability Matrix API ---
 
-@app.post("/api/capability-matrix", response_model=CapabilityMatrixEntry)
+@app.post("/api/capability-matrix", response_model=CapabilityMatrixEntry, tags=["Foundry"])
 async def create_capability(
     req: CapabilityMatrixEntry,
     current_user: User = Depends(require_permission("foundry:write")),
@@ -2541,7 +2541,7 @@ async def create_capability(
     await db.refresh(new_cap)
     return new_cap
 
-@app.patch("/api/capability-matrix/{id}", response_model=CapabilityMatrixEntry)
+@app.patch("/api/capability-matrix/{id}", response_model=CapabilityMatrixEntry, tags=["Foundry"])
 async def update_capability(
     id: int,
     req: CapabilityMatrixUpdate,
@@ -2573,7 +2573,7 @@ async def update_capability(
     await db.refresh(cap)
     return cap
 
-@app.delete("/api/capability-matrix/{id}")
+@app.delete("/api/capability-matrix/{id}", tags=["Foundry"])
 async def delete_capability(
     id: int,
     current_user: User = Depends(require_permission("foundry:write")),
@@ -2600,7 +2600,7 @@ async def delete_capability(
 
 # --- Installer & Doc Endpoints ---
 
-@app.get("/api/installer")
+@app.get("/api/installer", tags=["System"])
 async def get_installer():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     file_path = os.path.join(base_dir, "installer", "install_node.ps1")
@@ -2612,7 +2612,7 @@ async def get_installer():
         content = f.read()
     return Response(content=content, media_type="text/plain", headers={"Content-Disposition": "attachment; filename=install_node.ps1"})
 
-@app.get("/api/docs")
+@app.get("/api/docs", tags=["System"])
 async def list_docs(current_user: User = Depends(require_permission("jobs:read"))):
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     docs_dir = os.path.join(base_dir, "docs")
@@ -2636,7 +2636,7 @@ async def list_docs(current_user: User = Depends(require_permission("jobs:read")
             files.append({"filename": f, "title": title})
     return files
 
-@app.get("/api/docs/{filename}")
+@app.get("/api/docs/{filename}", tags=["System"])
 async def get_doc_content(filename: str, current_user: User = Depends(require_permission("jobs:read"))):
     filename = os.path.basename(filename)
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2693,7 +2693,7 @@ async def websocket_endpoint(ws: WebSocket, token: Optional[str] = None, db: Asy
 
 # --- Audit Log Endpoint ---
 
-@app.get("/admin/audit-log")
+@app.get("/admin/audit-log", tags=["Audit Log"])
 async def get_audit_log(
     limit: int = 200,
     current_user: User = Depends(require_permission("users:write")),
@@ -2717,7 +2717,7 @@ async def get_audit_log(
 
 # --- Base Image Staleness Endpoints ---
 
-@app.post("/admin/mark-base-updated")
+@app.post("/admin/mark-base-updated", tags=["Admin"])
 async def mark_base_updated(current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
     """Records the current timestamp as the last time the base node image was updated."""
     now = datetime.utcnow().isoformat()
@@ -2731,7 +2731,7 @@ async def mark_base_updated(current_user: User = Depends(require_permission("fou
     await db.commit()
     return {"base_node_image_updated_at": now}
 
-@app.get("/admin/base-image-updated")
+@app.get("/admin/base-image-updated", tags=["Admin"])
 async def get_base_image_updated(current_user: User = Depends(require_permission("foundry:read")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Config).where(Config.key == "base_node_image_updated_at"))
     row = result.scalar_one_or_none()
@@ -2739,7 +2739,7 @@ async def get_base_image_updated(current_user: User = Depends(require_permission
 
 # --- CRL Endpoint ---
 
-@app.get("/system/crl.pem")
+@app.get("/system/crl.pem", tags=["System"])
 async def get_crl(db: AsyncSession = Depends(get_db)):
     """Returns a signed X.509 CRL of all revoked node certificates."""
     result = await db.execute(select(RevokedCert))
