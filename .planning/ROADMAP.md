@@ -71,11 +71,11 @@ Plans:
   2. Adding a new FastAPI route and rebuilding the docs image causes that route to appear in the API reference without any manual file edits
   3. The dashboard sidebar "Docs" entry opens `/docs/` in a new tab rather than rendering an inline markdown view
   4. The old in-app Docs route (`/docs` in React) no longer exists — navigating to it redirects or shows 404
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 21-01: scripts/export_openapi.py, Dockerfile builder stage integration, mkdocs-swagger-ui-tag config
-- [ ] 21-02: Remove Docs.tsx + /docs route, add external sidebar link in MainLayout.tsx
+- [ ] 21-01-PLAN.md — OpenAPI export pipeline: route tagging, export_openapi.py, Dockerfile build context, mkdocs-swagger-ui-tag
+- [ ] 21-02-PLAN.md — React dashboard cleanup: remove Docs.tsx, add external /docs/ sidebar link
 
 ### Phase 22: Developer Documentation
 **Goal**: Developers and operators can understand the system architecture, set up a local dev environment, and contribute code from the documentation alone
