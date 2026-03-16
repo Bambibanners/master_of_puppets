@@ -56,11 +56,11 @@ Archive: `.planning/milestones/v8.0-ROADMAP.md`
   3. `docker compose build docs` fails loudly if `mkdocs build --strict` encounters any warning or error
   4. Browsing to `/docs/` from a private window without a Cloudflare Access session results in an authentication challenge, not a page load
   5. The site loads completely with no requests to external CDN domains (verified via browser network tab in an air-gapped/network-restricted environment)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 20-01: Multi-stage Dockerfile, docs-container service, mkdocs.yml skeleton with offline+privacy plugins
-- [ ] 20-02: Caddyfile routing (handle /docs/*), nginx alias config, site_url alignment, CF Access policy coverage
+- [ ] 20-01-PLAN.md — MkDocs container files (Dockerfile, nginx.conf, mkdocs.yml, requirements.txt, placeholder) + docs service in compose.server.yaml
+- [ ] 20-02-PLAN.md — Caddyfile handle /docs/* routing (both :443 + :80), smoke test, CF Access checkpoint
 
 ### Phase 21: API Reference + Dashboard Integration
 **Goal**: The API reference is auto-generated from the live FastAPI schema at build time and the dashboard links to the docs site instead of rendering markdown inline
