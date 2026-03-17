@@ -31,7 +31,7 @@ Requirements for the v9.0 milestone. Each maps to roadmap phases.
 
 - [x] **DEVDOC-01**: Architecture guide documents all system components, security model, and data flow (with Mermaid diagrams)
 - [x] **DEVDOC-02**: Setup & deployment guide covers local dev, Docker Compose, production deployment, env vars, TLS bootstrap
-- [ ] **DEVDOC-03**: Contributing guide covers code structure, testing conventions, and PR workflow
+- [x] **DEVDOC-03**: Contributing guide covers code structure, testing conventions, and PR workflow
 
 ### User Getting Started
 
@@ -108,7 +108,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | APIREF-03 | Phase 21 | Complete |
 | DEVDOC-01 | Phase 22 | Complete |
 | DEVDOC-02 | Phase 22 | Complete |
-| DEVDOC-03 | Phase 22 | Pending |
+| DEVDOC-03 | Phase 22 | Complete |
 | GUIDE-01 | Phase 23 | Pending |
 | GUIDE-02 | Phase 23 | Pending |
 | FEAT-01 | Phase 23 | Pending |

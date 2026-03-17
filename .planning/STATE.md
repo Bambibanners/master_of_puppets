@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v9.0
 milestone_name: — Enterprise Documentation
 status: completed
-stopped_at: Completed 22-02-PLAN.md
-last_updated: "2026-03-17T09:40:16.029Z"
+stopped_at: "Completed 22-03-PLAN.md (checkpoint:human-verify pending)"
+last_updated: "2026-03-17T09:48:31.289Z"
 last_activity: 2026-03-16 — Plan 21-02 checkpoint approved, all verification passed
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
   percent: 100
 ---
 
@@ -57,6 +57,8 @@ Progress: [██████████] 100% (plans completed vs total discov
 - [Phase 22-01]: admonition + pymdownx.details + tables extensions added to mkdocs.yml — required by architecture guide admonition boxes and tables
 - [Phase 22]: Production Docker Compose section placed before Local Dev — most readers are deploying, not hacking
 - [Phase 22]: aiosqlite and API_KEY sys.exit gotchas prominently documented with warning admonitions in setup guide
+- [Phase 22-03]: pyproject.toml added as config file only — Black/Ruff not run on existing code this phase (deferred to separate PR to keep diffs reviewable)
+- [Phase 22-03]: Contributing guide uses warning admonition for no-Alembic migration gotcha — establishes pattern for documenting critical contributor traps
 
 ### Pending Todos
 
@@ -70,6 +72,6 @@ Progress: [██████████] 100% (plans completed vs total discov
 
 ## Session Continuity
 
-Last session: 2026-03-17T09:40:16.027Z
-Stopped at: Completed 22-02-PLAN.md
+Last session: 2026-03-17T09:48:31.286Z
+Stopped at: Completed 22-03-PLAN.md (checkpoint:human-verify pending)
 Resume file: None

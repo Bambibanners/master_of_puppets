@@ -39,7 +39,7 @@ Archive: `.planning/milestones/v8.0-ROADMAP.md`
 
 - [x] **Phase 20: Container Infrastructure & Routing** — MkDocs Material container, multi-stage Dockerfile, Caddy routing, nginx alias config, site_url alignment, CF Access policy, offline plugins (completed 2026-03-16)
 - [x] **Phase 21: API Reference + Dashboard Integration** — OpenAPI export pipeline, Swagger UI rendering, dashboard Docs.tsx replacement with external link (completed 2026-03-16)
-- [ ] **Phase 22: Developer Documentation** — Architecture guide with Mermaid diagrams, setup & deployment guide, contributing guide
+- [x] **Phase 22: Developer Documentation** — Architecture guide with Mermaid diagrams, setup & deployment guide, contributing guide (completed 2026-03-17)
 - [ ] **Phase 23: Getting Started & Core Feature Guides** — End-to-end first-run walkthrough, Foundry guide, mop-push CLI guide — establishes nav architecture
 - [ ] **Phase 24: Extended Feature Guides & Security** — Job scheduling, RBAC, OAuth guides + full mTLS, audit log, air-gap security & compliance section
 - [ ] **Phase 25: Runbooks & Troubleshooting** — Symptom-first node, job, and Foundry troubleshooting guides + FAQ
@@ -160,7 +160,7 @@ Plans:
 | 19. Dashboard Staging View & Governance Doc | v8.0 | 5/5 | Complete | 2026-03-15 |
 | 20. Container Infrastructure & Routing | 2/2 | Complete    | 2026-03-16 | - |
 | 21. API Reference + Dashboard Integration | 2/2 | Complete    | 2026-03-16 | - |
-| 22. Developer Documentation | 2/3 | In Progress|  | - |
+| 22. Developer Documentation | 3/3 | Complete   | 2026-03-17 | - |
 | 23. Getting Started & Core Feature Guides | v9.0 | 0/4 | Not started | - |
 | 24. Extended Feature Guides & Security | v9.0 | 0/5 | Not started | - |
 | 25. Runbooks & Troubleshooting | v9.0 | 0/4 | Not started | - |
