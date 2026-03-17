@@ -85,12 +85,12 @@ Plans:
   1. The architecture guide renders at least one Mermaid diagram showing the Puppeteer → mTLS → Puppet data flow, viewable in the browser without external rendering services
   2. A developer following the setup & deployment guide on a clean machine can reach a running local stack (SQLite + backend + dashboard) without consulting the codebase
   3. The contributing guide specifies how to run backend and frontend tests and what a passing PR requires
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 22-01: Architecture guide (components, security model, data flow, Mermaid diagrams)
-- [ ] 22-02: Setup & deployment guide (local dev, Docker Compose, production, env vars, TLS bootstrap)
-- [ ] 22-03: Contributing guide (code structure, testing conventions, PR workflow)
+- [ ] 22-01-PLAN.md — Architecture guide: Mermaid diagrams, all services, security model, DB schema, Foundry pipeline
+- [ ] 22-02-PLAN.md — Setup & deployment guide: quick start, Docker Compose, env vars, local dev gotchas, TLS bootstrap
+- [ ] 22-03-PLAN.md — Contributing guide + pyproject.toml + legacy docs cleanup
 
 ### Phase 23: Getting Started & Core Feature Guides
 **Goal**: A new operator can follow documentation alone to install the stack, enroll a node, and run their first signed job — and the navigation architecture for all future content is locked in
