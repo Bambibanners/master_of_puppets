@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v9.0
 milestone_name: — Enterprise Documentation
 status: completed
-stopped_at: Completed 24-03-PLAN.md
-last_updated: "2026-03-17T13:50:51.705Z"
+stopped_at: Completed 24-04-PLAN.md
+last_updated: "2026-03-17T13:55:42.487Z"
 last_activity: 2026-03-16 — Plan 21-02 checkpoint approved, all verification passed
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 16
-  completed_plans: 14
+  completed_plans: 15
   percent: 100
 ---
 
@@ -70,6 +70,8 @@ Progress: [██████████] 100% (plans completed vs total discov
 - [Phase 24]: API key scoped permissions documented as reserved for future use — matching actual _authenticate_api_key() behaviour
 - [Phase 24]: rbac.md is the operational guide (UI workflow); rbac-reference.md is the canonical permission table — separation keeps both pages focused
 - [Phase 24]: service principals documented as dedicated H2 in rbac.md (not mixed with human user management) — audience and flow are distinct
+- [Phase 24-extended-feature-guides-security]: 3 danger admonitions in mtls.md: Root CA key protection, revocation permanence, and point-of-no-return before old cert revoke
+- [Phase 24-extended-feature-guides-security]: Prerequisites checklist uses Markdown task list syntax so operators can mentally check off before executing
 
 ### Pending Todos
 
@@ -83,6 +85,6 @@ Progress: [██████████] 100% (plans completed vs total discov
 
 ## Session Continuity
 
-Last session: 2026-03-17T13:50:47.302Z
-Stopped at: Completed 24-03-PLAN.md
+Last session: 2026-03-17T13:55:32.564Z
+Stopped at: Completed 24-04-PLAN.md
 Resume file: None
