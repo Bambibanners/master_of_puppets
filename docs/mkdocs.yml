@@ -8,8 +8,6 @@ theme:
     accent: indigo
 plugins:
   - search
-  - privacy
-  - offline
   - swagger-ui-tag
 
 markdown_extensions:
