@@ -1,6 +1,6 @@
 # Audit Log
 
-The audit log records all security-relevant actions in Master of Puppets with a username, timestamp, action type, and optional resource context.
+The audit log records all security-relevant actions in Axiom with a username, timestamp, action type, and optional resource context.
 
 ---
 
@@ -80,7 +80,7 @@ Complete list of all audit actions, grouped by category.
 |--------|-------------|
 | `job:cancel` | Operator cancels a running job |
 | `job:retry` | Operator retries a failed job |
-| `job:pushed` | `mop-push` submits a job to staging |
+| `job:pushed` | `axiom-push` submits a job to staging |
 | `job:cron_skip` | Scheduler skips a cron fire (previous instance still running) |
 | `job:draft_skip` | Scheduler skips a job still in DRAFT status |
 | `job:revoked_skip` | Scheduler skips a REVOKED job definition |

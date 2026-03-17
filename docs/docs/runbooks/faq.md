@@ -39,7 +39,7 @@ See [Foundry → Blueprints](../feature-guides/foundry.md#blueprints) for the fu
 
 ### Node container fails to run jobs — RuntimeError: No container runtime found
 
-When a Puppet node runs inside a Docker container (for example, a Foundry-built image deployed via Docker Compose), `EXECUTION_MODE` must be set to `direct`. In `auto` mode, the node tries to spawn Podman or Docker sub-containers. Inside an existing Docker container, this fails due to cgroup v2 conflicts — neither Podman nor Docker is available in a standard Docker-in-Docker setup. `direct` mode executes job scripts as Python subprocesses within the node process, without a container wrapper.
+When an Axiom Node runs inside a Docker container (for example, a Foundry-built image deployed via Docker Compose), `EXECUTION_MODE` must be set to `direct`. In `auto` mode, the node tries to spawn Podman or Docker sub-containers. Inside an existing Docker container, this fails due to cgroup v2 conflicts — neither Podman nor Docker is available in a standard Docker-in-Docker setup. `direct` mode executes job scripts as Python subprocesses within the node process, without a container wrapper.
 
 ```yaml
 # In node-compose.yaml environment section
@@ -110,7 +110,7 @@ No. Signature verification is enforced at the node before any script is executed
 !!! danger
     There is no configuration flag, environment variable, or API option to disable signature verification. This is a security invariant — disabling it would allow any actor with API access to execute arbitrary code on nodes.
 
-See [mop-push CLI → Ed25519 Key Setup](../feature-guides/mop-push.md#ed25519-key-setup) for how to generate a signing keypair and register the public key.
+See [axiom-push CLI → Ed25519 Key Setup](../feature-guides/axiom-push.md#ed25519-key-setup) for how to generate a signing keypair and register the public key.
 
 ---
 

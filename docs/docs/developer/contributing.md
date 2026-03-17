@@ -1,6 +1,6 @@
-# Contributing to Master of Puppets
+# Contributing to Axiom
 
-This guide covers how to contribute to Master of Puppets — from running tests locally to the PR bar and database migration conventions. Read it before opening a pull request.
+This guide covers how to contribute to Axiom — from running tests locally to the PR bar and database migration conventions. Read it before opening a pull request.
 
 ---
 
@@ -8,8 +8,8 @@ This guide covers how to contribute to Master of Puppets — from running tests 
 
 The project is split into three components:
 
-- **Puppeteer** (`puppeteer/`) — FastAPI control plane + React dashboard
-- **Puppet nodes** (`puppets/`) — stateless worker agents that poll for jobs
+- **Axiom Orchestrator** (`puppeteer/`) — FastAPI control plane + React dashboard
+- **Axiom Nodes** (`puppets/`) — stateless worker agents that poll for jobs
 - **Docs** (`docs/`) — MkDocs Material static site
 
 Most contributions touch `puppeteer/`. Changes to `puppets/environment_service/` affect running nodes — test them carefully.

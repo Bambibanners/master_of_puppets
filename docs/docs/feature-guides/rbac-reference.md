@@ -1,6 +1,6 @@
 # RBAC Permission Reference
 
-Complete reference for all permissions in Master of Puppets, with default role assignments.
+Complete reference for all permissions in Axiom, with default role assignments.
 
 ---
 

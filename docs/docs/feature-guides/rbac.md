@@ -1,6 +1,6 @@
 # Role-Based Access Control
 
-Master of Puppets uses three roles — `admin`, `operator`, and `viewer` — with a permission model that can be customised through the dashboard.
+Axiom uses three roles — `admin`, `operator`, and `viewer` — with a permission model that can be customised through the dashboard.
 
 ---
 
@@ -103,6 +103,6 @@ To get a JWT for a service principal and use it in CI/CD pipelines, see the [OAu
 
 ## API Keys
 
-API keys are long-lived credentials tied to a specific user account, managed in **My Account**. They always begin with `mop_` and can be used in automation in place of short-lived JWT tokens. Unlike JWT tokens, API keys do not expire unless explicitly revoked.
+API keys are long-lived credentials tied to a specific user account, managed in **My Account**. They can be used in automation in place of short-lived JWT tokens. Unlike JWT tokens, API keys do not expire unless explicitly revoked.
 
 See the [OAuth & Authentication guide](oauth.md) for usage patterns, including how to use API keys in scripts and how to scope them for read-only access.

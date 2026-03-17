@@ -1,6 +1,6 @@
 # Foundry
 
-Foundry builds custom Docker images for Puppet nodes. Instead of using a generic base image, you define exactly what packages, tools, and network configuration each node image should contain — then Foundry assembles and builds it.
+Foundry builds custom Docker images for Axiom Nodes. Instead of using a generic base image, you define exactly what packages, tools, and network configuration each node image should contain — then Foundry assembles and builds it.
 
 The workflow has two stages: first you create **blueprints** that define runtime or network configuration, then you compose those blueprints into a **template** that Foundry turns into a Docker image. Nodes enroll against a template, so every node launched from the same template has an identical, reproducible environment.
 

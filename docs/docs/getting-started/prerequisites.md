@@ -1,6 +1,6 @@
 # Prerequisites
 
-Before installing Master of Puppets, verify your environment meets the following requirements.
+Before installing Axiom, verify your environment meets the following requirements.
 
 ## Checklist
 
@@ -46,7 +46,7 @@ Before installing Master of Puppets, verify your environment meets the following
 ---
 
 !!! tip "Podman Compose"
-    The Master of Puppets stack runs under Podman as a drop-in alternative to Docker. To verify your Podman installation:
+    The Axiom stack runs under Podman as a drop-in alternative to Docker. To verify your Podman installation:
     ```bash
     podman-compose --version
     ```

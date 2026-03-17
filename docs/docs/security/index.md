@@ -1,6 +1,6 @@
 # Security Overview
 
-Master of Puppets implements defence-in-depth security — multiple independent layers that each limit the blast radius of a compromise. The controls work together: a compromised credential does not grant script execution, and a compromised node cannot inject unsigned code.
+Axiom implements defence-in-depth security — multiple independent layers that each limit the blast radius of a compromise. The controls work together: a compromised credential does not grant script execution, and a compromised node cannot inject unsigned code.
 
 Each security control targets a specific threat:
 
@@ -16,7 +16,7 @@ The diagram below shows how the four layers interact. Each layer is independent:
 ```mermaid
 graph TD
     A[External Attacker] -->|blocked by| B[mTLS: only enrolled nodes accepted]
-    B --> C[Puppet Node]
+    B --> C[Axiom Node]
     C -->|executes only| D[Ed25519-signed scripts]
     D --> E[Container isolation]
     F[Compromised credential] -->|scope limited by| G[RBAC: role-based permissions]

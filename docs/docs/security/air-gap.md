@@ -1,8 +1,8 @@
 # Air-Gap Operation
 
-This guide covers deploying Master of Puppets in a network-isolated environment where internet access is unavailable or restricted.
+This guide covers deploying Axiom in a network-isolated environment where internet access is unavailable or restricted.
 
-MoP is designed with air-gap deployments in mind. The package mirror sidecars and offline documentation plugins allow most of the stack to operate without outbound internet access. This guide documents the full setup, what is already offline-capable, what requires substitution, and how to verify isolation.
+Axiom is designed with air-gap deployments in mind. The package mirror sidecars and offline documentation plugins allow most of the stack to operate without outbound internet access. This guide documents the full setup, what is already offline-capable, what requires substitution, and how to verify isolation.
 
 For initial setup and deployment context, see [Setup and Deployment](../developer/setup-deployment.md).
 

@@ -1,6 +1,6 @@
 # Setup & Deployment
 
-This guide covers everything you need to get Master of Puppets running — whether you want a full production stack via Docker Compose or a local development environment to hack on the code.
+This guide covers everything you need to get Axiom running — whether you want a full production stack via Docker Compose or a local development environment to hack on the code.
 
 ---
 
@@ -37,7 +37,7 @@ This guide covers everything you need to get Master of Puppets running — wheth
 
 ## Production Deployment (Docker Compose)
 
-The recommended way to run Master of Puppets is via the provided `compose.server.yaml`. This brings up the entire stack as a set of coordinated containers.
+The recommended way to run Axiom is via the provided `compose.server.yaml`. This brings up the entire stack as a set of coordinated containers.
 
 ### Services
 
@@ -124,7 +124,7 @@ docker compose -f puppeteer/compose.server.yaml down -v
 
 ## Environment Variables
 
-Puppeteer reads environment variables from `puppeteer/.env` (and optionally `puppeteer/secrets.env` for sensitive values like `ADMIN_PASSWORD`).
+The orchestrator reads environment variables from `puppeteer/.env` (and optionally `puppeteer/secrets.env` for sensitive values like `ADMIN_PASSWORD`).
 
 Copy the example file before your first run:
 
@@ -141,7 +141,7 @@ Then edit `puppeteer/.env` and fill in the required values:
 | `SECRET_KEY` | Recommended | JWT signing key. Defaults to a weak dev value — always override in production. | `openssl rand -hex 32` |
 | `ADMIN_PASSWORD` | Recommended | Initial admin account password. Only used on **first** startup if the admin user does not yet exist. The database password is the source of truth after that. | Any secure password |
 | `DATABASE_URL` | Optional | Database connection string. Defaults to SQLite (`jobs.db`) if absent. | `postgresql+asyncpg://user:pass@host/db` |
-| `AGENT_URL` | Required for nodes | The URL puppet nodes use to reach the agent service from the network. Must be reachable from every node. | `https://192.168.1.10:8001` |
+| `AGENT_URL` | Required for nodes | The URL nodes use to reach the agent service from the network. Must be reachable from every node. | `https://192.168.1.10:8001` |
 | `CLOUDFLARE_TUNNEL_TOKEN` | CF tunnel only | Cloudflare Tunnel credentials. Only needed if you are routing the dashboard through a Cloudflare Tunnel. | From CF Dashboard → Tunnels |
 | `DUCKDNS_TOKEN` / `DUCKDNS_DOMAIN` | DuckDNS only | Dynamic DNS for Caddy cert-manager TLS. Only needed if using DuckDNS for certificate issuance. | From DuckDNS account page |
 
@@ -253,7 +253,7 @@ npx vitest run src/views/__tests__/JobDefinitions.test.tsx
 
 ## TLS Bootstrap & Node Enrollment
 
-After deploying the puppeteer, puppet nodes need to know where to connect and which CA to trust. This is handled via two environment variables on each node container.
+After deploying the orchestrator, nodes need to know where to connect and which CA to trust. This is handled via two environment variables on each node container.
 
 ### How it works
 

@@ -1,6 +1,6 @@
 # Foundry Troubleshooting
 
-Foundry builds custom Docker images for Puppet nodes from blueprints and templates. When a build fails, the error appears in the **Templates** view status column and in the orchestrator logs — this runbook maps each observable symptom to its root cause and recovery steps.
+Foundry builds custom Docker images for Axiom Nodes from blueprints and templates. When a build fails, the error appears in the **Templates** view status column and in the orchestrator logs — this runbook maps each observable symptom to its root cause and recovery steps.
 
 See [Foundry feature guide](../feature-guides/foundry.md) for background on blueprints, templates, and the Smelter.
 

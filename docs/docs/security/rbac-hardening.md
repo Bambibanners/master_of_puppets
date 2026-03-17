@@ -1,6 +1,6 @@
 # RBAC Hardening
 
-This guide covers least-privilege configuration patterns, service principal hygiene, and how to audit access in Master of Puppets.
+This guide covers least-privilege configuration patterns, service principal hygiene, and how to audit access in Axiom.
 
 For the permission reference table and how to configure roles in the dashboard, see the [RBAC guide](../feature-guides/rbac.md) and [RBAC Permission Reference](../feature-guides/rbac-reference.md).
 

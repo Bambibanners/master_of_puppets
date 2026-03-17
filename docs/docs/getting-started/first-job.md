@@ -35,7 +35,7 @@ openssl pkey -in signing.key -pubout -out verification.key
 Create `hello.py`:
 
 ```python
-print("Hello from Master of Puppets!")
+print("Hello from Axiom!")
 import platform
 print(f"Running on {platform.node()} ({platform.system()})")
 ```
@@ -50,8 +50,8 @@ openssl pkeyutl -sign -inkey signing.key -out hello.py.sig -rawin -in hello.py
 base64 -w0 hello.py.sig > hello.py.sig.b64
 ```
 
-!!! tip "mop-push automates this"
-    The `mop-push` CLI handles signing and submission in one command — no manual openssl steps required. See the [mop-push CLI guide](../feature-guides/mop-push.md) for details. The manual method is shown here to make the signing mechanics visible.
+!!! tip "axiom-push automates this"
+    The `axiom-push` CLI handles signing and submission in one command — no manual openssl steps required. See the [axiom-push CLI guide](../feature-guides/axiom-push.md) for details. The manual method is shown here to make the signing mechanics visible.
 
 ---
 
@@ -79,7 +79,7 @@ PENDING → ASSIGNED → COMPLETED
 Click the job row to expand the result. The output should show:
 
 ```
-Hello from Master of Puppets!
+Hello from Axiom!
 Running on <node-hostname> (Linux)
 ```
 
@@ -89,4 +89,4 @@ Running on <node-hostname> (Linux)
     **What to explore next:**
 
     - [Foundry](../feature-guides/foundry.md) — build custom node images with pre-installed runtimes and packages
-    - [mop-push CLI](../feature-guides/mop-push.md) — sign and submit jobs from the command line in one step
+    - [axiom-push CLI](../feature-guides/axiom-push.md) — sign and submit jobs from the command line in one step
