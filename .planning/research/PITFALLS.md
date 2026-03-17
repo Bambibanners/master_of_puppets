@@ -1,310 +1,269 @@
 # Pitfalls Research
 
-**Domain:** Enterprise documentation — adding MkDocs Material to an existing Docker Compose / FastAPI / security-focused orchestration stack
-**Researched:** 2026-03-16
-**Confidence:** HIGH (codebase directly inspected; Caddyfile, compose.server.yaml, and existing docs/ tree examined; MkDocs Material official docs and GitHub issues verified)
+**Domain:** Pull-architecture job scheduler — adding job output capture, runtime attestation, retry policy, environment tags, CI/CD dispatch, and release infrastructure to an existing production system
+**Researched:** 2026-03-17
+**Confidence:** HIGH (codebase directly inspected — db.py, job_service.py, node.py, pki.py, models.py all read; patterns are verified from the live code, not assumed)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Running `mkdocs serve` in Production
+### Pitfall 1: Attestation Uses the Wrong Key — mTLS Client Key vs. Job Signing Key
 
 **What goes wrong:**
-The MkDocs development server (`mkdocs serve`) is used as the container entrypoint in production. This is the single most widely documented MkDocs Docker mistake. The development server is not designed for production: it does not handle concurrent connections well, has no access controls, no gzip, no proper HTTP/1.1 keep-alive handling, and exposes internal filesystem paths in error messages.
+The attestation design (OUTPUT-05..07) requires the node to sign the execution result bundle with its "mTLS client private key." In Axiom, the mTLS client key (`secrets/node-*.key`) is an RSA key (generated via `rsa.generate_private_key` in `pki.py`). The existing job signature verification uses Ed25519. The cryptography library's signing APIs differ by key type: `rsa_key.sign(data, padding, hash_algo)` vs `ed25519_key.sign(data)`. Using the wrong signing call, or failing to specify PKCS1v15/PSS padding for RSA, raises `TypeError` at runtime on the node and results in no attestation bundle being produced — silently, if the exception is swallowed.
+
+The orchestrator also stores the node's cert (`client_cert_pem` column in the `nodes` table) but extracts the public key from the certificate to verify. RSA public key extraction from an X.509 cert requires `cert.public_key()` (returns `RSAPublicKey`), and verification requires `public_key.verify(signature, data, padding, hash_algo)`. If the implementation pattern is copied from the Ed25519 job-signing code (which uses `public_key.verify(sig_bytes, script_bytes)` — two args only, no padding), the RSA verify call will raise `TypeError` on every verification attempt.
 
 **Why it happens:**
-Developers prototype with `mkdocs serve` locally and copy the same Docker command into the compose file. Official MkDocs Material GitHub issue #1825 and #2168 both document that the official image is explicitly scoped to "local preview only." The container starts, docs look fine on first check, and no one revisits it.
+The node already has an Ed25519 key for upgrade recipe verification (`secrets/verification.key`). When implementing attestation, it is tempting to reuse this key or to assume the signing pattern is the same. The mTLS client key is RSA; the signing key is Ed25519. These are different objects with different APIs.
 
 **How to avoid:**
-Use a two-stage Docker build: stage 1 runs `mkdocs build` to produce `site/` static HTML; stage 2 copies `site/` into an Nginx or Caddy static file server. The docs Containerfile should look like:
+- Confirm the key type before implementing: read `secrets/node-*.key` with `serialization.load_pem_private_key`, check `isinstance(key, rsa.RSAPrivateKey)` vs `isinstance(key, ed25519.Ed25519PrivateKey)`.
+- For RSA signing, use `key.sign(data, padding.PKCS1v15(), hashes.SHA256())`.
+- For RSA verification on the orchestrator, use `public_key.verify(signature, data, padding.PKCS1v15(), hashes.SHA256())` and wrap in try/except `InvalidSignature`.
+- Include a unit test on the orchestrator side that loads a known RSA cert PEM (from a test fixture), extracts the public key, and round-trips sign/verify — before the node code is written.
 
-```dockerfile
-FROM squidfunk/mkdocs-material:9 AS builder
-WORKDIR /docs
-COPY . .
-RUN mkdocs build --strict
+**Warning signs:**
+- Attestation code copy-pastes from `signature_service.py` (which uses Ed25519) without adjusting for RSA.
+- `public_key.verify(sig_bytes, data_bytes)` with exactly two positional args — this works for Ed25519, raises `TypeError` for RSA.
+- Node logs show `TypeError: sign() missing 2 required positional arguments` during result report.
 
-FROM caddy:2-alpine
-COPY --from=builder /docs/site /srv
-COPY Caddyfile /etc/caddy/Caddyfile
+**Phase to address:** Job output capture + attestation phase (OUTPUT-05..07)
+
+---
+
+### Pitfall 2: Output Storage Grows Without Bound — No Retention Policy
+
+**What goes wrong:**
+`ExecutionRecord` rows accumulate indefinitely. The `output_log` column is a TEXT field containing JSON — at the 1 MB cap (`MAX_OUTPUT_BYTES = 1_048_576`), each row can consume up to ~1 MB of DB storage. With frequent cron jobs (e.g., every minute × 10 nodes = 14,400 records/day), the `execution_records` table reaches 14 GB in one day at the cap, or ~140 MB/day at an average 10 KB per record. SQLite's WAL journal compounds this. In production Postgres, the table becomes a scan bottleneck even with the existing indexes — the `ix_execution_records_started_at` index spans all nodes and all jobs, so any paginated history query requires filtering the full index range.
+
+**Why it happens:**
+The `NodeStats` pruning pattern exists (prune to 60 rows per node in `receive_heartbeat`). No equivalent pruning was added for `execution_records` when the table was designed, because at time of design the output column did not exist. The table was added with four indexes for performance, but no TTL or row cap.
+
+**How to avoid:**
+- Add a configurable retention policy: prune `execution_records` older than N days (default: 30 days) via a background task (use the existing APScheduler integration in `scheduler_service.py`).
+- Add a per-job-definition cap: keep at most M execution records per `job_guid` (matching the `NodeStats` pruning pattern).
+- The pruning SQL for SQLite must not use `DELETE ... WHERE id IN (SELECT ... LIMIT N)` — SQLite requires the `DELETE ... WHERE rowid IN (...)` pattern for subquery deletes (MIN-6 deferred issue applies here too).
+- Add a dashboard indicator: show record count and estimated table size in the Admin view so operators know when to tune retention.
+
+**Warning signs:**
+- `execution_records` has no scheduled cleanup task at all.
+- `output_log` TEXT column with no size cap enforced at the DB level.
+- Postgres `pg_table_size('execution_records')` grows unboundedly in load testing.
+
+**Phase to address:** Job output capture phase (OUTPUT-01..04) — address retention before writing the history query UI, not after.
+
+---
+
+### Pitfall 3: Retry Thundering-Herd — All Retrying Jobs Become Eligible Simultaneously
+
+**What goes wrong:**
+When a large batch of jobs fails at the same time (e.g., a node disconnects, triggering zombie reaping on 50 jobs), all 50 jobs enter `RETRYING` status with `retry_after` computed as `now + base_delay`. With a 30-second base delay and all jobs reaped in the same zombie-reaper sweep, all 50 jobs become eligible for dispatch at the same instant. The next `pull_work` call from any node finds all 50 at once. All 50 get dispatched, immediately saturating every node's `concurrency_limit`. If the root cause of the original failures was a transient resource pressure, the simultaneous retry batch reproduces the same pressure and fails again — causing cascading retry waves.
+
+The current zombie-reaper code applies `jitter = base_delay * 0.2` (±20% random jitter, see `job_service.py` lines 253-254). This mitigates but does not eliminate thundering herd: with 50 jobs and ±20% of a 30-second window, the effective spread is ±6 seconds — not enough to prevent a surge.
+
+**Why it happens:**
+Jitter is applied correctly per-job but the jitter range is proportional to the delay, not to the number of retrying jobs. For small delays (first retry at 30 seconds), 20% jitter is only ±6 seconds. With 50 jobs, the distribution still piles up in a 12-second window.
+
+**How to avoid:**
+- For the first retry attempt specifically, add a small random initial offset before the base delay: `initial_offset = random.uniform(0, 30)` added to `retry_after` before the exponential component. This spreads the first retry across a 30-second window regardless of the backoff multiplier.
+- Cap the total number of RETRYING jobs that can become eligible in a single `pull_work` scan. The existing query already uses `LIMIT 50` — combine this with the eligibility filter (`retry_after <= now`) so that on a thundering-herd scenario, at most 50 jobs enter the candidate pool per poll cycle. Since nodes poll independently and concurrently, the self-limiting happens naturally.
+- Document the jitter recommendation in `JobDefinitionCreate`: "For high-concurrency scheduled jobs, set `backoff_multiplier >= 2.0` and set `timeout_minutes` to prevent indefinite ASSIGNED states."
+
+**Warning signs:**
+- Dozens of jobs all have identical `retry_after` timestamps (within a 1-second window).
+- Node CPU spikes at regular intervals matching the base retry delay.
+- `pull_work` query returns 50 candidates every time a retry wave fires.
+
+**Phase to address:** Retry policy phase (RETRY-01..03)
+
+---
+
+### Pitfall 4: Environment Tag Enforcement Bypassed by Node Self-Reporting
+
+**What goes wrong:**
+The current tag system strips `env:` prefixed tags from node-reported heartbeats (see `job_service.py` lines 388-390: `sanitized_tags = [t for t in hb.tags if not t.startswith("env:")]`). This correctly prevents node self-escalation on reported tags. However, if `ENVTAG-01` is implemented by storing the env tag on the `Node` record at enrollment time (from the JOIN_TOKEN or the enrollment request) but the heartbeat sanitization is not reviewed, a developer might add env-tag reporting back to the heartbeat payload as a convenience during development and forget to strip it. The sanitization is not tested explicitly.
+
+Additionally: if environment tags are stored in the existing `operator_tags` column (separate from `tags`), the `_get_effective_tags()` method returns `operator_tags` when set and ignores `tags` entirely. This means an env tag set at enrollment via `operator_tags` will be correctly enforced, but an env tag set via the API on the `tags` column would be silently ignored — confusing operators who set the env tag via the "wrong" column.
+
+**Why it happens:**
+The env tag feature adds a new semantic to an existing multi-purpose column. The distinction between `tags` (node-reported, sanitized) and `operator_tags` (admin-set, authoritative) is correct architecturally but is not enforced by the data model — both are `TEXT` columns storing JSON lists. There is no DB-level constraint or API-level validation preventing an env tag from appearing in the wrong column.
+
+**How to avoid:**
+- Add a dedicated `env_tag` column to the `Node` table (nullable `String`, `ALTER TABLE` migration required for existing DBs). This separates the semantics entirely from the general tag columns.
+- At enrollment (`/api/enroll`), accept `env_tag` as a JOIN_TOKEN field or enrollment request field (operator-configurable per deployment, not node-self-reported).
+- In `pull_work`, enforce env tag matching using the `env_tag` column, not the tags columns. Do not mix env tag logic with capability or general tag logic.
+- Keep the existing `env:` prefix strip in heartbeat sanitization as a defense-in-depth measure.
+
+**Warning signs:**
+- Env tag is stored in the same `tags` or `operator_tags` column as general tags, parsed by `startswith("env:")`.
+- No dedicated `env_tag` column in the Node schema.
+- No test that verifies a node with `env_tag=PROD` does not receive a job targeted at `env_tag=DEV`.
+
+**Phase to address:** Environment tags phase (ENVTAG-01..04)
+
+---
+
+### Pitfall 5: Retry Dispatch Assigns to the Same Node That Just Failed
+
+**What goes wrong:**
+When a job fails and enters `RETRYING` status, `node_id` is set to `None` (see `job_service.py` line 745). This correctly clears the assignment so any eligible node can pick it up on the next poll. However, the `pull_work` job selection query does not exclude the node that previously failed the job. If the failure was node-specific (OOM kill, missing capability, transient file system error), retrying on the same node reproduces the failure. This is especially problematic for zombie-reaped jobs: the zombie reaper clears `node_id` to `None`, but if only one node is eligible (based on tags and capabilities), that node picks up the retry and zombies again.
+
+**Why it happens:**
+The retry mechanism correctly implements the general case (retry on any eligible node) but there is no concept of "node affinity exclusion" — a per-attempt record of which nodes have already failed this job. The `ExecutionRecord` table stores `node_id` per attempt, so the data to implement exclusion exists but is not used in `pull_work`.
+
+**How to avoid:**
+- For jobs with `max_retries > 0`, add a `failed_node_ids` JSON column to `Job` (or derive it from `ExecutionRecord` at dispatch time). During `pull_work` node selection, exclude nodes whose ID appears in this list.
+- Fallback: if all eligible nodes are in the exclusion list, allow reassignment to the least-recently-failed node (preventing permanent deadlock when there is only one eligible node).
+- If adding a new column is not acceptable in the initial retry phase, at minimum exclude the most-recently-failed node: store the last-failed node ID in `job.node_id` during the retry state transition, and skip the job if the polling node matches. Clear it after a successful assignment to a different node.
+
+**Warning signs:**
+- Retry telemetry shows the same node_id in every `ExecutionRecord` attempt for a failing job.
+- Jobs with `max_retries=3` reach `DEAD_LETTER` without ever being attempted on a second node.
+- No node exclusion logic in `pull_work` for RETRYING jobs.
+
+**Phase to address:** Retry policy phase (RETRY-01..03)
+
+---
+
+### Pitfall 6: `create_all` Does Not Add New Columns to Existing Tables
+
+**What goes wrong:**
+Every v10.0 feature requires new DB columns:
+- Output capture: attestation fields on `ExecutionRecord` (`attestation_bundle`, `attestation_verified`, `script_hash`, `stdout_hash`, `stderr_hash`) — the current `ExecutionRecord` has none of these.
+- Environment tags: `env_tag` on `Node`.
+- Retry: `failed_node_ids` on `Job` (if implementing node exclusion).
+- Release: no schema changes, but CI/CD dispatch API response fields need confirmation.
+
+`Base.metadata.create_all` only creates tables that do not exist. It never adds columns to existing tables. Any new column added to an ORM model will be silently ignored on an existing deployment — no error, no warning, the column simply does not exist. Queries using that column then fail at runtime with a DB error ("no such column"), not at startup.
+
+**Why it happens:**
+This is the documented constraint of the no-Alembic pattern (noted in CLAUDE.md: "Adding new columns to existing deployed DBs requires manual ALTER TABLE"). The pattern is known but requires discipline to apply consistently for every new column across every feature.
+
+**How to avoid:**
+- Create a single `migration_v14.sql` file alongside the v10.0 work (following the existing `migration_v10.sql`..`migration_v13.sql` pattern).
+- List every new column, new table, and new index in this file using `ADD COLUMN IF NOT EXISTS` (Postgres) / `ALTER TABLE IF NOT EXISTS` (SQLite-compatible pattern requires conditional approach via `PRAGMA table_info`).
+- Run the migration file against both SQLite (dev) and Postgres (prod) in CI before merging any v10.0 changes.
+- The startup `create_all` handles fresh deployments; the migration SQL handles upgrades.
+
+**Warning signs:**
+- New ORM columns added in `db.py` with no corresponding `migration_v14.sql` entry.
+- Local dev works (fresh SQLite from `create_all`) but Docker Compose with persistent volume fails at runtime.
+- CI only tests against fresh DB (no migration path test).
+
+**Phase to address:** First v10.0 phase that touches the schema — define `migration_v14.sql` upfront and add to it incrementally.
+
+---
+
+### Pitfall 7: Attestation Bundle Is Not Truly Tamper-Evident Without All Fields
+
+**What goes wrong:**
+OUTPUT-05 defines the attestation bundle as: `script_hash + stdout_hash + stderr_hash + exit_code + start_timestamp + node_cert_serial`. If any of these fields is omitted from the signed payload, the attestation bundle loses tamper-evidence for that field. The most common omission is `exit_code`: it is a small integer and feels like it "doesn't need" hashing. But an attacker who intercepts a result report (a compromised network segment, or a compromised orchestrator DB) can change `exit_code` from 1 to 0 (turning a failure into a success) without invalidating the signature — if `exit_code` is not in the signed bundle.
+
+Similarly, if the bundle does not include the `node_cert_serial`, an orchestrator with multiple enrolled nodes cannot distinguish whether the signature came from the correct node or from another enrolled node whose private key was compromised.
+
+**Why it happens:**
+Bundle fields get chosen pragmatically ("what do we hash?") rather than threat-modelling-first. The script hash and output hashes are obvious; the exit code and cert serial are less obvious but equally necessary.
+
+**How to avoid:**
+The canonical bundle format must be deterministically serialized before signing. Recommended approach:
+```
+bundle_bytes = json.dumps({
+    "script_sha256": ...,     # hex
+    "stdout_sha256": ...,     # hex (SHA256 of raw stdout bytes)
+    "stderr_sha256": ...,     # hex
+    "exit_code": int,
+    "start_ts": ISO8601,       # from job.started_at as assigned by orchestrator, not node clock
+    "cert_serial": hex(int),   # node's cert serial number
+}, sort_keys=True, separators=(',', ':')).encode('utf-8')
+signature = key.sign(bundle_bytes, ...)
 ```
 
-The `--strict` flag during build causes MkDocs to fail on broken internal links, missing nav entries, and undefined macros — this turns silent content problems into build failures before they reach production.
+`sort_keys=True` is mandatory: JSON key ordering is not guaranteed across Python versions, and a reordered bundle would produce a different hash and fail verification.
 
 **Warning signs:**
-- `CMD ["mkdocs", "serve", "--dev-addr=0.0.0.0:8000"]` in the docs Containerfile
-- No separate `build` stage in the Dockerfile
-- Container logs show `Serving on http://0.0.0.0:8000` (mkdocs dev server banner)
+- Bundle construction uses f-string concatenation rather than deterministic JSON serialization.
+- `exit_code` is not in the signed bundle.
+- `cert_serial` is not in the signed bundle.
+- No test that verifies modifying `exit_code` in the stored bundle causes verification to fail.
 
-**Phase to address:** Container infrastructure phase (first phase — get the build right before writing a word of content)
+**Phase to address:** Runtime attestation phase (OUTPUT-05..07)
 
 ---
 
-### Pitfall 2: OpenAPI Snapshot Drift — Generated Docs Diverge From Live API
+### Pitfall 8: CI/CD Dispatch API Returns 202 Before the Job Is Verified as Dispatched
 
 **What goes wrong:**
-The API reference is generated from a snapshot of `/openapi.json` committed to the docs repository. Over time, routes are added to `agent_service/main.py`, models change in `models.py`, and response schemas evolve — but the committed JSON snapshot is never updated. The published API reference describes endpoints that no longer exist and omits new ones. Operators trying to build integrations against the docs get 404s or wrong schemas.
+The CI/CD dispatch endpoint (ENVTAG-04) creates a job and returns `{"job_id": ..., "status": "PENDING", "node_assigned": null}` immediately. A CI pipeline polling this endpoint expects `node_assigned` to populate within some timeout. If no eligible node exists (wrong env tag, no matching capabilities, all nodes at concurrency limit), the job stays PENDING indefinitely. The pipeline either times out and marks the build as failed, or loops forever.
+
+The current `create_job` function returns immediately after DB commit without checking node availability. This is correct for async dispatch but makes the CI/CD endpoint unsuitable as-is for synchronous pipeline integration without explicit status polling guidance.
 
 **Why it happens:**
-OpenAPI generation is a manual step ("run `curl localhost:8001/openapi.json > docs/api/openapi.json`"), not an automated one. It requires the service to be running, which is awkward in CI. The initial generation looks complete, so no one adds it to the build pipeline.
+The pull architecture means the orchestrator never knows when (or if) a node will pick up a job at creation time. This is a fundamental property of the architecture — not a bug. But it means a "dispatch and wait" CI/CD pattern requires explicit polling and timeout handling that must be documented and ideally supported by the API response structure.
 
 **How to avoid:**
-Automate the OpenAPI snapshot as part of the docs build, not as a manual step. In the docs `Containerfile` or CI script:
-
-```bash
-# Start a lightweight instance of agent_service
-python -m agent_service.main &
-sleep 3
-curl -f http://localhost:8001/openapi.json -o docs/api/openapi.json
-kill %1
-```
-
-Alternatively: FastAPI's `app.openapi()` can be called directly in a Python script that imports the app without starting a server — this is the most reliable approach and works without a running HTTP server:
-
-```python
-# scripts/export_openapi.py
-from agent_service.main import app
-import json
-print(json.dumps(app.openapi()))
-```
-
-Run this script in the docs build step. Any time a route is added but the doc build is not re-run, the snapshot is stale — make the build fail if the committed `openapi.json` differs from the generated one (`git diff --exit-code`).
+- The dispatch endpoint response must include: `job_id`, `status`, `node_assigned` (null until assigned), and a `poll_url` field pointing to `GET /jobs/{job_id}` so pipelines know where to poll.
+- Add a `max_wait_seconds` optional query parameter: the endpoint does a short-poll (e.g., waits up to 30 seconds for PENDING → ASSIGNED transition) before returning. This trades a slightly longer initial request for a simpler pipeline integration.
+- Alternatively: document clearly that pipelines must poll `GET /jobs/{job_id}` until `status == "ASSIGNED"` or timeout. Include the polling pattern in the API reference and the CI/CD guide.
+- Return 409 (not 202) if no eligible node exists at dispatch time (check node availability before creating the job).
 
 **Warning signs:**
-- `openapi.json` in the repo has a `info.version` that doesn't match the current codebase version
-- New routes in `main.py` are not reflected in the committed `openapi.json`
-- No CI step runs `export_openapi.py` before building docs
+- Dispatch endpoint returns immediately with `status: PENDING` and no polling guidance in the response.
+- No timeout handling documented for CI pipelines.
+- No test that verifies the dispatch endpoint returns a non-null `poll_url`.
 
-**Phase to address:** API reference phase — define the generation pipeline before writing any API docs prose
+**Phase to address:** Environment tags + CI/CD dispatch phase (ENVTAG-03..04)
 
 ---
 
-### Pitfall 3: Caddy Path Routing Conflict — `/docs` Swallowed by Dashboard Fallback
+### Pitfall 9: Output Log Truncation Happens After Secret Scrubbing — Allows Secret Leakage
 
 **What goes wrong:**
-The docs container is added to `compose.server.yaml` and a `/docs` route is added to the Caddyfile. But the existing Caddyfile ends with `handle { reverse_proxy dashboard:80 }` — a catch-all that handles every path not matched by earlier rules. In Caddy, `handle` blocks are evaluated in order, but a wildcard `handle` at the bottom catches everything that is not an exact prefix match. If the `/docs` handler is placed after the catch-all (a common copy-paste error), or if a path stripping mistake sends `/docs/` with a trailing slash that doesn't match `/docs*`, requests hit the dashboard instead of the docs container. The failure mode is silent: users see the dashboard, not a 404, so the routing error is invisible.
+The current `report_result` logic (job_service.py lines 690-706) scrubs secrets first, then truncates the output_log. This is correct. However, when output capture is extended (OUTPUT-01..03), if a developer reverses the order — truncating first, then scrubbing — secrets that appear near the end of a long output may survive in the stored log: the truncation removed the scrubbing candidate from the list but the secrets were already written to an intermediate buffer or transmitted to the frontend. The risk is specifically in streaming or incremental output capture implementations where lines are buffered and flushed piecemeal.
+
+For attestation specifically: the `stdout_hash` in the attestation bundle must hash the raw (pre-scrub) bytes, not the post-scrub bytes. If the hash is computed post-scrub, the verification on an independent verifier (using the raw stdout bytes from the job container) will always fail — because the verifier computes the hash of the original output, not the redacted version.
 
 **Why it happens:**
-The Caddyfile already has a working pattern for `/api/*` and `/auth/*` with `uri strip_prefix`. Copy-pasting this pattern for `/docs` strips the prefix but the docs container expects to serve from the root (`/`), so all asset references in the generated HTML (`/assets/`, `/stylesheets/`) become relative to the wrong root and 404. The correct approach depends on whether the docs site is built to serve at a subpath or at root.
+The scrub-then-truncate order is not documented as a security invariant. When output capture code is refactored or extended, the ordering is not preserved. The attestation hash-on-raw vs hash-on-scrubbed distinction is subtle and easy to get wrong.
 
 **How to avoid:**
-Two clean options:
-
-**Option A — Subpath-aware MkDocs build (recommended):** Set `site_url: https://your-domain/docs/` in `mkdocs.yml` and use `use_directory_urls: true`. Then in the Caddyfile, proxy with the prefix intact:
-
-```caddyfile
-handle /docs* {
-    reverse_proxy docs:80
-}
-```
-
-The docs container receives `/docs/...` paths and serves them correctly because the site was built with that base URL.
-
-**Option B — Root-mount with prefix stripping:** Build MkDocs at root (`site_url: /`), strip the prefix in Caddy (`uri strip_prefix /docs`), and rely on the docs container serving from `/`. This works but breaks all absolute asset URLs (`/assets/...`) unless MkDocs is configured with `use_directory_urls: false` and relative links only — which is fragile.
-
-Option A is the correct choice. Always set `site_url` explicitly in `mkdocs.yml` to match the subpath.
+- Compute the attestation hashes (`stdout_sha256`, `stderr_sha256`) on the raw output bytes from the node, before any scrubbing or truncation. The hashes go into the bundle for attestation purposes.
+- Store only the scrubbed, truncated output in `execution_records.output_log`.
+- Add a comment in `report_result` explicitly marking the ordering constraint: `# ORDER: hash raw → scrub → truncate → store`.
+- Test: verify that a job with `[REDACTED]` in its stored output still produces a valid attestation bundle when the verifier uses the raw (pre-scrub) output hash.
 
 **Warning signs:**
-- CSS/JS assets 404 after proxying (browser dev tools show `/assets/stylesheets/main.css` returning 404)
-- Navigating to `/docs/` works but internal page links redirect to `/` (the dashboard)
-- `handle /docs*` block appears after the catch-all `handle {}` in the Caddyfile
+- Attestation hash computed after `entry["line"].replace(secret, "[REDACTED]")`.
+- No comment marking the scrub order as a security invariant.
+- Truncation code appears before the scrubbing loop.
 
-**Phase to address:** Container infrastructure phase — test routing before any content is written
+**Phase to address:** Runtime attestation phase (OUTPUT-05..07), cross-check during output capture phase (OUTPUT-01..04)
 
 ---
 
-### Pitfall 4: Docs Content That Is Accurate at Write Time But Stale By Launch
+### Pitfall 10: PyPI Trusted Publisher Fails if GitHub Org/Project Names Don't Match Exactly
 
 **What goes wrong:**
-Documentation is written during a milestone and describes the system as it was when the docs were written. By the time the milestone ships, code has changed: route paths renamed, env variable names updated, default values changed. The docs are 100% accurate about a system that no longer exists. This is especially acute for security/infra tools where operators rely on exact env var names and exact API paths.
+PyPI Trusted Publisher OIDC configuration requires the GitHub org name, repository name, workflow filename, and environment name to match exactly — case-sensitive. If the `axiom-laboratories` org is created with any variation in capitalization, or the workflow file is renamed, the OIDC trust relationship silently rejects the publishing attempt with a generic authentication failure, not an informative "trust mismatch" error.
+
+Additionally: the PyPI project name (`axiom-sdk`) must be registered before the Trusted Publisher relationship can be configured. If the project does not yet exist on PyPI when the relationship is configured, PyPI's "pending publisher" feature must be used (added in 2023). If the workflow runs before the pending publisher is set up, it will fail at the upload step, not at the OIDC step, producing a misleading error.
 
 **Why it happens:**
-Docs are treated as a discrete task ("write the docs in phase N") rather than as a living artifact updated alongside code. For a fast-moving codebase, any doc written more than a few days before it is reviewed against the current code is likely to contain at least one stale reference.
+The distinction between "pending publisher" (project doesn't exist yet) and "standard publisher" (project already exists) is not obvious from the PyPI UI. Most guides describe the standard flow. The GHCR workflow uses `ghcr.io/axiom-laboratories/axiom` as the image name — this requires the org to exist on GitHub and for the workflow to push with the right permissions (`packages: write`) before the image name is accepted.
 
 **How to avoid:**
-- Docs must be reviewed against the live codebase on the same day they are merged, not when they were written.
-- Embed code references in docs where possible: use the `pymdownx.snippets` extension to pull actual code blocks from source files directly into docs. If the source changes, the snippet changes automatically.
-- For env variables: maintain a single source-of-truth env var reference table (in code comments or a `config.py` docstring), and pull it into docs via snippets or a Jinja macro. Never duplicate env var names as freestanding prose.
-- For API endpoints: use OpenAPI-generated reference, not hand-written endpoint lists.
+- Use PyPI's pending publisher feature (configure the trust relationship before the first publish, even before the `axiom-sdk` project exists).
+- Exact matching checklist: GitHub org = `axiom-laboratories`, repo = `master_of_puppets` (or whatever it will be named), workflow file = exact filename in `.github/workflows/`, environment name = exact string used in the workflow `environment:` field.
+- Test the OIDC flow with a dry-run `--repository testpypi` against test.pypi.org before targeting the real PyPI index.
+- For GHCR: verify `packages: write` permission is in the workflow's `permissions:` block; the Actions workflow must explicitly request this permission (it is not inherited from `contents: write`).
 
 **Warning signs:**
-- Docs reference `AGENT_URL` but the code uses a different variable name
-- Route documented as `GET /admin/audit-log` but the actual route is different
-- "Last reviewed" date is more than 1 sprint old
+- Workflow uses `environment: production` but PyPI publisher is configured with `environment: release`.
+- `axiom-sdk` PyPI project name not pre-registered (even as a placeholder release).
+- No `permissions: packages: write` in the GHCR workflow job.
 
-**Phase to address:** Every content phase — enforce a "review against live code" gate before merging any doc PR
-
----
-
-### Pitfall 5: Missing Documentation for the Security Model's Hard Requirements
-
-**What goes wrong:**
-Security/infra tools fail users not because the docs are wrong, but because they omit the hard requirements that operators must satisfy. For Master of Puppets specifically: operators deploy nodes without knowing they must install the Root CA, without knowing that join tokens expire, without understanding that `mop-push` must sign locally (the private key cannot be uploaded). The node silently fails mTLS handshake, the join token is rejected with a generic 403, and the operator has no path to diagnosis.
-
-**Why it happens:**
-Developers know the security model intimately and don't document the "obvious" constraints. The constraints feel self-evident to the author but are invisible to a first-time operator. This is the most common reason infrastructure tool docs fail enterprise users: missing prerequisites and error diagnosis paths.
-
-**How to avoid:**
-For every security-relevant operation, document in this order:
-1. Prerequisites (what must be true before you start)
-2. The operation itself
-3. How to verify it succeeded
-4. What the most common failure looks like and how to diagnose it
-
-Specific content required for Master of Puppets that cannot be omitted:
-- Root CA installation on operator workstations and nodes (Linux, macOS, Windows, NSS for Firefox/Chrome)
-- join token format, expiry behaviour, and what a stale token looks like
-- Ed25519 key generation: `admin_signer.py --generate`, where keys are stored, why the private key must never be uploaded
-- mTLS failure symptoms (TLS handshake errors, certificate verify failed) and their causes
-- cert rotation procedure: what breaks, in what order, and how to recover
-
-**Warning signs:**
-- Getting started guide jumps from "deploy the stack" to "add a node" without a CA installation step
-- No error diagnosis section in any runbook
-- Security guide exists but contains no troubleshooting content
-
-**Phase to address:** Security & compliance guide phase — treat this as the highest-priority content category
-
----
-
-### Pitfall 6: Plugin Dependencies Not Pinned in the Docs Container Image
-
-**What goes wrong:**
-The `docs/requirements.txt` (or the `pip install` in the Containerfile) specifies MkDocs Material and plugins without version pins. A build six months from now pulls a breaking release of `mkdocs-material`, `pymdownx`, or a rendering plugin. The CI build starts failing with cryptic Python tracebacks. Worse: the site builds but renders incorrectly because a plugin's output format changed.
-
-**Why it happens:**
-Documentation infrastructure is treated as less critical than application code. Version pins feel like maintenance overhead for "just a docs site." The MkDocs Material changelog includes breaking changes between minor versions that affect theme configuration keys and plugin APIs.
-
-**How to avoid:**
-Pin every dependency in `docs/requirements.txt` to an exact version (`==`), not a range. Use `pip-compile` (pip-tools) to generate a lock file from a `requirements.in`. Separate the docs requirements from the application `requirements.txt` — they should never share a file.
-
-```
-# docs/requirements.in
-mkdocs-material>=9.0
-pymdownx>=10.0
-mkdocs-minify-plugin
-neoteroi-mkdocs
-```
-
-Generate locked: `pip-compile docs/requirements.in -o docs/requirements.txt`
-
-Rebuild the lock file intentionally, not automatically. Treat docs dependency updates as deliberate choices.
-
-**Warning signs:**
-- `docs/requirements.txt` contains `mkdocs-material` with no version pin or only `>=`
-- No `requirements.in` / `requirements.txt` split
-- Docs container uses `pip install mkdocs-material` in the Containerfile with no version
-
-**Phase to address:** Container infrastructure phase
-
----
-
-### Pitfall 7: Navigation Architecture That Does Not Match User Mental Models
-
-**What goes wrong:**
-The MkDocs nav is organised by system component ("Foundry," "Smelter," "OAuth") rather than by what users need to accomplish ("Get started," "Run your first job," "Set up a node"). Component-oriented navigation makes perfect sense to developers who built each component in isolation. It fails enterprise operators who need to accomplish tasks that span multiple components. A user who wants to schedule a recurring job needs to read: Job Definitions (scheduler), mop-push (CLI), Ed25519 signing (security), Staging view (dashboard) — but each lives in a different section with no cross-linking.
-
-**Why it happens:**
-Documentation structure mirrors the codebase structure, because the same people who built the code also wrote the docs. This is the most common structural failure mode in infrastructure tool documentation (confirmed by multiple SRE post-mortems on internal tooling docs).
-
-**How to avoid:**
-Structure the top-level navigation by audience and task, not by component:
-
-```
-- Getting Started (E2E first-run walkthrough for new operators)
-- User Guides (task-oriented: "Schedule a job," "Enroll a node," "Build a custom image")
-- Feature Reference (component-oriented: Foundry, Smelter, OAuth, Staging)
-- Security & Compliance (security model, cert management, RBAC config)
-- API Reference (generated from OpenAPI)
-- Runbooks & Troubleshooting (by symptom, not by component)
-```
-
-Getting Started must link forward to relevant Feature Reference and Security sections. Every Feature Reference page must link to the relevant Runbook for failure cases.
-
-**Warning signs:**
-- Nav top level is: Foundry, Smelter, OAuth, Staging, Nodes, Jobs (component-by-component)
-- No "Getting Started" section that works end-to-end without jumping between sections
-- Troubleshooting is scattered across feature pages instead of consolidated
-
-**Phase to address:** Getting started guide phase — establish the nav architecture before any other content is written
-
----
-
-### Pitfall 8: Dashboard "Docs" Link Opens New Tab to Dead URL
-
-**What goes wrong:**
-The existing `Docs.tsx` in-app docs view is replaced with a link to the docs container. The link is hardcoded to `http://localhost:8080/docs` (or a relative path) that works in the developer's local environment but is wrong in production (different hostname, different port, different TLS state). The dashboard "Documentation" nav item silently opens to an error page for every production user.
-
-**Why it happens:**
-The dashboard and docs are now separate containers with potentially different access URLs. The developer who wires the link uses their local URL because it works in local testing. In production, behind Caddy, the docs are at `https://your-domain/docs/`. These are different URLs and the hardcoded one is always wrong for someone.
-
-**How to avoid:**
-Make the docs URL configurable via a `VITE_DOCS_URL` environment variable in `dashboard/.env.*`. Default to `/docs/` (relative path, which works whether Caddy proxies at the same domain or not). Do not hardcode a port or hostname. In `AppRoutes.tsx` or wherever the link is placed, use `import.meta.env.VITE_DOCS_URL ?? '/docs/'`.
-
-**Warning signs:**
-- `Docs.tsx` or the nav link contains `localhost:8080` or any hardcoded port
-- No `VITE_DOCS_URL` variable in `dashboard/.env.example`
-- The link works in dev but has not been tested on the production Caddy-proxied stack
-
-**Phase to address:** Dashboard integration phase
-
----
-
-### Pitfall 9: Security-Sensitive Information in Publicly Accessible Docs
-
-**What goes wrong:**
-The docs are intended for internal operators but end up served without authentication on a route that is exposed to the internet (via Cloudflare Tunnel, which routes all traffic at `dev.master-of-puppets.work`). The security & compliance guide contains the exact format of `JOIN_TOKEN`, the CA certificate fingerprint format, details of the mTLS handshake that could assist an attacker enumerating the system, and troubleshooting guidance that reveals internal IP ranges or hostnames.
-
-**Why it happens:**
-Documentation is assumed to be "non-sensitive" because it describes a system rather than containing credentials. For a security-hardened orchestration platform, detailed architectural documentation (cert formats, token schemas, internal routing) provides material intelligence for an attacker who wants to target the system.
-
-**How to avoid:**
-The docs container should be behind the same Caddy/Cloudflare Access authentication as the dashboard. The existing Cloudflare Access service token (CF-Access-Client-Id + CF-Access-Client-Secret) already protects the tunnel. Verify that `/docs*` is included in the Cloudflare Access policy, not excluded.
-
-If the docs must be partially public (e.g., getting started guide is public, security internals are private), use MkDocs Material's `tags` plugin to mark pages as internal, and serve them at a separate path that is gated by Cloudflare Access rules.
-
-Do not include in any publicly accessible doc page:
-- Internal IP ranges or hostname patterns
-- CA fingerprint format + example values (these help attackers craft fake certs)
-- Full JOIN_TOKEN schema with example values
-- Any credential format + example
-
-**Warning signs:**
-- Caddy `/docs*` route does not require authentication
-- Security guide contains a "full example" of a JOIN_TOKEN with all fields populated
-- The Cloudflare Tunnel config does not list `/docs*` as a protected path
-
-**Phase to address:** Container infrastructure phase AND security guide phase
-
----
-
-### Pitfall 10: `mkdocs build --strict` Broken Links Not Treated as Blocking
-
-**What goes wrong:**
-MkDocs builds successfully with broken internal links when `--strict` is not set. The published docs contain links to pages that don't exist yet ("coming soon" stubs), cross-references to anchors that were renamed, and relative links that work locally but break when served at a subpath. Users click links and get 404s in the docs — which is worse than having no docs, because it signals an abandoned or untrusted source.
-
-**Why it happens:**
-Content is written incrementally, with stub pages as placeholders. `--strict` is not added to the build command because it prevents the build from succeeding while stubs exist. The compromise ("I'll fix the links later") becomes permanent.
-
-**How to avoid:**
-Use `--strict` from the first build. For pages not yet written, use MkDocs Material's `status: stub` page metadata (supported natively) rather than empty placeholder pages — this renders a visible "in progress" banner without creating broken links. Never link forward to pages that do not exist. If a feature guide doesn't exist yet, do not link to it from the navigation.
-
-```yaml
-# In a stub page's front matter:
----
-status: stub
----
-```
-
-This keeps `--strict` passing while communicating to users that the page is in progress.
-
-**Warning signs:**
-- `mkdocs build` runs without `--strict` flag
-- Pages in `nav:` in `mkdocs.yml` that don't exist in `docs/`
-- Links to `#anchors` that were renamed (most common after a heading is reformatted)
-
-**Phase to address:** Container infrastructure phase — enforce `--strict` from the beginning
+**Phase to address:** Release infrastructure phase (RELEASE-01..02)
 
 ---
 
@@ -312,12 +271,12 @@ This keeps `--strict` passing while communicating to users that the page is in p
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| `mkdocs serve` as the container entrypoint | No Dockerfile complexity | Not production-safe; no caching, no gzip, no concurrent connections | Never — two-stage build is 10 extra lines |
-| OpenAPI JSON committed as a static snapshot | No automation required | Diverges from live API within weeks; operators build against wrong schemas | Never for an actively developed API |
-| MkDocs plugin versions unpinned | Less maintenance | Breaking plugin releases break the docs build silently | Only in throwaway internal preview; never in production docs |
-| Nav structured by component not by task | Mirrors codebase structure | Operators can't find anything by task; docs feel developer-internal | Never — task-oriented nav must be the top level even if component pages exist underneath |
-| Docs URL hardcoded in dashboard | Works in dev immediately | Wrong in every other environment | Never — takes 5 minutes to make it env-configurable |
-| No `--strict` on `mkdocs build` | Build succeeds with stub pages | Broken links accumulate; users lose trust in docs | Never — use `status: stub` front matter instead |
+| Store env_tag in existing `tags` column with `env:` prefix | No schema change required | Confused with general tags; operator_tags override semantics apply; harder to enforce isolation | Only if migration is impossible (it isn't here) |
+| Skip `failed_node_ids` exclusion in first retry implementation | Simpler initial implementation | Jobs retry on the same failing node; persistent failures hit DEAD_LETTER without trying other nodes | Acceptable if cluster has only 1 eligible node per job type; otherwise harmful |
+| Hash post-scrub stdout for attestation | Simpler code path (single pass) | Attestation always fails independent verification; attestation bundle is meaningless | Never — defeats the purpose of attestation |
+| Attestation bundle uses string concatenation instead of deterministic JSON | Faster to implement | Fails on Python version differences in dict ordering, float repr, or unicode normalization | Never — deterministic serialization costs 2 lines |
+| No output retention policy at launch | Deferred complexity | DB storage grows unboundedly; history queries degrade; SQLite dev DBs become unusable | Only for initial testing deployments with < 100 job runs |
+| CI/CD dispatch returns immediately without polling guidance | Simpler endpoint | Pipeline integrations timeout or loop forever waiting for job assignment | Never — document the polling pattern at minimum |
 
 ---
 
@@ -325,24 +284,26 @@ This keeps `--strict` passing while communicating to users that the page is in p
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Caddy + MkDocs subpath | Use `uri strip_prefix /docs` and expect assets to work | Set `site_url: https://domain/docs/` in `mkdocs.yml`; proxy without stripping prefix |
-| FastAPI OpenAPI export | `curl /openapi.json` requires a running server in CI | Import `app.openapi()` directly from a Python script; no server needed |
-| Cloudflare Tunnel + docs | Add `/docs*` route but forget to add it to CF Access policy | Verify Access policy covers `/docs*`; test from a browser not in CF Access session |
-| Dashboard Docs link | Hardcode `localhost:8080/docs` from local testing | Use `VITE_DOCS_URL` env var defaulting to `/docs/` (relative) |
-| MkDocs Material + Caddy static files | Serve `site/` directly without setting correct MIME types | Use Caddy or Nginx to serve `site/` — they set MIME types correctly; never use Python's `http.server` |
-| `pymdownx.snippets` + code pulled from source | Snippet paths are relative to `docs_dir` by default | Set `base_path` in snippets config to repo root; verify snippet paths survive a rename |
+| mTLS client key signing (attestation) | Copy Ed25519 `key.sign(data)` call for RSA key | RSA: `key.sign(data, padding.PKCS1v15(), hashes.SHA256())` — three arguments |
+| mTLS cert public key extraction (attestation verify) | `cert.public_key().verify(sig, data)` two-arg form | RSA: `public_key.verify(sig, data, padding.PKCS1v15(), hashes.SHA256())` — four arguments |
+| PyPI Trusted Publisher OIDC | Configure standard publisher (project must exist) | Use "pending publisher" for new project; exact case-sensitive name matching required |
+| GHCR image publish | Workflow runs without `permissions: packages: write` | Explicitly declare `permissions` block in the workflow job; `contents: read` alone is not enough |
+| Environment tag enforcement | Store `env_tag` via node heartbeat (self-reported) | Set env_tag at enrollment only (operator-controlled), strip `env:` prefix from heartbeat sanitization |
+| Attestation bundle for independent verification | Hash post-scrub/post-truncation output | Hash raw output bytes before any processing; store raw hashes in attestation bundle |
+| Retry backoff on first attempt | Use `retry_count - 1` in exponent | At retry_count=1 (first retry): `30 * 2.0 ** 0 = 30s` — correct; but add random initial offset to prevent synchronized retry waves |
+| SQLite subquery delete (output retention) | `DELETE WHERE id IN (SELECT ... LIMIT N)` | SQLite requires `DELETE WHERE rowid IN (SELECT rowid ...)` — test on SQLite, not just Postgres |
 
 ---
 
 ## Performance Traps
 
-For docs at the scale of Master of Puppets (dozens of pages, one team), performance is not a concern at runtime. All risks are at build time.
-
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| `mkdocs build` re-runs OpenAPI export on every build | Slow CI; export fails if agent service not available | Cache `openapi.json` in CI; only regenerate on `main.py`/`models.py` changes | Immediately in CI if service isn't running |
-| MkDocs social plugin generates OG images on every build | Build takes 3-5 minutes | Disable social plugin in CI builds; only enable for production build | Any CI pipeline with frequent doc changes |
-| Large video/image assets committed to `docs/` git tree | Repo clone time grows; Docker build context is huge | Store large assets in a volume or CDN; only commit small screenshots | When assets exceed ~10 MB total |
+| `execution_records` unbounded growth | History queries slow; full-table scans in SQLite; Postgres autovacuum struggling | Scheduled retention pruning via APScheduler; keep 30 days or 1000 records per job | At ~10K records in SQLite dev; at ~10M rows in Postgres without partitioning |
+| Attestation verification on every history page load | `/jobs/{id}/history` triggers N cert-public-key extractions for N records | Compute and store `attestation_verified` at write time (in `report_result`); never re-verify on read | Immediately if verification is synchronous in the read path |
+| `RETRYING` job scan includes all jobs regardless of `retry_after` | `pull_work` query returns 50 candidates but 48 are RETRYING too early, wasting selection loop iterations | Index on `(status, retry_after)` — already partially handled by the existing query filter; add a composite index | At >100 concurrent RETRYING jobs |
+| Output log JSON parse on every list_jobs call | `list_jobs` parses `output_log` TEXT for every row in the result set | `list_jobs` should NOT include output_log; only include it in `GET /jobs/{id}/executions/{exec_id}` | At >50 jobs in a single page |
+| Attestation bundle stored as raw bytes in TEXT column | UTF-8 encoding of binary signature bytes corrupts base64-encoded data | Store attestation bundle as base64 encoded string, not raw bytes | On first non-ASCII byte in the signature (which happens regularly with RSA/SHA256 output) |
 
 ---
 
@@ -350,11 +311,12 @@ For docs at the scale of Master of Puppets (dozens of pages, one team), performa
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Docs served unauthenticated via Cloudflare Tunnel | Security architecture details (cert formats, token schemas, internal routing) exposed publicly | Add `/docs*` to Cloudflare Access policy same as dashboard |
-| JOIN_TOKEN full schema with example values in public docs | Assists attacker crafting enrollment tokens or understanding trust boundaries | Document schema abstractly; never include example values with real structure |
-| Docs container mounts Docker socket or any application volume | Docs container has no legitimate reason for host access; reduces isolation | Docs container should have zero volume mounts except the static `site/` directory |
-| Internal hostnames / IP ranges appear in troubleshooting examples | Leaks network topology | Use placeholder hostnames (`orchestrator.internal`, `10.0.x.x`) in all examples |
-| mTLS troubleshooting guide shows exact cipher suite + certificate field details | Provides enumeration assistance | Describe symptoms and resolution steps; omit specific cipher names and field paths |
+| Attestation private key (node mTLS key) accessible to job scripts | A malicious job script reads `../secrets/node-*.key` and exfiltrates the attestation key | Ensure job containers run with `--read-only` filesystem and no volume mount to the secrets directory; test with a job that tries to read the key |
+| CI/CD dispatch API endpoint has no rate limiting | Automated pipelines submit thousands of jobs per minute; DB and nodes overwhelmed | Add per-API-key rate limiting (e.g., 60 dispatch calls/minute) at the CI/CD endpoint; return 429 with `Retry-After` header |
+| Environment tag enforcement via general tags column | A node self-reports `env:PROD` in its heartbeat tags, bypassing the sanitization if sanitization is removed or missed | Use a dedicated `env_tag` column; never mix env semantics with general tag matching |
+| Attestation `missing` (not verified) treated same as `verified` in audit log | Orchestrator silently accepts unattested results; attestation adds no security value | `attestation_verified = "missing"` must be flagged in the audit log; operators must be able to query for unattested results |
+| CI/CD dispatch API accepts unauthenticated requests | Any caller can submit jobs to PROD environment | CI/CD endpoint must require service principal auth (`mop_` API key prefix); no anonymous dispatch |
+| Release workflow publishes on every push to main | Accidental version bump publishes an unreviewed release to PyPI | Publish workflow triggers only on `push: tags: ['v*']`; never on branch push or PR merge |
 
 ---
 
@@ -362,25 +324,25 @@ For docs at the scale of Master of Puppets (dozens of pages, one team), performa
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Getting started requires jumping between 5 separate doc sections | Operator gives up before first successful node enrollment | Single linear walkthrough: install → deploy stack → install CA → enroll node → run job — all on one long page with section anchors |
-| API reference is just a rendered OpenAPI spec with no usage examples | Developers can see the schema but don't know how to chain calls | Each API section includes a minimal `curl` example showing authentication and a realistic payload |
-| Troubleshooting organised by feature (Foundry issues, OAuth issues) | Operator sees symptom ("403 on /work/pull"), has to know which feature caused it | Troubleshooting organised by symptom/error message, not by feature |
-| Runbooks describe what to do but not what went wrong | Operator follows steps without understanding; can't adapt when steps fail | Each runbook opens with a 2-sentence root cause explanation before the recovery steps |
-| Security guide is a feature list, not a threat model | Operator knows what features exist but not what risks they mitigate | Security guide opens with "what attacks does this prevent and how" before listing configuration steps |
-| Code examples use `admin` credentials | Operator copy-pastes admin credentials into their own scripts | Always use a service principal with minimum permissions in examples; show how to create it |
+| Retry state "attempt N of M" not shown on in-progress jobs | Operator sees job as ASSIGNED with no indication it is a retry attempt | Dashboard Jobs view shows `retry N/M` badge when `retry_count > 0`; link to all attempt records |
+| Execution history shows raw JSON output_log | Operators see `[{"t": "...", "stream": "stdout", "line": "..."}]` — unreadable | Render output_log as a terminal-style view with stream colour coding (stdout = normal, stderr = yellow); use a monospace font |
+| Attestation `verified/failed/missing` shown as a status string only | Operators don't know what to do with a failed attestation | Show attestation failure with a direct link to the runbook: "Attestation failed — see Security Runbook: Tampered Result" |
+| Environment tag field not shown in node enrollment flow | Operators enroll nodes without setting env_tag; all nodes end up in the default environment | Nodes view enrollment form must include env_tag dropdown (DEV/TEST/PROD/custom); default shown as "none (untagged)" |
+| CI/CD dispatch response contains `status: PENDING` permanently | Pipeline waits forever; no indication that no eligible node exists | Add `eligible_nodes_available: true/false` to dispatch response; if false, include `reason: "No nodes with env_tag=PROD and capability X"` |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Container build:** `mkdocs build --strict` passes with zero warnings before the image is tagged for production. Run it — don't assume.
-- [ ] **Caddy routing:** Navigate to `/docs/`, `/docs/getting-started/`, and a deep asset URL (`/docs/assets/stylesheets/main.css`) in a browser against the actual production Caddy stack, not a local dev server.
-- [ ] **OpenAPI sync:** After adding a new route to `main.py`, run the OpenAPI export script and confirm the committed `openapi.json` diff shows the new route. Then run `mkdocs build` and confirm the API reference page shows the new route.
-- [ ] **Dashboard Docs link:** Click the Docs nav item in the production dashboard. Confirm it opens the docs container, not the old in-app markdown renderer.
-- [ ] **Auth gate:** Open `/docs/` in a private browser window not in a Cloudflare Access session. Confirm it prompts for access, not displays content.
-- [ ] **Getting started completeness:** Follow the getting started guide on a fresh machine (or fresh LXC container using the existing `manage-test-nodes` skill) with zero prior knowledge. Every step must succeed without external context.
-- [ ] **Security guide prerequisites:** Every security procedure in the guide lists its prerequisites. Test the CA installation procedure on a machine that has not previously installed the CA.
-- [ ] **No hardcoded localhost:** Grep the docs source for `localhost`, `127.0.0.1`, `8001`, `8000`, `8080`. Any hit that isn't inside a code example marked as "local dev only" is a bug.
+- [ ] **Attestation round-trip:** Sign a known bundle with an RSA key, extract the cert's public key, and verify in the orchestrator — all in a unit test that runs in CI. Not tested = not working.
+- [ ] **Attestation with all fields:** Modify `exit_code` in the stored bundle and verify that re-verification fails. Modify `cert_serial` and verify it fails. If either mutation passes verification, the bundle format is missing those fields.
+- [ ] **Retry node exclusion:** Submit a job to a single eligible node; make it fail; verify the second attempt targets a different node (if one exists). If the same node is retried, node exclusion is not implemented.
+- [ ] **Output retention pruning:** Insert 1000 execution records for a single job, trigger the retention job manually, verify the count drops to the configured cap. Test on both SQLite and Postgres.
+- [ ] **Environment tag isolation:** Create a job targeting `env_tag=PROD`; enroll a DEV node; verify the job is never dispatched to the DEV node. The test must wait through at least 3 poll cycles.
+- [ ] **Env tag self-escalation blocked:** Send a heartbeat from a DEV node with `env:PROD` in the tags; verify the node's stored tags do not include `env:PROD` after the heartbeat.
+- [ ] **CI/CD dispatch with no eligible node:** Call the dispatch endpoint with `env_tag=PROD` when no PROD node is enrolled; verify the response is 409 (not 202) or includes `eligible_nodes_available: false`.
+- [ ] **PyPI Trusted Publisher dry run:** Run the release workflow against test.pypi.org before touching the real index. Verify OIDC token exchange succeeds in the log. A successful dry run is the only proof the configuration is correct.
+- [ ] **Output scrubbing order invariant:** Submit a job with a secret in its payload; verify the stored `output_log` contains `[REDACTED]`; verify the attestation hash matches the pre-scrub output. Both must pass in the same test.
 
 ---
 
@@ -388,12 +350,12 @@ For docs at the scale of Master of Puppets (dozens of pages, one team), performa
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| `mkdocs serve` in production discovered post-launch | LOW | Replace container entrypoint with two-stage Nginx/Caddy build. Rebuild image. No content change needed. |
-| OpenAPI snapshot is 2 months stale | MEDIUM | Run `export_openapi.py` against the live API, commit the diff, review all changed endpoints to verify prose docs are still accurate, update prose where needed. |
-| Caddy routing strips prefix, breaking all asset URLs | LOW | Add `site_url` to `mkdocs.yml`, rebuild docs image, update Caddyfile to not strip prefix. Test routing after each change. |
-| Docs served publicly without auth | HIGH | Add Cloudflare Access policy for `/docs*` immediately. Audit Cloudflare Access logs to see if unauthenticated access occurred. Rotate any credentials or token schemas documented in detail. |
-| Getting started guide does not work end-to-end | MEDIUM | Follow the guide on a fresh LXC node (use `manage-test-nodes` skill), document every point of failure, fix each issue before re-testing. Never publish "working on it" placeholders — use `status: stub`. |
-| Nav structure makes docs unusable | HIGH | Restructure nav in `mkdocs.yml` (no content changes required). Add redirects for any external links that pointed to old paths. |
+| Wrong key type in attestation (RSA vs Ed25519) | MEDIUM | Fix signing/verification code; all existing attestation bundles in DB are invalid — mark them as `attestation_verified = "failed"` retroactively; future executions produce correct bundles |
+| Output table grew unbounded before retention added | HIGH (if Postgres; MEDIUM for SQLite) | Run manual `DELETE FROM execution_records WHERE started_at < NOW() - INTERVAL '30 days'`; add index-guided pagination to avoid lock; then deploy the scheduled retention job |
+| Attestation hashes computed post-scrub | HIGH | All existing attestation bundles are non-independently-verifiable; fix the hash computation; existing bundles must be marked `attestation_verified = "legacy_unverifiable"`; no retroactive fix possible |
+| Thundering herd retry wave detected in production | LOW | Set `retry_after` on all RETRYING jobs to `NOW() + random(0, 300)` via one-time SQL update; deploy the per-attempt initial offset fix |
+| PyPI publish failed due to OIDC name mismatch | LOW | Correct the publisher configuration on PyPI (takes 5 minutes); re-run the workflow |
+| Env tag not enforced (wrong column) | MEDIUM | Add `env_tag` column via migration; backfill from existing operator_tags using string parsing; update dispatch enforcement to use new column; test isolation |
 
 ---
 
@@ -401,33 +363,31 @@ For docs at the scale of Master of Puppets (dozens of pages, one team), performa
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| `mkdocs serve` in production | Phase 1: Container infrastructure | Confirm Containerfile uses two-stage build with Nginx/Caddy static serving |
-| OpenAPI snapshot drift | Phase 2: API reference generation pipeline | Confirm `export_openapi.py` runs in CI and `git diff --exit-code` guards committed JSON |
-| Caddy prefix routing + asset 404s | Phase 1: Container infrastructure | Navigate deep asset URLs in production Caddy stack before writing content |
-| Stale docs at launch | All content phases | "Review against live code" gate on every doc PR |
-| Missing security prerequisites | Phase 5: Security & compliance guide | Walk through guide on fresh machine; every step must succeed without prior knowledge |
-| Unpinned plugin versions | Phase 1: Container infrastructure | `requirements.txt` uses `==` pins; `pip-compile` lock file committed |
-| Component-oriented nav | Phase 3: Getting started guide | Top-level nav is task/audience oriented; getting started is a single linear walkthrough |
-| Hardcoded docs URL in dashboard | Phase 4: Dashboard integration | `VITE_DOCS_URL` env var used; tested in production Caddy stack |
-| Docs served unauthenticated | Phase 1: Container infrastructure | Verify CF Access policy covers `/docs*`; test from unauthenticated browser |
-| Broken internal links | All content phases | `mkdocs build --strict` is required step; build fails on broken links |
-| Security-sensitive content in public docs | Phase 5: Security & compliance guide | Security review before merge: no example token values, no internal hostnames, no cipher details |
+| RSA vs Ed25519 attestation key type | Runtime attestation phase (OUTPUT-05..07) | Unit test: RSA sign/verify round-trip with a test cert fixture |
+| Output table unbounded growth | Job output capture phase (OUTPUT-01..04) — add retention before history UI | `SELECT COUNT(*) FROM execution_records` after load test; must not grow without bound |
+| Retry thundering herd | Retry policy phase (RETRY-01..03) | Check `retry_after` timestamps on a batch of failed jobs — spread > 30 seconds required |
+| Env tag self-escalation bypass | Environment tags phase (ENVTAG-01..04) | Heartbeat test: send `env:PROD` in tags, verify not stored |
+| Retry to same failing node | Retry policy phase (RETRY-01..03) | Submit job to a failing single-eligible node; verify DEAD_LETTER without retrying same node when another eligible node exists |
+| `create_all` missing new columns | First schema-change phase (whichever comes first) | Run migration SQL against a copy of the production DB snapshot; verify no "no such column" errors on startup |
+| Attestation bundle incomplete fields | Runtime attestation phase (OUTPUT-05..07) | Bundle mutation test: modify exit_code, verify verification fails |
+| CI/CD dispatch without polling guidance | CI/CD dispatch phase (ENVTAG-04) | Poll integration test: dispatch job, poll until ASSIGNED or timeout; no infinite loop |
+| PyPI Trusted Publisher OIDC mismatch | Release infrastructure phase (RELEASE-01) | Dry run against test.pypi.org before touching real index |
+| Output scrubbing order inversion | Output capture phase (OUTPUT-01..04) — reinforce in attestation phase | Unit test: job with secret → stored log shows REDACTED → attestation hash matches raw bytes |
+| Attestation private key accessible to job scripts | Runtime attestation phase (OUTPUT-05..07) | Job container must have no volume mount to secrets/ directory; test with a job attempting key file read |
+| CI/CD endpoint unauthenticated | CI/CD dispatch phase (ENVTAG-04) | Anonymous HTTP call to dispatch endpoint must return 401 |
 
 ---
 
 ## Sources
 
-- MkDocs Material GitHub issue #1825 — official image not suitable for production deployment: https://github.com/squidfunk/mkdocs-material/issues/1825
-- MkDocs Material GitHub issue #2168 — Docker serve limitations: https://github.com/squidfunk/mkdocs-material/issues/2168
-- MkDocs Material installation docs — plugin support and custom Dockerfiles: https://squidfunk.github.io/mkdocs-material/getting-started/
-- Neoteroi MkDocs OpenAPI plugin: https://www.neoteroi.dev/mkdocs-plugins/web/oad/
-- MkDocs community — how to build API reference docs (GitHub issue #641): https://github.com/mkdocs/mkdocs/issues/641
-- Caddy as Docker Compose reverse proxy — networking pitfalls: https://blog.wirelessmoves.com/2025/06/caddy-as-a-docker-compose-reverse-proxy.html
-- Platform engineering anti-patterns — documentation staleness: https://jellyfish.co/library/platform-engineering/anti-patterns/
-- Best practices for technical documentation 2025: https://www.llmoutrank.com/blog/best-practices-for-technical-documentation
-- Direct codebase inspection: `puppeteer/cert-manager/Caddyfile`, `puppeteer/compose.server.yaml`, `docs/` tree, `puppeteer/dashboard/src/views/`
-- Existing docs tree shows: `docs/security.md`, `docs/security_signatures.md`, `docs/API_REFERENCE.md`, `docs/INSTALL.md` — content exists but not yet in MkDocs format
+- Direct codebase inspection: `puppeteer/agent_service/db.py` (ExecutionRecord, Node, Job schemas), `puppeteer/agent_service/services/job_service.py` (zombie reaper, retry logic, output scrubbing, `MAX_OUTPUT_BYTES = 1_048_576`), `puppeteer/agent_service/pki.py` (RSA key generation — `rsa.generate_private_key`), `puppets/environment_service/node.py` (heartbeat sanitization, key file locations), `puppeteer/agent_service/models.py` (ResultReport, ExecutionRecordResponse)
+- Python `cryptography` library — RSA signing API: `cryptography.hazmat.primitives.asymmetric.padding.PKCS1v15`, three-argument `verify()` vs Ed25519 two-argument `verify()` — verified from library source
+- PyPI Trusted Publisher documentation — pending publisher flow for new projects: https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/
+- Thundering herd in retry systems — jitter strategies: AWS Architecture Blog "Exponential Backoff and Jitter" (2015, timeless pattern)
+- Known deferred issue MIN-6 (SQLite NodeStats pruning compat with subquery delete) — documented in `.agent/reports/core-pipeline-gaps.md`, directly applicable to output retention
+- Job status machine in `job_service.py` lines 736-784 — retry state transitions inspected for node-exclusion gap
+- Heartbeat sanitization pattern (`env:` prefix strip) — `job_service.py` lines 388-390
 
 ---
-*Pitfalls research for: Master of Puppets v9.0 — adding enterprise MkDocs documentation to existing Docker Compose stack*
-*Researched: 2026-03-16*
+*Pitfalls research for: Axiom v10.0 — adding output capture, attestation, retry policy, environment tags, CI/CD dispatch to existing pull-architecture job scheduler*
+*Researched: 2026-03-17*

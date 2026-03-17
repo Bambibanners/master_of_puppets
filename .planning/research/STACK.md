@@ -1,151 +1,193 @@
 # Stack Research
 
-**Domain:** Enterprise documentation container — MkDocs Material on FastAPI + Docker Compose stack
-**Researched:** 2026-03-16
-**Confidence:** HIGH (versions verified against PyPI + official changelog + GitHub releases)
+**Domain:** Enterprise job orchestration — Axiom v10.0 Commercial Release new features
+**Researched:** 2026-03-17
+**Confidence:** HIGH (codebase reviewed directly; PyPI Trusted Publisher prerequisites verified against official docs)
 
 ---
 
 ## Scope
 
-This file covers ONLY the net-new additions for v9.0 Enterprise Documentation. The existing stack
-(FastAPI, React/Vite, Postgres, Caddy, Cloudflare tunnel, APScheduler, SQLAlchemy) is already
-validated and not repeated here.
+This file covers ONLY the net-new stack additions for v10.0. The existing validated stack
+(FastAPI, SQLAlchemy, React/Vite, APScheduler, cryptography, PyNaCl, Caddy, Postgres, aiosqlite,
+MkDocs Material container) is not repeated here.
+
+The previous STACK.md (v9.0) covered the MkDocs Material docs container; that content remains
+valid and is not superseded.
+
+---
+
+## Pre-Assessment: What Already Exists
+
+Before recommending additions, the codebase was audited directly. Several v10.0 requirements
+are already partially or fully implemented:
+
+| Requirement | Current State |
+|-------------|---------------|
+| OUTPUT-01/02: stdout/stderr/exit code per execution | `ExecutionRecord` table exists in `db.py` with `output_log` (JSON), `exit_code`, `truncated`. Node captures and reports these in `node.py` via `build_output_log()`. Job service writes records in `report_result()`. **Fully implemented.** |
+| OUTPUT-03/04: Execution history query | `ExecutionRecord` has 4 composite indexes (`ix_execution_records_job_guid`, `job_started`, `node_started`, `started_at`). Query infrastructure is ready. Frontend view is the only missing piece. |
+| RETRY-01/02/03: Retry policy with backoff | `Job` has `max_retries`, `retry_count`, `retry_after`, `backoff_multiplier`. `job_service.py` implements exponential backoff with jitter on failure and zombie reaping. `ScheduledJob` also has `max_retries`. **Fully implemented in the data model and job service.** |
+| ENVTAG-01/02: Environment tags | `Node.operator_tags` accepts `env:DEV`, `env:TEST`, `env:PROD` tags. `job_service.pull_work()` has strict env-tag isolation logic (lines 312-322). `HeartbeatPayload` sanitises self-reported `env:` tags. **Fully implemented.** |
+
+**Conclusion:** The core backend logic for OUTPUT, RETRY, and ENVTAG is already in the codebase.
+v10.0 work is primarily:
+1. Runtime attestation (OUTPUT-05..07) — new signing/verification step, new DB column
+2. CI/CD dispatch API (ENVTAG-04) — a documented endpoint, likely already possible via existing `/jobs` POST + env tag
+3. PyPI Trusted Publisher activation (RELEASE-01) — external org/project creation, no code changes
+4. GHCR image publishing (RELEASE-02) — workflow already written, awaits org creation
+5. Frontend views for execution history and retry state (OUTPUT-03/04, RETRY-03) — dashboard work only
 
 ---
 
 ## Recommended Stack
 
-### Core Technologies
+### New Backend: Runtime Attestation (OUTPUT-05..07)
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| mkdocs-material | 9.7.5 | Docs site generator and theme | Industry standard for project docs; built-in search, dark mode, navigation tabs, admonitions, code highlighting. Python-based, Docker-native, no Node runtime required. Latest stable version verified on PyPI (released 2026-03-10). |
-| Python | 3.12 (build stage only) | Runtime for mkdocs-material in the builder stage | mkdocs-material requires >=3.8; Python 3.12 is the current stable. Used only in the multi-stage build — no Python in the final image. |
-| nginx:stable-alpine | current stable-alpine | Production static file server | MkDocs' built-in dev server is explicitly documented as not production-safe (per official GitHub issue #1825). nginx:stable-alpine is ~10 MB, zero-config static file serving, correct cache headers, range requests. |
-| mkdocs-swagger-ui-tag | 0.8.0 | Embed interactive Swagger UI from OpenAPI JSON | Bundles its own Swagger UI assets locally — no CDN dependency. Critical for air-gapped deployments (MoP targets hostile/isolated environments). Renders `<swagger-ui src="...">` tags in markdown. v0.8.0 released 2026-02-22. Most actively maintained of the three Swagger-in-MkDocs options. |
+No new Python libraries are required. The `cryptography` library already in
+`puppeteer/requirements.txt` provides everything needed.
 
-### Supporting Libraries (pip-installed in builder stage only)
+| Capability | How Achieved | Library |
+|------------|-------------|---------|
+| Sign attestation bundle on node | `cryptography.hazmat.primitives.asymmetric.padding.PKCS1v15` or `cryptography.hazmat.primitives.asymmetric.ec.ECDSA` via the node's RSA private key (already on disk at `secrets/{node_id}.key`) | `cryptography` (already present) |
+| Verify attestation on orchestrator | Load stored `Node.client_cert_pem`, extract public key, verify signature bytes | `cryptography` (already present) |
+| Serialise attestation bundle | `json.dumps` of bundle dict → `hashlib.sha256` → sign the canonical UTF-8 bytes | stdlib `json`, `hashlib` |
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| mkdocs-git-revision-date-localized-plugin | >=1.2,<2 | Shows "last updated" date on each page from git history | Install when the docs directory is a git checkout with history. Skip if docs are COPY'd in without `.git/`. |
-| mkdocs-minify-plugin | >=0.8,<1 | Minifies HTML/JS/CSS output | Reduces static site size by 20-30%. No configuration required; worthwhile in production at negligible build-time cost. |
-| pymdown-extensions | (transitive dep of mkdocs-material) | Admonitions, code tabs, tasklists, superfences | Already required by mkdocs-material; no separate pin needed. Listed for clarity. |
+**Node private key format:** Nodes enroll with RSA 2048 keys (confirmed in `node.py` line 380:
+`rsa.generate_private_key(public_exponent=65537, key_size=2048)`). The key is written to
+`secrets/{node_id}.key` in PEM format without encryption. The attestation signer in `node.py`
+should use `RSA + PKCS1v15 + SHA256` — the same algorithm family already used for CSR signing.
 
-### Development Tools
+**DB addition needed:** `ExecutionRecord` needs two new nullable columns:
 
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| `squidfunk/mkdocs-material:9` (local preview only) | Live-reload preview during docs authoring | `docker run --rm -p 8000:8000 -v $(pwd)/docs:/docs squidfunk/mkdocs-material serve` — for local use only. Never run `serve` in production. |
-| FastAPI `/openapi.json` | Source of truth for API reference | Fetch at build time via `curl http://agent:8001/openapi.json > docs/reference/openapi.json` in the builder stage. Commit a fallback copy for CI builds without a running stack. |
+```python
+attestation_bundle: Mapped[Optional[str]] = mapped_column(Text, nullable=True)   # raw JSON bundle
+attestation_signature: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # base64 signature
+attestation_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # VERIFIED / FAILED / MISSING
+```
+
+These are nullable so existing records are not broken. `create_all` will not add them to the
+existing table — a migration SQL file is required (same pattern as `migration_v13.sql`).
+
+### New Backend: CI/CD Dispatch API (ENVTAG-04)
+
+No new library required. The existing `POST /jobs` endpoint already accepts `target_tags`
+(which can include `env:PROD`). What ENVTAG-04 requires is:
+
+1. A documented, stable endpoint path for CI/CD consumers — recommend `/api/v1/dispatch` as
+   a thin wrapper around the existing job creation flow, returning structured JSON.
+2. Service Principal auth (already exists) is the correct auth mechanism for pipelines.
+3. The response shape needs to include `node_assigned` (available after polling) or be
+   asynchronous with a `job_id` for polling.
+
+**Recommendation:** Add `GET /api/v1/jobs/{guid}/status` as a lightweight polling endpoint
+that returns `{guid, status, node_id, exit_code, attempt}` — suitable for `curl` + `jq` in CI.
+No new library needed.
+
+### New Frontend: Execution History View (OUTPUT-03/04, RETRY-03)
+
+No new npm packages required. All data is already queryable. The work is:
+
+1. Add `GET /jobs/{guid}/executions` API route (returns list of `ExecutionRecord` rows for
+   a job) — backend work, no new library.
+2. Add an execution history panel to the Jobs view in `Jobs.tsx` or a dedicated
+   `ExecutionHistory.tsx` — uses existing recharts (already in `package.json`) for timeline
+   visualisation, existing Radix UI for the expanded log viewer.
+
+**One potential addition:** A syntax-highlighted log viewer for stdout/stderr output.
+`react-syntax-highlighter` (v15.x) is the standard choice, but the output format is plain text
+line-by-line (not code), so a plain `<pre>` with line coloring by `stream` field is sufficient
+and avoids a new dependency.
+
+### PyPI Trusted Publisher (RELEASE-01)
+
+No code changes required. The `release.yml` workflow is already correctly configured:
+- Uses `pypa/gh-action-pypi-publish@release/v1`
+- Has `permissions: id-token: write` on both publish jobs
+- Targets `environment: testpypi` and `environment: pypi` with the correct URLs
+
+**External prerequisites only:**
+
+| Step | Action | Who |
+|------|--------|-----|
+| 1 | Create `axiom-laboratories` GitHub organisation | Operator |
+| 2 | Transfer or fork this repo into `axiom-laboratories/axiom` | Operator |
+| 3 | On PyPI: go to "Publishing" → "Add a new pending publisher" | Operator |
+| 4 | Fill in: PyPI project name `axiom-sdk`, GitHub owner `axiom-laboratories`, repo `axiom`, workflow `release.yml`, environment `pypi` | Operator |
+| 5 | Repeat step 3-4 for TestPyPI with environment `testpypi` | Operator |
+| 6 | Push a `v*` tag — the workflow runs, PyPI creates the project and publishes | Operator |
+
+**Critical:** The pending publisher does not reserve the name `axiom-sdk` on PyPI until the
+first publish. If another account registers `axiom-sdk` before the first publish, the pending
+publisher is invalidated. Publish as soon as the org and pending publisher are configured.
+
+### GHCR Multi-Arch Publishing (RELEASE-02)
+
+No code changes required. The `docker-release` job in `release.yml` is fully configured:
+- Multi-arch: `linux/amd64,linux/arm64` via QEMU + buildx
+- Pushes to `ghcr.io/axiom-laboratories/axiom`
+- Tags: semver `{{version}}` and `{{major}}.{{minor}}`
+
+**External prerequisite only:** The `axiom-laboratories` GitHub org must exist and the repo
+must be under it. Once the org exists and the repo is transferred, pushing any `v*` tag
+activates both PyPI and GHCR publishing simultaneously.
+
+### Licence Compliance (LICENCE-01..04)
+
+No new libraries required. This is documentation and configuration work:
+
+| Task | File | Action |
+|------|------|--------|
+| LICENCE-01: certifi MPL-2.0 decision | `LEGAL.md` | Document read-only CA bundle usage, no source modification, obligations satisfied |
+| LICENCE-02: License-Expression field | `pyproject.toml` | Add `license-expression = "Apache-2.0"` under `[project]` (PEP 639 field, supported by setuptools >=61) |
+| LICENCE-03: NOTICE file | `NOTICE` | List caniuse-lite CC-BY-4.0 attribution and any others from audit |
+| LICENCE-04: paramiko LGPL-2.1 assessment | `LEGAL.md` | Confirm dynamic-only import pattern; document whether EE bundling requires asyncssh swap |
+
+**Note on `asyncssh`:** If LICENCE-04 assessment concludes that EE wheel bundling would
+statically link paramiko, replace it with `asyncssh` (MIT). `asyncssh` is drop-in compatible
+for SSH-over-Python use cases and avoids the LGPL-2.1 linking concern entirely. Do not swap
+unless the assessment concludes static linking is occurring — dynamic import of paramiko is
+fully LGPL-compliant without source distribution.
 
 ---
 
-## Docker Container Architecture
+## Schema Additions Summary
 
-### Recommended: Two-Stage Dockerfile
+All are additive (nullable columns or new index) — safe to add via migration SQL.
 
-```
-Stage 1 — Builder  (FROM squidfunk/mkdocs-material:9)
-  - pip install mkdocs plugins
-  - Optionally curl openapi.json from agent (fallback to committed copy)
-  - mkdocs build --strict  →  outputs to /docs/site/
+```sql
+-- migration_v14.sql
+-- Runtime attestation columns on execution_records
 
-Stage 2 — Serve  (FROM nginx:stable-alpine)
-  - COPY --from=builder /docs/site /usr/share/nginx/html
-  - Expose :80
-  - Final image: ~12 MB, no Python, no MkDocs runtime
-```
+ALTER TABLE execution_records ADD COLUMN IF NOT EXISTS
+    attestation_bundle TEXT;
+ALTER TABLE execution_records ADD COLUMN IF NOT EXISTS
+    attestation_signature TEXT;
+ALTER TABLE execution_records ADD COLUMN IF NOT EXISTS
+    attestation_status VARCHAR(20);
 
-**Why two stages:** The official mkdocs-material Docker image ships Python, pip, and all build tools. The built output is a self-contained directory of HTML/CSS/JS. Serving it with nginx:alpine is the established production pattern confirmed by multiple community projects. The final image is an order of magnitude smaller than keeping the build tools present.
-
-**Why not run `mkdocs serve` in production:** MkDocs' own documentation and GitHub issue #1825 confirm the built-in HTTP server is intended for preview only, with no keepalive, range requests, or production-grade security.
-
-### Compose Service Snippet
-
-```yaml
-# In compose.server.yaml — add alongside existing services
-docs:
-  build:
-    context: ../docs
-    dockerfile: Containerfile
-  image: localhost/master-of-puppets-docs:v1
-  restart: always
-  # No direct port exposure — Caddy proxies /docs/* to this container
-  depends_on:
-    - agent
+-- Environment tag on nodes (for ENVTAG-01 explicit column, if desired)
+-- Note: env tags already work via operator_tags JSON column.
+-- An explicit column is optional but aids filtering performance.
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS
+    env_tag VARCHAR(20);
 ```
 
-The `docs` service is stateless. No volumes, no database, no secrets. Rebuild the image to update content.
-
-### Caddy Routing Addition
-
-Add to both `:443` and `:80` blocks in `cert-manager/Caddyfile`, before the `handle` fallback:
-
-```
-handle /docs* {
-    reverse_proxy docs:80
-}
-```
-
-The `*` glob matches `/docs`, `/docs/`, and `/docs/anything`. Because nginx serves from its root `/usr/share/nginx/html`, `mkdocs.yml` must set `site_url` to include the `/docs` subpath so all internal links and assets resolve correctly:
-
-```yaml
-# docs/mkdocs.yml
-site_url: https://your-host/docs/
-use_directory_urls: true
-```
-
-The docs container itself does not need TLS — Caddy terminates TLS and proxies plain HTTP internally, consistent with how `dashboard:80` is already handled.
-
----
-
-## OpenAPI Integration
-
-### Recommended Approach: Static Fetch at Build Time
-
-1. In `docs/Containerfile` builder stage, after `mkdocs build`:
-   ```dockerfile
-   ARG AGENT_URL=""
-   RUN if [ -n "$AGENT_URL" ]; then \
-         curl -sf ${AGENT_URL}/openapi.json -o docs/reference/openapi.json 2>/dev/null || true; \
-       fi
-   RUN mkdocs build --strict
-   ```
-2. Commit a reference copy of `docs/reference/openapi.json` in the repo. This ensures CI builds succeed without a running agent. The live fetch overrides it if the agent is available.
-3. Reference in a markdown page (e.g., `docs/docs/reference/api.md`):
-   ```markdown
-   # API Reference
-
-   Interactive API documentation generated from the live OpenAPI schema.
-
-   <swagger-ui src="../openapi.json"/>
-   ```
-   `mkdocs-swagger-ui-tag` processes this tag and embeds a self-hosted Swagger UI iframe.
-
-### Why mkdocs-swagger-ui-tag over the alternatives
-
-| Plugin | Latest Release | Air-gap Safe | Interactive | Verdict |
-|--------|---------------|-------------|-------------|---------|
-| mkdocs-swagger-ui-tag | 0.8.0 (Feb 2026) | Yes — bundles assets | Yes — full Swagger UI | **Use this** |
-| mkdocs-render-swagger-plugin (bharel) | 0.1.2 (May 2024) | Requires CDN by default | Yes | Not recommended — low activity |
-| neoteroi-mkdocs (OpenAPI Docs) | unknown | Yes | No — styled Markdown only | Use if interactive testing not needed |
-
-The air-gap constraint is non-negotiable: MoP targets enterprise and hostile-network environments where CDN access cannot be assumed. mkdocs-swagger-ui-tag is the only option that bundles Swagger UI assets locally while also being actively maintained.
+The `env_tag` column on `Node` is optional — the existing `operator_tags` JSON column already
+supports `env:DEV` / `env:TEST` / `env:PROD` tags with enforced isolation in `pull_work()`.
+Adding a dedicated column is recommended for ENVTAG-03 (filterable Nodes view) to avoid
+parsing JSON in the DB query. If added, backfill from `operator_tags` at migration time.
 
 ---
 
 ## Alternatives Considered
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| mkdocs-material 9.7.5 | Docusaurus (React/Node) | If the team prefers MDX and React components in docs. Heavier image (requires Node 18+ runtime), more configuration. Not worth the complexity for this project. |
-| mkdocs-swagger-ui-tag | neoteroi-mkdocs | If interactive API testing is not needed and a styled Markdown representation is preferred. Neoteroi renders cleaner prose output but no "Try it out" button. |
-| nginx:stable-alpine (serve stage) | Caddy in the docs container | Caddy is already handling TLS termination upstream. Using Caddy inside the docs container would be redundant. nginx:alpine is simpler and smaller for static file serving. |
-| Two-stage Dockerfile | Single image with mkdocs serve | No valid production use case. The final image is 15x smaller with two stages. |
-| Static openapi.json fetch at build | Runtime JS fetch from `/openapi.json` | Runtime fetch requires cross-origin configuration and fails under strict CSP. Static file is deterministic, cacheable, and works offline. |
-| Subpath `/docs` via existing Caddy | Separate subdomain for docs | Separate subdomain adds TLS cert complexity and would require Cloudflare tunnel reconfiguration. Subpath routing is free via the existing Caddy config. |
+| Recommended | Alternative | Why Not |
+|-------------|-------------|---------|
+| `cryptography` RSA+PKCS1v15 for attestation | `PyNaCl` Ed25519 for attestation | PyNaCl is already used for job signing. Using a different key type for attestation (node's mTLS RSA key) means we cannot reuse PyNaCl — the node's identity key is RSA, not Ed25519. Keeping `cryptography` for attestation uses the already-loaded key material. |
+| stdlib `json` + `hashlib` for bundle serialisation | `msgpack` or CBOR for binary attestation | Binary formats add a new dependency for no operational benefit. JSON is inspectable, debuggable, and sufficient for offline verification by operators. |
+| Existing `/jobs` POST for CI/CD dispatch | New dedicated `/api/v1/dispatch` endpoint | The existing endpoint already does everything needed. A thin wrapper adds a stable documented path without duplicating logic. Either approach works; the recommendation is to document the existing endpoint as the CI/CD interface and add the status-polling endpoint. |
+| `asyncssh` (conditional swap for paramiko) | Keep `paramiko` in all cases | Paramiko is LGPL-2.1. Dynamic import is fine for open-source distribution. The swap is only needed if EE wheel bundling creates static linking — assess before deciding. |
+| Dedicated `env_tag` column on nodes | Keep using `operator_tags` JSON | JSON parsing in SQL WHERE clauses is non-portable (differs between SQLite and Postgres). A dedicated column with an index makes the filter in ENVTAG-03 straightforward and consistent across both DB backends. |
 
 ---
 
@@ -153,94 +195,98 @@ The air-gap constraint is non-negotiable: MoP targets enterprise and hostile-net
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `mkdocs serve` in production | Explicitly documented as insecure and unsuitable for production by the MkDocs project (GitHub issue #1825). No keepalive, no cache headers, no range requests. | nginx:stable-alpine as the serve stage |
-| CDN-dependent Swagger plugins | Breaks air-gapped deployments. MoP explicitly targets isolated environments. | mkdocs-swagger-ui-tag which bundles Swagger UI assets locally |
-| Database in the docs container | Docs are a static site. No state belongs here. Adding a DB would be an architectural error. | Keep the docs container stateless. All content is baked into the image at build time. |
-| mkdocs-material Insider (paid features) | Adds Stripe subscription + key management complexity. All features needed for this project (search, navigation, dark mode, code blocks, admonitions) are in the free tier. | mkdocs-material free tier 9.7.5 |
-| Pinning to `mkdocs-material:latest` in the build stage | `latest` is a moving target. A minor version bump in mkdocs-material could change plugin compatibility silently. | Pin to `squidfunk/mkdocs-material:9` (major-version pin is stable) and pin plugin versions in `requirements.txt`. |
-| Shallow git clone for git-revision-date plugin | The `mkdocs-git-revision-date-localized-plugin` requires full git history to compute last-modified dates. Shallow clones produce incorrect or missing dates. | Use full clone (`--depth 0` or no `--depth` flag) if this plugin is enabled. |
+| New retry library (tenacity, backoff) | Retry logic with exponential backoff + jitter is already implemented in `job_service.py`. Adding a library would duplicate it. | Extend the existing `max_retries` / `backoff_multiplier` / `retry_after` pattern already in the `Job` model |
+| New attestation library (sigstore, in-toto) | Heavyweight dependencies designed for software supply chain provenance, not runtime execution attestation. The requirement is a signed JSON bundle using the node's existing RSA key — that is 20 lines of `cryptography` code. | `cryptography` (already present) |
+| `PyJWT` or `python-jose` for attestation tokens | JWTs are stateless bearer tokens, not signed execution records. The verification requirement needs the raw signature + stored cert. | Raw PKCS1v15 signature over the JSON bundle bytes |
+| `aiosqlite` version pin changes | The existing `DATABASE_URL` sqlite+aiosqlite pattern is already working. No version changes needed for v10.0 features. | Keep existing aiosqlite as installed by sqlalchemy[asyncio] |
+| New frontend charting library | recharts is already installed and used for sparklines. Execution timeline can use the same library. | recharts (already present) |
 
 ---
 
 ## Stack Patterns by Variant
 
-**If docs are built into the image (standard production pattern):**
-- COPY the `docs/` directory in the builder stage
-- Rebuild the image whenever docs content changes
-- `docker compose up -d --build docs` to deploy updates
+**Attestation verification on orchestrator (OUTPUT-06):**
+- Load `Node.client_cert_pem` from DB
+- Parse with `cryptography.x509.load_pem_x509_certificate()`
+- Extract public key: `cert.public_key()`
+- Verify: `public_key.verify(signature_bytes, bundle_bytes, padding.PKCS1v15(), hashes.SHA256())`
+- Catch `cryptography.exceptions.InvalidSignature` → store `attestation_status = "FAILED"`
+- Success → store `attestation_status = "VERIFIED"`
 
-**If docs use live git-backed content with automatic rebuild:**
-- Not recommended for this stack. The compose pattern does not support live volume + live rebuild.
-- For a live-editing workflow, use `mkdocs serve` locally against a mounted volume during authoring, then commit and rebuild the image.
+**Attestation signing on node (OUTPUT-05):**
+- Build bundle dict: `{script_hash, stdout_hash, stderr_hash, exit_code, started_at, node_cert_serial}`
+- Canonical form: `json.dumps(bundle, sort_keys=True).encode("utf-8")`
+- Load key: `serialization.load_pem_private_key(key_bytes, password=None)`
+- Sign: `private_key.sign(bundle_bytes, padding.PKCS1v15(), hashes.SHA256())`
+- Encode for transport: `base64.b64encode(signature).decode()`
+- Include `attestation_bundle` (JSON string) and `attestation_signature` (base64 string) in the `ResultReport` POST body
 
-**If the agent is not reachable during build (CI, cold start, air-gap):**
-- The committed `docs/reference/openapi.json` file is used as fallback
-- CI pipelines do not need a running stack to produce a valid docs image
-- The fallback file should be regenerated on each agent deployment: `curl https://host/openapi.json > docs/reference/openapi.json && git commit -m "chore: update openapi.json snapshot"`
+**CI/CD dispatch pattern (ENVTAG-04):**
+```bash
+# Minimal CI/CD dispatch — no new tooling required
+JOB_ID=$(curl -sf -X POST https://axiom.example.com/jobs \
+  -H "Authorization: Bearer $SERVICE_PRINCIPAL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"task_type":"python_script","payload":{...},"target_tags":["env:PROD"]}' \
+  | jq -r .guid)
 
-**If docs need to be published externally (beyond Cloudflare tunnel):**
-- The same nginx:alpine container can be published to any CDN or object storage by running `mkdocs build` and uploading the `site/` directory
-- No changes to the container architecture needed
+# Poll for completion
+while true; do
+  STATUS=$(curl -sf https://axiom.example.com/api/v1/jobs/$JOB_ID/status \
+    -H "Authorization: Bearer $SERVICE_PRINCIPAL_TOKEN" | jq -r .status)
+  [ "$STATUS" = "COMPLETED" ] && break
+  [ "$STATUS" = "FAILED" ] && exit 1
+  sleep 5
+done
+```
 
 ---
 
 ## Version Compatibility
 
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| mkdocs-material 9.7.5 | Python >=3.8; mkdocs <2 | Release notes explicitly cap mkdocs to <2 (confirmed in changelog). Target mkdocs 1.6.x. |
-| mkdocs-swagger-ui-tag 0.8.0 | mkdocs-material 9.x | Tested against 9.x series; no known incompatibility. |
-| mkdocs-git-revision-date-localized >=1.2 | mkdocs >=1.5 | Requires full git history in build context. |
-| nginx:stable-alpine | n/a | Static file serving only; no version coupling to MkDocs output format. |
+| Package | Version in requirements.txt | Notes for v10.0 |
+|---------|---------------------------|-----------------|
+| cryptography | unpinned (latest) | RSA PKCS1v15 signing available since cryptography 1.x. No version concern. Current latest is 44.x. |
+| sqlalchemy | unpinned | `mapped_column` declarative syntax requires SQLAlchemy 2.0+. Already using it. New nullable columns are additive. |
+| aiosqlite | transitive via sqlalchemy | SQLite `ADD COLUMN IF NOT EXISTS` requires SQLite 3.35+ (shipped in Python 3.10+). Project already requires Python 3.10+. |
+| pyproject.toml setuptools | >=61.0 (already pinned) | `License-Expression` (PEP 639) requires setuptools >=62.3 for full support. Bump to `>=62.3` in `[build-system]`. |
 
 ---
 
-## Installation (requirements for docs/Containerfile builder stage)
+## Installation
 
-```text
-# docs/requirements.txt
-mkdocs-material==9.7.5
-mkdocs-swagger-ui-tag==0.8.0
-mkdocs-git-revision-date-localized-plugin>=1.2,<2
-mkdocs-minify-plugin>=0.8,<1
+No new packages needed in `puppeteer/requirements.txt`.
+
+For `pyproject.toml` build-system:
+```toml
+[build-system]
+requires = ["setuptools>=62.3"]   # was >=61.0; bump for PEP 639 License-Expression
+build-backend = "setuptools.build_meta"
+
+[project]
+# Add this field (PEP 639):
+license-expression = "Apache-2.0"
+# Remove the old:
+# license = {text = "Apache-2.0"}
 ```
-
-```dockerfile
-# docs/Containerfile
-FROM squidfunk/mkdocs-material:9 AS builder
-WORKDIR /docs
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-# Attempt live openapi.json fetch; fall back to committed file silently
-ARG AGENT_URL=""
-RUN if [ -n "$AGENT_URL" ]; then \
-      curl -sf ${AGENT_URL}/openapi.json -o docs/reference/openapi.json 2>/dev/null || true; \
-    fi
-RUN mkdocs build --strict
-
-FROM nginx:stable-alpine AS serve
-COPY --from=builder /docs/site /usr/share/nginx/html
-EXPOSE 80
-```
-
-No new dependencies are added to the main `puppeteer/requirements.txt`. The docs container is entirely self-contained.
 
 ---
 
 ## Sources
 
-- [mkdocs-material PyPI page](https://pypi.org/project/mkdocs-material/) — version 9.7.5 confirmed, Python >=3.8 requirement (HIGH confidence)
-- [mkdocs-material changelog](https://squidfunk.github.io/mkdocs-material/changelog/) — 9.7.5 released 2026-03-10, mkdocs <2 cap confirmed (HIGH confidence)
-- [mkdocs-material installation docs](https://squidfunk.github.io/mkdocs-material/getting-started/) — Docker image `squidfunk/mkdocs-material:9` confirmed (HIGH confidence)
-- [mkdocs-swagger-ui-tag GitHub](https://github.com/blueswen/mkdocs-swagger-ui-tag) — v0.8.0 released 2026-02-22, bundles Swagger UI assets locally, air-gap safe (HIGH confidence)
-- [mkdocs-render-swagger-plugin GitHub](https://github.com/bharel/mkdocs-render-swagger-plugin) — v0.1.2 last release May 2024, lower maintenance activity (HIGH confidence — used to rule out)
-- [neoteroi-mkdocs OpenAPI Docs](https://www.neoteroi.dev/mkdocs-plugins/web/oad/) — renders as styled Markdown, not interactive Swagger UI (MEDIUM confidence)
-- [MkDocs production Docker issue #1825](https://github.com/squidfunk/mkdocs-material/issues/1825) — official confirmation that `mkdocs serve` is not production-safe (HIGH confidence)
-- Existing `puppeteer/cert-manager/Caddyfile` — current routing structure reviewed directly, `/docs*` routing pattern derived from existing `handle /api/*` pattern (HIGH confidence)
-- Existing `puppeteer/compose.server.yaml` — service naming, network topology, port conventions reviewed directly (HIGH confidence)
+- `puppeteer/agent_service/db.py` — reviewed directly; `ExecutionRecord`, `Job`, `Node` schemas confirmed (HIGH confidence)
+- `puppeteer/agent_service/services/job_service.py` — retry logic, env-tag isolation, execution record writes confirmed (HIGH confidence)
+- `puppets/environment_service/node.py` — RSA key generation (line 380), `build_output_log()`, `report_result()` confirmed (HIGH confidence)
+- `puppeteer/agent_service/models.py` — `ResultReport` fields, `WorkResponse` fields confirmed (HIGH confidence)
+- `puppeteer/requirements.txt` — existing dependencies confirmed; no new additions needed (HIGH confidence)
+- `.github/workflows/release.yml` — PyPI OIDC publish jobs, GHCR multi-arch build confirmed (HIGH confidence)
+- `pyproject.toml` — current `license = {text = "Apache-2.0"}` form confirmed; PEP 639 migration path identified (HIGH confidence)
+- [PyPI Trusted Publishers — Creating a project through OIDC](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/) — pending publisher prerequisites, name-squatting warning confirmed (HIGH confidence)
+- [pypa/gh-action-pypi-publish](https://github.com/pypa/gh-action-pypi-publish) — `id-token: write` requirement, `repository-url` for TestPyPI confirmed (HIGH confidence)
+- [cryptography X.509 reference](https://cryptography.io/en/latest/x509/reference/) — `load_pem_x509_certificate`, `public_key()`, RSA verify API confirmed (HIGH confidence)
+- [Python packaging — License-Expression (PEP 639)](https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license) — setuptools >=62.3 requirement for PEP 639 field (MEDIUM confidence — cross-referenced with setuptools changelog)
 
 ---
 
-*Stack research for: Master of Puppets v9.0 — Enterprise Documentation container*
-*Researched: 2026-03-16*
+*Stack research for: Axiom v10.0 — Commercial Release new features*
+*Researched: 2026-03-17*

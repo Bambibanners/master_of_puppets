@@ -1,577 +1,562 @@
 # Architecture Research
 
-**Domain:** MkDocs Material documentation container integrated into existing Caddy + Docker Compose stack (v9.0 Enterprise Documentation)
-**Researched:** 2026-03-16
-**Confidence:** HIGH — based on direct codebase analysis, official MkDocs/Caddy documentation, and verified community patterns
+**Domain:** Pull-architecture job orchestrator — v10.0 feature integration (output capture, runtime attestation, retry policy, environment tags, CI/CD dispatch)
+**Researched:** 2026-03-17
+**Confidence:** HIGH — based on direct codebase analysis (db.py, job_service.py, main.py, node.py, models.py)
 
 ---
 
-## Standard Architecture
+## Existing Architecture Baseline
 
 ### System Overview
 
 ```
-                        Cloudflare Tunnel
-                               |
-                        cert-manager (Caddy)
-                        :80 / :443  ← MODIFIED: add /docs/* handler
-                               |
-          ┌────────────────────┼──────────────────────┐
-          |                    |                       |
-     /api/*             /docs/*                  (fallback)
-     /auth/*            /docs/assets/*           /
-     /ws                /docs/...                     |
-     /system/*               |                   dashboard
-          |                docs                  (nginx:80)
-        agent           (nginx:80)               [unchanged]
-     (FastAPI :8001)    [NEW SERVICE]
-     [unchanged]
-          |
-      ┌───┴───┐
-      db     model
- (Postgres)  (uvicorn :8000)
- [unchanged] [unchanged]
+                         ORCHESTRATOR (puppeteer/)
+  ┌──────────────────────────────────────────────────────────────┐
+  │  React Dashboard (Vite)          Caddy (TLS termination)     │
+  │  puppeteer/dashboard/src/views/  ← /docs/* → nginx (MkDocs) │
+  ├──────────────────────────────────────────────────────────────┤
+  │  FastAPI (agent_service/main.py)                             │
+  │  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐    │
+  │  │ job_service │  │ scheduler_   │  │ foundry_service  │    │
+  │  │    .py      │  │ service.py   │  │ alert_service    │    │
+  │  └──────┬──────┘  └──────────────┘  └──────────────────┘    │
+  │         │  SQLAlchemy ORM (create_all, no Alembic)           │
+  │  ┌──────▼──────────────────────────────────────────────┐     │
+  │  │  PostgreSQL (prod) / SQLite (dev)                   │     │
+  │  │  jobs, nodes, execution_records, scheduled_jobs...  │     │
+  │  └─────────────────────────────────────────────────────┘     │
+  └──────────────────────────────────────────────────────────────┘
+               ▲ mTLS (client cert)     ▲ mTLS (client cert)
+               │                        │
+  ┌────────────┴──────┐        ┌────────┴────────────┐
+  │  Puppet Node A    │        │  Puppet Node B       │
+  │  node.py          │        │  node.py             │
+  │  polls /work/pull │        │  polls /work/pull    │
+  │  reports to       │        │  reports to          │
+  │  /work/{guid}/    │        │  /work/{guid}/result │
+  │  result           │        └─────────────────────┘
+  └───────────────────┘
 ```
 
-The docs container is a **new service** inserted into the existing Caddy routing layer. It is fully stateless — no DB, no secrets, no runtime dependencies. It serves pre-built static HTML generated at image build time from git-backed markdown.
+### Current Data Flow: Job Execution
 
-### Component Responsibilities
+```
+1. Operator dispatches job (POST /jobs) or APScheduler fires (scheduler_service.py)
+2. Job inserted into `jobs` table with status=PENDING
+3. Node polls POST /work/pull → job_service.pull_work()
+   - Filters PENDING/RETRYING jobs by tag matching, env: isolation, capability matching, memory limit
+   - Assigns job: status=ASSIGNED, node_id set, started_at set
+   - Returns WorkResponse (guid, task_type, payload, limits)
+4. Node executes: runtime.py → Docker/Podman/direct subprocess
+5. Node reports: POST /work/{guid}/result with ResultReport
+   - job_service.report_result() writes ExecutionRecord + updates Job.status
+   - Retry logic: RETRYING state with retry_after backoff if retriable=True
+   - Dependency unblocking: _unblock_dependents() on COMPLETED
+   - Webhook dispatch on terminal status
+```
 
-| Component | Responsibility | Status |
-|-----------|----------------|--------|
-| cert-manager (Caddy) | TLS termination, path-based routing, Cloudflare ingress | MODIFIED — add /docs/* routing block |
-| docs | Serve pre-built MkDocs Material static site | NEW — nginx:alpine, baked static HTML |
-| agent (FastAPI) | REST API + OpenAPI schema source | UNCHANGED |
-| dashboard (React) | App UI — links out to /docs/ for documentation | MODIFIED — replace inline Docs view with external link |
-| Build stage (Docker) | Generates openapi.json + runs mkdocs build | NEW — Dockerfile builder stage only, not a runtime service |
+### What Already Exists (Critical — do not re-implement)
+
+| Feature | Where It Lives | State |
+|---------|----------------|-------|
+| `ExecutionRecord` table | `db.py` lines 216-233 | Complete — job_guid, node_id, status, exit_code, started_at, completed_at, output_log (JSON), truncated |
+| `output_log` written by node | `node.py` `build_output_log()` + `report_result()` | Complete — JSON list of {t, stream, line} entries |
+| Output written to `execution_records` | `job_service.report_result()` lines 708-719 | Complete — with 1 MB truncation and secret scrubbing |
+| `GET /api/executions` + `GET /api/executions/{id}` | `main.py` lines 430-515 | Complete — pagination, node_id/status/job_guid filter |
+| `GET /jobs/{guid}/executions` | `main.py` lines 1461-1486 | Complete — per-job execution history |
+| Retry policy on `Job` | `db.py` Job columns: max_retries, retry_count, retry_after, backoff_multiplier | Complete — exponential backoff with jitter in `job_service.py` |
+| `RETRYING` / `DEAD_LETTER` job states | `job_service.report_result()` lines 736-766 | Complete |
+| Zombie reaper (timeout-triggered retry) | `job_service.pull_work()` lines 221-273 | Complete |
+| `env:` tag isolation in node selection | `job_service.pull_work()` lines 312-322 | Complete — env: prefix treated as strict isolation |
+| `retriable` flag on `ResultReport` | `models.py` line 63 | Complete — node opts in via `retriable=True` |
+| `WorkResponse.max_retries / backoff_multiplier / timeout_minutes` | `models.py` line 52-54 | Complete — passed to node but node.py doesn't use them yet |
+
+### What Is Missing for v10.0
+
+| Requirement | Gap Description |
+|-------------|-----------------|
+| OUTPUT-01/02 | Node captures output — DONE. Server stores it — DONE. But `WorkResponse` doesn't tell node the retry config (backoff/max_retries) and node.py doesn't set `retriable=True` on failure yet |
+| OUTPUT-03/04 | Dashboard UI for execution history — missing in frontend views |
+| OUTPUT-05/06/07 | Runtime attestation — entirely absent. No signing in node.py, no verification in job_service.py, no attestation fields on ExecutionRecord |
+| RETRY-01 | `ScheduledJob` has `max_retries`/`backoff_multiplier` columns but scheduler_service.py doesn't propagate them to created `Job` records |
+| RETRY-03 | Dashboard UI showing attempt N of M — missing |
+| ENVTAG-01 | `Node.tags` exists but no dedicated `env_tag` column — currently env tags are stored as `env:DEV` strings in the generic tags JSON list; no first-class field |
+| ENVTAG-02 | Job dispatch accepts `target_tags` with env: prefix — the enforcement is already there, but no explicit `env_tag` field in the dispatch API |
+| ENVTAG-03 | Dashboard Nodes view doesn't surface env tag visually or as a filter |
+| ENVTAG-04 | CI/CD dispatch endpoint — absent. No structured `POST /api/dispatch` with JSON response format |
+| All | `ExecutionRecordResponse` missing attestation fields (attestation_bundle, attestation_verified) |
 
 ---
 
-## Recommended Project Structure
+## Feature Integration Architecture
 
-```
-master_of_puppets/
-├── docs/                            # Source markdown — git-backed, ALREADY EXISTS
-│   ├── mkdocs.yml                   # NEW: MkDocs configuration (lives with content)
-│   ├── index.md                     # Landing page
-│   ├── getting-started/
-│   │   └── index.md                 # End-to-end first-run walkthrough
-│   ├── user-guide/
-│   │   ├── jobs.md
-│   │   ├── scheduling.md
-│   │   ├── foundry.md
-│   │   ├── smelter.md
-│   │   ├── mop-push.md
-│   │   ├── staging.md
-│   │   ├── rbac.md
-│   │   └── oauth.md
-│   ├── developer/
-│   │   ├── architecture.md          # Migrated from docs/architecture.md
-│   │   ├── setup.md                 # Migrated from docs/INSTALL.md
-│   │   ├── deployment.md            # Migrated from docs/deployment_guide.md
-│   │   └── contributing.md
-│   ├── security/
-│   │   ├── overview.md              # Migrated from docs/security.md
-│   │   ├── mtls.md                  # Migrated from docs/ssl_guide.md
-│   │   ├── signatures.md            # Migrated from docs/security_signatures.md
-│   │   └── audit-log.md
-│   ├── api-reference/
-│   │   ├── index.md                 # Contains !!swagger openapi.json!! directive
-│   │   └── openapi.json             # GENERATED at build time — not committed to git
-│   ├── runbooks/
-│   │   └── troubleshooting.md
-│   └── assets/
-│       └── images/
-├── puppeteer/
-│   ├── cert-manager/
-│   │   └── Caddyfile                # MODIFIED: add /docs/* handle blocks
-│   ├── docs-container/
-│   │   ├── Dockerfile               # NEW: multi-stage build
-│   │   ├── nginx.conf               # NEW: nginx config for static file serving
-│   │   └── requirements-docs.txt    # NEW: mkdocs-material + plugins
-│   └── compose.server.yaml          # MODIFIED: add docs service
-├── scripts/
-│   └── export_openapi.py            # NEW: dumps app.openapi() to openapi.json
-└── puppeteer/dashboard/src/
-    ├── layouts/MainLayout.tsx        # MODIFIED: replace /docs NavItem with <a> external link
-    ├── views/Docs.tsx                # DELETED: replaced by external link
-    └── AppRoutes.tsx                 # MODIFIED: remove /docs Route entry
-```
+### Feature 1: Job Output Capture (OUTPUT-01 through OUTPUT-04)
 
-### Structure Rationale
+**Status: ~80% complete in backend. Frontend work is the main gap.**
 
-- **docs/ at repo root:** Already exists with real markdown files. MkDocs is configured from here. The git-backed source is the single source of truth — no content duplication.
-- **mkdocs.yml lives inside docs/:** Co-located with content. Run as `mkdocs build -f docs/mkdocs.yml` from repo root, or just `mkdocs build` from inside `docs/`.
-- **docs/api-reference/openapi.json is generated, not committed:** Produced at container image build time by importing the FastAPI app and calling `app.openapi()`. Committing it creates drift; generating it means the docs always match the code. A failing export script fails the Docker build — loud and early.
-- **puppeteer/docs-container/Dockerfile:** Isolated from the main server Containerfile. Build context is the repo root so the Dockerfile can COPY both `docs/` and `puppeteer/agent_service/` (needed for the openapi export step).
-- **scripts/export_openapi.py:** Thin script — imports `app` from `agent_service.main`, calls `app.openapi()`, writes JSON to `docs/api-reference/openapi.json`. No HTTP server started.
+The node already calls `build_output_log()` and passes `output_log` + `exit_code` to `report_result()`. The server writes an `ExecutionRecord`. The `/api/executions` endpoint exists.
+
+**Two backend gaps to close:**
+
+1. **Node.py does not set `retriable=True`** — the node never signals the orchestrator that a failure was a clean (retriable) exit vs a crash. This gates retry policy.
+
+2. **WorkResponse doesn't echo retry config to node** — `max_retries` and `backoff_multiplier` are in `WorkResponse` (models.py) but `job_service.pull_work()` doesn't populate them from `Job` columns. Node.py ignores them anyway.
+
+   Recommendation: populate them in `pull_work()`. Node.py can use them for local timeout enforcement (already has `timeout_minutes` handling). The retry decision stays server-side; node only needs to signal `retriable=True` for non-zero exits.
+
+**Modified components:**
+- `node.py` `execute_task()` — set `retriable=True` when exit_code != 0 and it is not a security rejection
+- `job_service.pull_work()` — populate `max_retries`, `backoff_multiplier`, `timeout_minutes` in `WorkResponse`
+- Frontend `Jobs.tsx` — add execution history drawer/tab showing output_log entries
+
+**New API endpoints needed:** None — `/api/executions` and `/jobs/{guid}/executions` already exist.
+
+**DB changes:** None — `ExecutionRecord` table is complete.
 
 ---
 
-## Architectural Patterns
+### Feature 2: Runtime Attestation (OUTPUT-05, OUTPUT-06, OUTPUT-07)
 
-### Pattern 1: Multi-Stage Docker Build for Static Docs
+**Status: Absent. New code required throughout the pipeline.**
 
-**What:** Stage 1 runs Python, installs MkDocs + plugins + the agent's requirements (for import), exports openapi.json, and runs `mkdocs build`. Stage 2 is `nginx:alpine` and only copies the generated `site/` directory. The final image has no Python, no MkDocs, no source markdown — only pre-built HTML/CSS/JS.
+**Concept:** After executing a job, the node constructs a deterministic bundle, signs it with its mTLS private key, and includes the signature in `ResultReport`. The orchestrator verifies the signature against the stored `client_cert_pem` on the `Node` record.
 
-**When to use:** Always for production. The `squidfunk/mkdocs-material` Docker image's built-in dev server is explicitly not production-safe. Their documentation states: "The image is intended for local preview purposes and is not suitable for deployment because the web server used by MkDocs for live previews is not designed for production use and may have security vulnerabilities." Nginx serving static files is the correct pattern.
-
-**Trade-offs:** Adds ~60s to image build time (pip install + mkdocs build). No live-reload (not needed in production). The resulting image is ~25MB vs ~400MB for the Python+MkDocs image. Zero Python attack surface in the running container.
-
-**Dockerfile (puppeteer/docs-container/Dockerfile):**
-
-```dockerfile
-# Stage 1: builder — generates openapi.json and builds static site
-FROM python:3.12-slim AS builder
-WORKDIR /build
-
-# Install MkDocs Material + plugins + agent dependencies (for openapi export)
-COPY puppeteer/docs-container/requirements-docs.txt .
-COPY puppeteer/requirements.txt ./requirements-agent.txt
-RUN pip install --no-cache-dir -r requirements-docs.txt -r requirements-agent.txt
-
-# Copy agent source (needed for app.openapi() call)
-COPY puppeteer/agent_service/ ./agent_service/
-
-# Copy documentation source
-COPY docs/ ./docs/
-
-# Copy openapi export script
-COPY scripts/export_openapi.py .
-
-# Generate openapi.json from live app definition (no server started)
-RUN python export_openapi.py
-
-# Build static site
-RUN mkdocs build -f docs/mkdocs.yml --site-dir /build/site
-
-# Stage 2: server — only the built HTML
-FROM nginx:alpine
-COPY --from=builder /build/site /usr/share/nginx/html
-COPY puppeteer/docs-container/nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-```
-
-**requirements-docs.txt:**
+**Attestation bundle structure (canonical, deterministic):**
 
 ```
-mkdocs-material>=9.5
-mkdocs-render-swagger-plugin>=0.1.1
+bundle = {
+    "script_hash": sha256(script_content),
+    "stdout_hash": sha256(stdout),
+    "stderr_hash": sha256(stderr),
+    "exit_code": int,
+    "start_ts": ISO8601 UTC string,
+    "node_cert_serial": str (from node's own cert)
+}
+serialised = json.dumps(bundle, sort_keys=True, separators=(',', ':'))
 ```
 
-### Pattern 2: `site_url` Configuration for Sub-Path Routing
+Node signs `serialised.encode('utf-8')` using its RSA-2048 private key (at `secrets/{NODE_ID}.key`) with PKCS1v15 + SHA256, producing a base64-encoded signature.
 
-**What:** Set `site_url: https://dev.master-of-puppets.work/docs/` in `mkdocs.yml`. This makes MkDocs generate absolute asset references like `/docs/assets/stylesheets/main.css` throughout the built HTML. Caddy then uses a plain `handle /docs/*` block (no prefix stripping) to forward requests to the docs container.
+**Key constraint — RSA, not Ed25519:** The node's mTLS key is RSA-2048 (generated in `node.py ensure_identity()` at line 380). Attestation signing uses this same key. The orchestrator already stores the node's full `client_cert_pem` which contains the public key — no new key material needs to be transmitted.
 
-**Why this matters:** If you use Caddy's `handle_path /docs/*` (which strips the prefix), requests reach the container as `GET /assets/css/main.css` — and nginx serves them correctly. But the browser fetches page-relative assets using the full URL, meaning a request to `https://example.com/docs/foundry/` causes the browser to request `/assets/css/main.css` (not `/docs/assets/css/main.css`). This falls through to the dashboard fallback in Caddy, not the docs container. Caddy returns a 404 or the dashboard's index.html. The result: every page loads but all CSS and JS is broken.
-
-**The correct approach:** Set `site_url` so MkDocs bakes `/docs/` into every asset reference. Use `handle /docs/*` without prefix stripping. Configure nginx to serve from root regardless of the `/docs/` prefix in incoming requests.
-
-**Trade-offs:**
-- `site_url` couples the MkDocs config to the deployment URL. If the path changes from `/docs/` to something else, `mkdocs.yml` must be updated and the image rebuilt. This is acceptable — the path will not change.
-- No prefix stripping means nginx receives `GET /docs/foundry/` and must map that back to `site/foundry/index.html`. This is handled cleanly with an nginx `alias` directive.
-
-**Alternative considered and rejected:** `handle_path` with prefix stripping + relative asset paths. MkDocs Material's generated HTML uses absolute paths for many assets (search index, service worker manifest). Relative paths cannot be forced globally without forking theme templates. The `site_url` approach is the documented, supported path.
-
-### Pattern 3: OpenAPI Export at Build Time via `app.openapi()`
-
-**What:** FastAPI's `app.openapi()` method generates the full OpenAPI schema dict without starting an HTTP server. Import the `app` object, call the method, write JSON. This runs in the builder stage of the Dockerfile.
-
-**When to use:** Always. The alternatives are: (a) call the live `/openapi.json` endpoint at build time — requires the app to be running, creates a circular build dependency; (b) commit a static `openapi.json` — becomes stale as routes change and is silently wrong.
-
-**Trade-offs:** The export script must be able to `import agent_service.main` without triggering DB connections or startup side effects. FastAPI's lifespan events (startup/shutdown) only fire when uvicorn starts — not on import. The `app` object can be imported safely. However, the `agent_service` may import SQLAlchemy models at module level, which requires SQLAlchemy to be installed (it will be, via requirements-agent.txt).
-
-**Export script (scripts/export_openapi.py):**
+**Node-side changes (node.py):**
 
 ```python
-import json
-import sys
-import os
-
-# Add repo root to path so agent_service is importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..') if '__file__' in dir() else '.')
-
-from agent_service.main import app
-
-schema = app.openapi()
-output_path = 'docs/api-reference/openapi.json'
-os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-with open(output_path, 'w') as f:
-    json.dump(schema, f, indent=2)
-
-print(f"Exported {len(schema.get('paths', {}))} paths to {output_path}")
+# In execute_task(), after result is obtained:
+attestation_bundle = build_attestation_bundle(
+    script=script,
+    stdout=result.get("stdout", ""),
+    stderr=result.get("stderr", ""),
+    exit_code=result["exit_code"],
+    start_ts=job_started_at,         # pass via job dict (WorkResponse must include started_at)
+    key_file=self.key_file,
+    cert_file=self.cert_file,
+)
+await self.report_result(guid, ..., attestation=attestation_bundle)
 ```
 
-**Dependency consideration:** `agent_service.main` imports SQLAlchemy, Pydantic, jose, cryptography, and other packages. The builder stage must install `puppeteer/requirements.txt` alongside the MkDocs requirements. The builder stage image will be ~400MB (not a concern — it is discarded after the build).
+New helper `build_attestation_bundle()` in node.py:
+- Builds canonical JSON bundle
+- Signs with `cryptography.hazmat.primitives.asymmetric.padding.PKCS1v15` + SHA256
+- Returns `{"bundle": <serialised_json>, "signature": <base64>, "cert_serial": <serial>}`
 
-### Pattern 4: Caddy Path Routing with nginx Alias
+**Orchestrator-side changes (job_service.py):**
 
-**What:** Use `handle /docs/*` in both Caddyfile server blocks to forward requests to the docs container without stripping the prefix. Configure nginx in the docs container to use `alias` to serve the correct files even though the URL path starts with `/docs/`.
-
-**Caddyfile change (both `:443` and `:80` blocks — before the fallback `handle {}`):**
-
-```caddyfile
-handle /docs/* {
-    reverse_proxy docs:80
-}
+```python
+# In report_result(), after writing ExecutionRecord:
+if report.attestation:
+    verification_result = verify_attestation(
+        attestation=report.attestation,
+        node_cert_pem=node.client_cert_pem
+    )
+    record.attestation_bundle = report.attestation.get("bundle")
+    record.attestation_signature = report.attestation.get("signature")
+    record.attestation_verified = verification_result   # "VERIFIED" / "FAILED" / "MISSING"
 ```
 
-**nginx.conf (puppeteer/docs-container/nginx.conf):**
+New helper `verify_attestation()` in `services/attestation_service.py`:
+- Load public key from `node.client_cert_pem` via `x509.load_pem_x509_certificate().public_key()`
+- Verify RSA PKCS1v15 signature
+- Returns verification status string
 
-```nginx
-server {
-    listen 80;
-    index index.html;
+**DB changes — ExecutionRecord table needs 3 new columns:**
 
-    location /docs/ {
-        alias /usr/share/nginx/html/;
-        try_files $uri $uri/ $uri.html =404;
-    }
-
-    # Health check endpoint for compose healthcheck if needed
-    location /health {
-        return 200 'ok';
-        add_header Content-Type text/plain;
-    }
-}
+```python
+# In db.py ExecutionRecord:
+attestation_bundle: Mapped[Optional[str]] = mapped_column(Text, nullable=True)     # raw JSON bundle
+attestation_signature: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # base64 signature
+attestation_verified: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # VERIFIED/FAILED/MISSING
 ```
 
-The `alias` directive maps `/docs/` in the URL to the root of the static site directory. A request for `/docs/foundry/index.html` becomes a filesystem read of `/usr/share/nginx/html/foundry/index.html`.
+**Migration SQL for existing deployments:**
 
-**Why `alias` not `root`:** `root` prepends the path to every lookup — `GET /docs/foundry/` would look for `/usr/share/nginx/html/docs/foundry/`. `alias` replaces the location prefix — `GET /docs/foundry/` looks for `/usr/share/nginx/html/foundry/`. This is the correct behaviour for sub-path mounting.
-
-### Pattern 5: Dashboard Docs Link as External Navigation
-
-**What:** Remove the in-app `Docs.tsx` React component (which renders a single bundled markdown file) and replace the sidebar nav entry with a plain `<a>` tag that opens `/docs/` in a new browser tab.
-
-**Changes required:**
-1. `MainLayout.tsx` — replace `NavItem to="/docs"` with an `<a href="/docs/" target="_blank">` styled identically, using `BookOpen` from lucide-react.
-2. `AppRoutes.tsx` — remove the `<Route path="docs" element={<Docs />} />` entry.
-3. `Docs.tsx` — can be deleted (it imports a single bundled `UserGuide.md` — all of that content moves to the MkDocs site).
-
-**Why new tab:** A same-tab redirect breaks the browser back button — the user expects Back to return to the dashboard. Opening in a new tab is the standard pattern for linking out of an SPA to an external resource. At the network level `/docs/` and `/` are the same origin (both served from dev.master-of-puppets.work), so browsers allow the tab to be opened without popup blockers.
-
-**Sidebar change in `MainLayout.tsx`:**
-
-```tsx
-// Add BookOpen to the lucide-react import at the top of the file
-
-// Replace the existing NavItem for docs (currently missing from sidebar — add it here)
-// in SidebarContent, under a "Resources" or "System" section:
-<a
-    href="/docs/"
-    target="_blank"
-    rel="noreferrer"
-    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium
-               transition-all hover:bg-zinc-800 hover:text-white text-zinc-400"
->
-    <BookOpen className="h-4 w-4 shrink-0" />
-    <span>Documentation</span>
-</a>
+```sql
+ALTER TABLE execution_records ADD COLUMN IF NOT EXISTS attestation_bundle TEXT;
+ALTER TABLE execution_records ADD COLUMN IF NOT EXISTS attestation_signature TEXT;
+ALTER TABLE execution_records ADD COLUMN IF NOT EXISTS attestation_verified VARCHAR(20);
 ```
 
-Note: the current sidebar has no "Docs" entry — the route exists in `AppRoutes.tsx` but `MainLayout.tsx` never added it to the nav. This change adds it for the first time with the new external-link behaviour.
+**Models changes:**
+- `ResultReport` — add `attestation: Optional[Dict] = None`
+- `ExecutionRecordResponse` — add `attestation_verified: Optional[str] = None`, `attestation_bundle: Optional[str] = None`
+
+**New API endpoint for export (OUTPUT-07):**
+
+```
+GET /api/executions/{id}/attestation
+→ Returns: {bundle, signature, cert_serial, verified}
+Auth: history:read permission
+```
+
+**WorkResponse must include `started_at`** — the node needs the server-assigned start timestamp for the bundle to be reproducible. Add `started_at: Optional[datetime] = None` to `WorkResponse` and populate it in `pull_work()` when `started_at` is set.
 
 ---
 
-## Data Flow
+### Feature 3: Retry Policy (RETRY-01, RETRY-02, RETRY-03)
 
-### OpenAPI Reference Generation Flow
+**Status: Orchestrator logic complete. Two gaps: scheduler propagation and node.py signaling.**
 
-```
-docker compose build docs
-    |
-    v
-Stage 1: python:3.12-slim (builder)
-    |
-    ├── pip install requirements-docs.txt + requirements.txt
-    |       (mkdocs-material, render-swagger-plugin, fastapi,
-    |        sqlalchemy, pydantic, etc.)
-    |
-    ├── COPY docs/ → /build/docs/
-    |   COPY agent_service/ → /build/agent_service/
-    |   COPY scripts/export_openapi.py → /build/
-    |
-    ├── python export_openapi.py
-    |       sys.path.insert(0, '.')
-    |       from agent_service.main import app
-    |       app.openapi() → dict with all routes + schemas
-    |       json.dump() → docs/api-reference/openapi.json
-    |
-    └── mkdocs build -f docs/mkdocs.yml --site-dir /build/site
-            reads docs/api-reference/openapi.json
-            render_swagger plugin injects SwaggerUI HTML
-            outputs /build/site/ (static HTML/CSS/JS)
-    |
-    v
-Stage 2: nginx:alpine
-    COPY /build/site → /usr/share/nginx/html
-    COPY nginx.conf → /etc/nginx/conf.d/default.conf
-    |
-    v
-Runtime: nginx at :80
-    serves /usr/share/nginx/html via /docs/ location alias
-    no Python, no MkDocs, no source files in the running container
+**Gap 1: Scheduler does not propagate retry config to dispatched jobs**
+
+`ScheduledJob` has `max_retries` and `backoff_multiplier` columns (db.py lines 79-80). When APScheduler fires and creates a `Job`, `scheduler_service.py` must copy these values into the `Job` row.
+
+```python
+# In scheduler_service.py, when creating a Job from a ScheduledJob:
+new_job = Job(
+    ...
+    max_retries=sched_job.max_retries,
+    backoff_multiplier=sched_job.backoff_multiplier,
+    timeout_minutes=sched_job.timeout_minutes,
+)
 ```
 
-### Request Routing Flow
+Ad-hoc dispatch (`POST /jobs`) already accepts `max_retries` via `JobCreate` — check that `JobCreate` model exposes these fields and `create_job()` passes them to the `Job` constructor.
 
-```
-Browser: GET https://dev.master-of-puppets.work/docs/foundry/
+**Gap 2: Node must signal `retriable=True` for non-security failures**
 
-Cloudflare Tunnel → cert-manager (Caddy :443)
+`report_result()` in job_service.py only retries when `report.retriable is True`. The node currently never sets this. The node should set `retriable=True` whenever the failure is a clean non-zero exit (not a signature verification failure or memory limit rejection).
 
-Caddy evaluates handlers in order (first match wins):
-    1. handle /api/*         ← no match
-    2. handle /auth/*        ← no match
-    3. handle /ws            ← no match
-    4. handle /system/root-ca*  ← no match
-    5. handle /docs/*        ← MATCHES
-           reverse_proxy docs:80
-           forwards: GET /docs/foundry/
-
-docs container (nginx:80)
-    location /docs/ matches
-    alias maps to /usr/share/nginx/html/
-    try_files: /usr/share/nginx/html/foundry/index.html → 200
-    returns: MkDocs Material HTML page
+```python
+# node.py report_result() signature — node decides retriable:
+retriable = (not security_rejected) and (exit_code is not None) and (exit_code != 0)
 ```
 
-### Asset Request Flow
+**Gap 3: Dashboard display (RETRY-03)**
+
+`ExecutionRecord` already stores all attempts (one record per attempt). The `Job` row has `retry_count` and `max_retries`. The dashboard can show "Attempt {retry_count + 1} of {max_retries + 1}" by reading the job detail alongside execution history.
+
+No backend changes needed — this is frontend work in `Jobs.tsx`.
+
+---
+
+### Feature 4: Environment Tags (ENVTAG-01 through ENVTAG-04)
+
+**Status: The enforcement logic is already complete. Missing: first-class column, UI, and CI/CD endpoint.**
+
+**Current implementation:** `env:` tags are stored in `Node.tags` (or `Node.operator_tags`) as strings like `"env:PROD"`. Job matching in `pull_work()` already enforces strict env: isolation (lines 312-322). This works correctly and is the right design.
+
+**Gap 1: No dedicated `env_tag` column on Node (ENVTAG-01)**
+
+The existing tags approach works, but ENVTAG-01 calls for a configurable environment tag. The cleanest path is to add a first-class `env_tag` column to `Node` so it:
+- Is visible separately from capability/feature tags in API responses
+- Can be set at enrollment time (via `JOIN_TOKEN` payload extension or env var on node)
+- Appears clearly in dashboard filtering
+
+```python
+# db.py Node addition:
+env_tag: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # DEV, TEST, PROD, or custom
+```
+
+**Migration SQL:**
+
+```sql
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS env_tag VARCHAR(64);
+```
+
+At enrollment, the node can pass `env_tag` in the heartbeat payload. The server stores it on `Node.env_tag`. The existing `env:` tag isolation logic in `pull_work()` continues to use the tags list — the new `env_tag` column feeds the new CI/CD dispatch endpoint and dashboard display.
+
+**Alternative:** Keep the `env:` tags approach (already enforced correctly), populate `Node.env_tag` by extracting the `env:` prefix tag from `operator_tags` at read time (no schema change). This avoids a migration for fresh deployments and is simpler. Recommended for v10.0.
+
+**Node declaration (ENVTAG-01):** Add `ENV_TAG` env var to node compose files. `heartbeat_loop()` reads it and includes it in the heartbeat payload. `receive_heartbeat()` writes it to `operator_tags` as `env:<ENV_TAG>` if not already set by operator.
+
+**Gap 2: CI/CD dispatch endpoint (ENVTAG-04)**
+
+New endpoint:
 
 ```
-Browser receives HTML for /docs/foundry/
-HTML contains: <link href="/docs/assets/stylesheets/main.css">
-                (set by mkdocs.yml site_url: https://...work/docs/)
-
-Browser: GET https://dev.master-of-puppets.work/docs/assets/stylesheets/main.css
-
-Caddy: handle /docs/* matches → docs:80
-nginx: /docs/ alias → /usr/share/nginx/html/assets/stylesheets/main.css → 200
-
-CSS loaded correctly.
+POST /api/dispatch
+Auth: Bearer token or API key (operator permission: jobs:write)
+Body: {
+    "job_definition_id": str,       # ScheduledJob.id
+    "env_tag": str,                 # "DEV" | "TEST" | "PROD" | custom
+    "override_tags": [str],         # optional additional tag constraints
+    "timeout_minutes": int          # optional override
+}
+Response: {
+    "job_guid": str,
+    "status": "PENDING",
+    "node_assigned": null,          # filled once assigned at next poll
+    "env_tag": str,
+    "job_definition": str           # name
+}
 ```
 
-### Dashboard Navigation Flow
+Implementation: looks up the `ScheduledJob`, validates its `status == "ACTIVE"`, constructs a `Job` with `target_tags` including `env:<env_tag>`, and returns the structured JSON. The endpoint must be documented as the CI/CD integration path.
+
+**Gap 3: NodeResponse must expose env_tag (ENVTAG-03)**
+
+`NodeResponse` in models.py needs `env_tag: Optional[str] = None`. The `list_nodes()` handler in main.py must extract env_tag from `operator_tags` (or the new column) and include it in the response dict.
+
+---
+
+### Feature 5: CI/CD Dispatch API (ENVTAG-04 — detailed)
+
+**Auth approach:** Service principals already exist (`ServicePrincipal` table, `_SPUserProxy`). CI/CD pipelines should authenticate using a service principal's `client_id` + `client_secret` via `POST /auth/service-principal/token` to get a short-lived JWT, then use that JWT as Bearer for `POST /api/dispatch`.
+
+Alternatively, a service principal API key (`mop_` prefix) can authenticate directly — this is already wired in `security.py`. This is simpler for CI/CD (one credential, no token exchange). Recommended.
+
+**Response contract:** The response must be stable (not change between minor versions) and include enough for a pipeline to poll job status:
+
+```json
+{
+    "job_guid": "abc-123",
+    "status": "PENDING",
+    "job_definition": "deploy-frontend",
+    "env_tag": "PROD",
+    "poll_url": "/jobs/abc-123/executions"
+}
+```
+
+The CI/CD caller can poll `GET /jobs/{guid}` or `GET /jobs/{guid}/executions` for completion.
+
+---
+
+## Recommended Component Boundaries
+
+### New Files to Create
+
+| File | Purpose |
+|------|---------|
+| `puppeteer/agent_service/services/attestation_service.py` | `verify_attestation()` — loads public key from PEM, verifies RSA PKCS1v15 + SHA256 signature |
+| (no new DB file) | ExecutionRecord columns added directly to `db.py` |
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `puppeteer/agent_service/db.py` | Add 3 attestation columns to `ExecutionRecord`; optionally add `env_tag` to `Node` |
+| `puppeteer/agent_service/models.py` | Extend `ResultReport` (attestation field); extend `ExecutionRecordResponse` (attestation fields); add `DispatchRequest`/`DispatchResponse` models; add `env_tag` to `NodeResponse` |
+| `puppeteer/agent_service/services/job_service.py` | `pull_work()`: populate retry config in WorkResponse; `report_result()`: call `verify_attestation()`, write attestation columns |
+| `puppeteer/agent_service/services/scheduler_service.py` | Propagate `max_retries`, `backoff_multiplier`, `timeout_minutes` to created `Job` |
+| `puppeteer/agent_service/main.py` | Add `POST /api/dispatch` endpoint; add `GET /api/executions/{id}/attestation` endpoint; update `list_nodes()` to expose `env_tag` |
+| `puppets/environment_service/node.py` | Add `build_attestation_bundle()` helper; set `retriable=True` for non-security failures; pass `ENV_TAG` in heartbeat; include `attestation` in `report_result()` call |
+| `puppeteer/dashboard/src/views/Jobs.tsx` | Execution history panel with output_log display, retry state (attempt N of M) |
+| `puppeteer/dashboard/src/views/Nodes.tsx` | Show `env_tag` badge, add env_tag filter |
+| Migration SQL file (e.g. `migration_v14.sql`) | ALTER TABLE for new columns on `execution_records` (and optionally `nodes`) |
+
+---
+
+## Data Flow: Attestation
 
 ```
-User clicks "Documentation" in sidebar
-    |
-    v
-<a href="/docs/" target="_blank"> fires
-    |
-    v
-New browser tab: GET https://dev.master-of-puppets.work/docs/
-    |
-Caddy → docs:80 → nginx → /usr/share/nginx/html/index.html
-    |
-MkDocs Material landing page loads in new tab
-Dashboard remains open in original tab
+Node executes job:
+  script → runtime.py → {stdout, stderr, exit_code}
+  │
+  ├─ build_attestation_bundle()
+  │    bundle = {script_hash, stdout_hash, stderr_hash, exit_code, start_ts, cert_serial}
+  │    serialised = json.dumps(bundle, sort_keys=True, separators=(',',':'))
+  │    sig = RSA_key.sign(serialised.encode(), PKCS1v15(), SHA256())
+  │    return {bundle: serialised, signature: base64(sig), cert_serial: ...}
+  │
+  └─ POST /work/{guid}/result
+       ResultReport.attestation = {bundle, signature, cert_serial}
+       ResultReport.retriable = (exit_code != 0 and not security_rejected)
+       ResultReport.output_log = build_output_log(stdout, stderr)
+
+Orchestrator receives result:
+  job_service.report_result()
+  │
+  ├─ Write ExecutionRecord (output_log, exit_code, status) — existing
+  │
+  ├─ IF attestation present:
+  │    cert_pem = node.client_cert_pem
+  │    public_key = x509.load_pem_x509_certificate(cert_pem).public_key()
+  │    public_key.verify(b64decode(sig), serialised.encode(), PKCS1v15(), SHA256())
+  │    record.attestation_verified = "VERIFIED" or "FAILED"
+  │    record.attestation_bundle = bundle_json
+  │    record.attestation_signature = sig_b64
+  │
+  └─ Continue with retry / dependency logic — existing
 ```
+
+---
+
+## Data Flow: Environment Tag + CI/CD Dispatch
+
+```
+Node startup:
+  ENV_TAG=PROD env var → heartbeat payload includes env_tag
+  Orchestrator.receive_heartbeat() → stores "env:PROD" in operator_tags (if not already set by operator)
+
+CI/CD pipeline:
+  POST /api/dispatch  (service principal API key)
+    body: {job_definition_id, env_tag: "PROD"}
+  │
+  ├─ Lookup ScheduledJob → validate ACTIVE status
+  ├─ Build Job with target_tags = existing_tags + ["env:PROD"]
+  ├─ Copy max_retries, backoff_multiplier, timeout_minutes from ScheduledJob
+  ├─ INSERT jobs → status=PENDING
+  └─ Return {job_guid, status, job_definition, env_tag, poll_url}
+
+Next node poll cycle:
+  Node with operator_tags=["env:PROD"] polls /work/pull
+  pull_work() matches env: tag constraint → assigns job
+  Node executes → reports result with attestation
+```
+
+---
+
+## Recommended Build Order
+
+Dependencies constrain this order:
+
+**Phase A: Backend completeness (closes all backend gaps — enables testing without UI)**
+
+1. **Output capture wiring** (1-2 days)
+   - `node.py`: set `retriable=True` for non-security failures
+   - `job_service.pull_work()`: populate `max_retries`, `backoff_multiplier`, `timeout_minutes` in `WorkResponse`
+   - `scheduler_service.py`: propagate retry config from `ScheduledJob` to `Job`
+   - No schema changes needed
+
+2. **Environment tags first-class** (0.5 days)
+   - Add `ENV_TAG` env var support to `heartbeat_loop()` in `node.py`
+   - Update `receive_heartbeat()` to store it as `env:<value>` in operator_tags (if not already set)
+   - Add `env_tag` (derived from tags, no schema change) to `NodeResponse`
+   - Update `NodeConfig` to echo env_tag back to node
+
+3. **Attestation: node side** (1-2 days)
+   - Add `build_attestation_bundle()` helper to `node.py`
+   - Requires `cryptography` lib (already a dependency — used for CSR generation)
+   - Include `attestation` dict in `report_result()` call
+   - Requires `WorkResponse.started_at` so the bundle uses the server-assigned timestamp
+
+4. **Attestation: orchestrator side** (1-2 days)
+   - `db.py`: add 3 columns to `ExecutionRecord`
+   - `migration_v14.sql` for existing deployments
+   - `attestation_service.py`: `verify_attestation()` using `cryptography` RSA verify
+   - `job_service.report_result()`: call verify_attestation, write columns
+   - `models.py`: extend `ResultReport`, `ExecutionRecordResponse`
+   - `GET /api/executions/{id}/attestation` endpoint
+
+5. **CI/CD dispatch endpoint** (1 day)
+   - `models.py`: `DispatchRequest`, `DispatchResponse`
+   - `main.py`: `POST /api/dispatch`
+   - Auth via existing service principal API key flow
+
+**Phase B: Frontend (closes UI gaps — can be done in parallel with Phase A after step 1)**
+
+6. **Execution history UI** (`Jobs.tsx`) — output_log display, retry state
+7. **Nodes env_tag display** (`Nodes.tsx`) — badge, filter
+8. **Attestation status in execution detail** — show VERIFIED/FAILED/MISSING badge
+
+---
+
+## Architecture Constraints to Preserve
+
+| Constraint | Why It Matters | How v10.0 Respects It |
+|------------|----------------|----------------------|
+| Pull-only model | Nodes work across NAT, no inbound ports needed | Attestation is included in the existing `report_result()` call — no new connections |
+| Nodes are stateless between polls | No state survives container restarts except `secrets/` volume | Attestation uses the persisted mTLS key from `secrets/{node_id}.key` |
+| mTLS for all node communication | Node identity is cryptographically bound | Attestation reuses the mTLS client cert public key — no new key material |
+| No migration framework | `create_all` won't ALTER existing tables | Migration SQL file for all new columns |
+| SQLite + Postgres compatibility | Dev and prod must both work | All new columns use types supported by both (TEXT, VARCHAR, INTEGER) |
+| Secrets never in logs | `report_result()` already scrubs secrets from output_log | Attestation bundle hashes stdout/stderr (hashes don't leak secrets) |
+| env: tags controlled by operator, not node | Prevents node self-escalation (SEC-02 in job_service.py) | `ENV_TAG` env var sets operator_tags on first heartbeat; operator can override via `PATCH /nodes/{id}` |
+
+---
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Storing raw stdout/stderr in the attestation bundle
+
+**What people do:** Include raw output in the bundle so verifiers can check it.
+**Why it's wrong:** Output can contain secrets; bundle would bypass the existing scrubbing pipeline.
+**Do this instead:** Hash stdout and stderr (SHA-256). The hash is in the bundle; the raw text is scrubbed then stored separately in `execution_records.output_log`.
+
+### Anti-Pattern 2: Node generates a new signing key for attestation
+
+**What people do:** Create a separate Ed25519 key for attestation to avoid reusing the mTLS key.
+**Why it's wrong:** Introduces key management complexity; the new key has no binding to node identity; weakens the security model.
+**Do this instead:** Sign with the RSA mTLS private key. The orchestrator already has the corresponding public key in `client_cert_pem`. The binding is established by the CA-signed enrollment.
+
+### Anti-Pattern 3: CI/CD endpoint creates a new job type
+
+**What people do:** Invent a new job dispatch mechanism with different fields and auth.
+**Why it's wrong:** Creates a parallel dispatch path that bypasses existing validation (signature check, tag enforcement, memory limit checks).
+**Do this instead:** `POST /api/dispatch` is a thin wrapper over the existing `Job` creation flow — it validates the `ScheduledJob`, builds a `Job` with the correct tags, and delegates to `create_job()`.
+
+### Anti-Pattern 4: Retrying security-rejected jobs
+
+**What people do:** Set `retriable=True` on all failures for simplicity.
+**Why it's wrong:** Security-rejected jobs (signature failure, missing verification key) should not retry — the underlying issue is a policy violation, not a transient error. Retrying wastes capacity and obscures the security event.
+**Do this instead:** `retriable = (exit_code is not None) and (not security_rejected)` — already the correct signal.
+
+### Anti-Pattern 5: Adding env_tag as a separate targeting mechanism
+
+**What people do:** Build a new targeting field and new matching logic parallel to the existing tags system.
+**Why it's wrong:** The `env:` tag isolation in `pull_work()` already works correctly. Duplicating it creates two paths to reason about.
+**Do this instead:** Use `env:<value>` convention in existing tags. The dedicated `env_tag` field on `Node` and `DispatchRequest` is only for ergonomics — internally it translates to the existing `env:` tag list entry.
 
 ---
 
 ## Integration Points
 
-### New vs Modified Components
+### Node ↔ Orchestrator Interface
 
-| Component | Status | Change |
-|-----------|--------|--------|
-| `puppeteer/compose.server.yaml` | MODIFIED | Add `docs` service |
-| `puppeteer/cert-manager/Caddyfile` | MODIFIED | Add `handle /docs/*` in both `:443` and `:80` blocks, before fallback |
-| `puppeteer/docs-container/Dockerfile` | NEW | Multi-stage: python:3.12-slim builder + nginx:alpine |
-| `puppeteer/docs-container/nginx.conf` | NEW | `alias`-based static file serving for /docs/ prefix |
-| `puppeteer/docs-container/requirements-docs.txt` | NEW | mkdocs-material, mkdocs-render-swagger-plugin |
-| `docs/mkdocs.yml` | NEW | MkDocs config with Material theme, nav structure, site_url |
-| `docs/api-reference/index.md` | NEW | Contains `!!swagger openapi.json!!` directive |
-| `scripts/export_openapi.py` | NEW | Generates openapi.json without starting a server |
-| `puppeteer/dashboard/src/layouts/MainLayout.tsx` | MODIFIED | Add `<a href="/docs/">` with BookOpen icon in sidebar |
-| `puppeteer/dashboard/src/views/Docs.tsx` | DELETED | No longer rendered — content moves to MkDocs site |
-| `puppeteer/dashboard/src/AppRoutes.tsx` | MODIFIED | Remove `/docs` Route entry |
-| All existing `docs/*.md` files | MIGRATED | Reorganised into mkdocs nav structure (not deleted) |
+| Endpoint | Direction | v10.0 Change |
+|----------|-----------|--------------|
+| `POST /work/pull` | Node → Orchestrator | `WorkResponse` must include `max_retries`, `backoff_multiplier`, `timeout_minutes`, `started_at` |
+| `POST /work/{guid}/result` | Node → Orchestrator | `ResultReport` adds `attestation: Optional[Dict]`; node sets `retriable=True` for non-security failures |
+| `POST /heartbeat` | Node → Orchestrator | `HeartbeatPayload` adds `env_tag: Optional[str]`; stored as `env:` operator tag |
 
-### Compose Service Definition
+### New Endpoints
 
-```yaml
-# Add to compose.server.yaml under services:
-docs:
-  image: localhost/master-of-puppets-docs:v1
-  build:
-    context: ..                            # repo root — needs docs/ and agent_service/
-    dockerfile: puppeteer/docs-container/Dockerfile
-  restart: always
-  # No ports exposed — Caddy proxies internally via Docker network
-  # No volumes — fully baked static site, zero runtime dependencies
-  # No depends_on — does not depend on db, agent, or any other service
-```
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `POST /api/dispatch` | Bearer / API key (jobs:write) | CI/CD structured dispatch with env_tag |
+| `GET /api/executions/{id}/attestation` | Bearer (history:read) | Export attestation bundle for offline verification |
 
-The `docs` service has no `depends_on` because it is a pure static file server. It can start before or after any other service without consequence.
+### Existing Endpoints — No Change Required
 
-### MkDocs Configuration (`docs/mkdocs.yml`)
-
-```yaml
-site_name: Master of Puppets
-site_description: Secure distributed job orchestration platform
-# site_url MUST match the deployment path — controls asset URL generation
-site_url: https://dev.master-of-puppets.work/docs/
-docs_dir: .        # mkdocs.yml lives inside docs/, so content is at docs_dir root
-site_dir: ../build/site   # relative to docs/ — or use --site-dir in build command
-
-theme:
-  name: material
-  palette:
-    - scheme: slate
-      primary: indigo
-      accent: indigo
-  features:
-    - navigation.sections
-    - navigation.expand
-    - navigation.top
-    - search.highlight
-    - content.code.copy
-    - content.code.annotate
-
-plugins:
-  - search
-  - render_swagger
-
-nav:
-  - Home: index.md
-  - Getting Started: getting-started/index.md
-  - User Guide:
-      - Job Dispatch: user-guide/jobs.md
-      - Scheduling: user-guide/scheduling.md
-      - Foundry: user-guide/foundry.md
-      - Smelter Registry: user-guide/smelter.md
-      - mop-push CLI: user-guide/mop-push.md
-      - Staging Workflow: user-guide/staging.md
-      - RBAC & Users: user-guide/rbac.md
-      - OAuth Device Flow: user-guide/oauth.md
-  - Developer:
-      - Architecture: developer/architecture.md
-      - Setup & Installation: developer/setup.md
-      - Deployment: developer/deployment.md
-      - Contributing: developer/contributing.md
-  - Security:
-      - Overview: security/overview.md
-      - mTLS Setup: security/mtls.md
-      - Job Signing: security/signatures.md
-      - Audit Log: security/audit-log.md
-  - API Reference: api-reference/index.md
-  - Runbooks & Troubleshooting: runbooks/troubleshooting.md
-```
-
-### API Reference Page (`docs/api-reference/index.md`)
-
-```markdown
-# API Reference
-
-This reference is auto-generated from the FastAPI OpenAPI schema at build time.
-It reflects the exact routes and models in the running server.
-
-!!swagger openapi.json!!
-```
-
-The `!!swagger openapi.json!!` directive is resolved by `mkdocs-render-swagger-plugin`. It looks for `openapi.json` relative to the markdown file — which is `docs/api-reference/openapi.json`, exactly where `export_openapi.py` writes it. No `allow_arbitrary_locations` configuration is required.
+| Endpoint | Reason |
+|----------|--------|
+| `GET /api/executions` | Already supports node_id, status, job_guid filters |
+| `GET /jobs/{guid}/executions` | Already returns all execution records for a job |
+| `POST /jobs` | Already accepts max_retries, target_tags for ad-hoc dispatch |
+| `PATCH /nodes/{id}` | Already accepts tags for operator_tags override |
 
 ---
 
-## Scaling Considerations
+## Scalability Considerations
 
-| Scale | Adjustment |
-|-------|------------|
-| Current (single server, internal use) | One docs container, nginx static files — no changes needed at any realistic traffic level for internal docs |
-| Content updates | Rebuild the docs image and redeploy: `docker compose build docs && docker compose up -d --no-build docs`. Takes ~60s. No migration, no state, no downtime for other services. |
-| Multiple deployment environments | Set `site_url` per environment in `mkdocs.yml`. Build environment-specific images. Or: parametrize `site_url` via a build ARG and pass at `docker build` time. |
-
-### Content Update Model
-
-Docs are baked into the image at build time. This is intentional:
-
-- **Pro:** Atomic deploys. A broken build (bad markdown, failing openapi export) leaves the old image running. No stale drift.
-- **Pro:** The running container has zero runtime dependencies. It cannot be broken by a failing database, agent restart, or network partition.
-- **Pro:** Image content is immutable and auditable.
-- **Con:** Docs do not update without a rebuild. For a project of this size and documentation change frequency, rebuilding the docs image on commit is acceptable overhead.
-- **Con rejected:** Volume-mounting `docs/` and running `mkdocs serve` — the dev server is explicitly not production-safe per the project's own documentation.
-
----
-
-## Anti-Patterns
-
-### Anti-Pattern 1: Running `mkdocs serve` in Production
-
-**What people do:** Use `squidfunk/mkdocs-material` as the runtime image with `mkdocs serve` or `mkdocs serve --dev-addr 0.0.0.0:8000` as the container entrypoint.
-
-**Why it's wrong:** The MkDocs development server is not designed for production. The official documentation states the Docker image is for local preview only and may have security vulnerabilities. The dev server has no connection handling, no graceful shutdown, no security hardening, and no static file caching.
-
-**Do this instead:** Multi-stage build — Python builder stage produces `site/` then nginx:alpine serves it.
-
-### Anti-Pattern 2: Using `handle_path` Without Setting `site_url`
-
-**What people do:** Use `handle_path /docs/*` in Caddy (which strips the prefix) without setting `site_url` in `mkdocs.yml`.
-
-**Why it's wrong:** MkDocs Material generates absolute asset URLs (`/assets/stylesheets/main.css`). After prefix stripping, the container receives root-relative requests and serves pages correctly. But those pages contain links to `/assets/stylesheets/main.css` — not `/docs/assets/stylesheets/main.css`. The browser fetches `/assets/css/main.css`, which Caddy routes to the dashboard fallback, not the docs container. The page loads with broken CSS and JS.
-
-**Do this instead:** Set `site_url: https://your-domain.com/docs/` in `mkdocs.yml`. Use `handle /docs/*` (no stripping) in Caddy. Configure nginx with `alias` to map `/docs/` to the static root. Asset references become `/docs/assets/...`, which Caddy correctly routes to the docs container.
-
-### Anti-Pattern 3: Committing `openapi.json`
-
-**What people do:** Run the export script locally, commit `docs/api-reference/openapi.json`, update it manually when routes change.
-
-**Why it's wrong:** The committed file will drift from the code. PRs adding routes won't update the spec. The docs silently lie about the API. CI cannot catch the drift because it has no authoritative source to compare against.
-
-**Do this instead:** Generate it in the Dockerfile builder stage from `app.openapi()`. Never commit it (add it to `.gitignore`). If the export fails (e.g., import error from a broken code change), the Docker build fails loudly before broken docs can be deployed.
-
-### Anti-Pattern 4: Embedding an iframe for the Docs Container
-
-**What people do:** Keep the in-app Docs view but replace the markdown renderer with `<iframe src="/docs/">`.
-
-**Why it's wrong:** MkDocs Material's navigation uses `window.history.pushState`. Inside an iframe, navigation changes the iframe's URL but not the parent frame — breaking browser navigation, bookmarks, and direct links. The search sidebar, sticky nav bar, and other Material features assume full viewport control. The result is a cramped, broken UX.
-
-**Do this instead:** Open `/docs/` in a new tab. The docs site is a full SPA-equivalent and should be treated as one.
-
-### Anti-Pattern 5: Separate `docs` Network for the Docs Container
-
-**What people do:** Put the docs container on a separate Docker network, isolated from the main stack.
-
-**Why it's wrong:** Caddy (cert-manager) needs to reach `docs:80` via Docker's internal network. Caddy is on the default compose network. If `docs` is on a separate network, Caddy cannot resolve the hostname.
-
-**Do this instead:** The docs container shares the default compose network (implicit in Docker Compose). No explicit network configuration is needed.
-
----
-
-## Build Order Recommendation
-
-Four phases with explicit dependencies between them:
-
-**Phase 1 — Infrastructure (docs container + routing):**
-Dockerfile, nginx.conf, compose service definition, Caddyfile routing update, `scripts/export_openapi.py`, minimal `docs/mkdocs.yml`, placeholder `docs/index.md`. Validate with `docker compose build docs && docker compose up -d docs`. Confirm `/docs/` returns a page via browser. This gate must pass before writing content.
-
-**Phase 2 — API Reference integration:**
-`docs/api-reference/index.md` with `!!swagger openapi.json!!`. Verify the Swagger UI renders correctly in the built site. This is a high-value, low-effort win that validates the build pipeline end-to-end.
-
-**Phase 3 — Dashboard integration:**
-Remove `Docs.tsx`, update `AppRoutes.tsx`, add `<a href="/docs/">` to `MainLayout.tsx` sidebar. Small change, but requires Phase 1 so the link target exists.
-
-**Phase 4 — Content:**
-Migrate existing `docs/*.md` files into the MkDocs nav structure. Write new user guides, developer docs, security guide, runbooks. Content can be iterated indefinitely after Phase 1-3 ship — each rebuild refreshes the deployed site.
+| Concern | At current scale (homelab/enterprise) | If scale grows |
+|---------|---------------------------------------|----------------|
+| ExecutionRecord growth | Index on job_guid and started_at already in place (db.py lines 229-233). 1 MB cap per log. | Add time-based pruning (keep last 90 days) — a Config key can control this |
+| Attestation verification on every result | RSA verify is fast (~1ms). No concern at this scale. | If volume is extreme, verify async via background task |
+| CI/CD dispatch throughput | Single dispatch per pipeline run. No concern. | Rate limiting via existing `slowapi` limiter |
+| env_tag matching in pull_work | O(n) scan over PENDING/RETRYING jobs, capped at 50 candidates. Already acceptable. | Add DB index on `jobs.status` + `jobs.target_tags` if queue depth grows |
 
 ---
 
 ## Sources
 
-- [MkDocs Material — Docker Hub (squidfunk/mkdocs-material)](https://hub.docker.com/r/squidfunk/mkdocs-material) — confirms Docker image is for local preview only, not production; HIGH confidence
-- [MkDocs Material — Creating your site](https://squidfunk.github.io/mkdocs-material/creating-your-site/) — site_url and build configuration; HIGH confidence
-- [mkdocs-render-swagger-plugin — GitHub (bharel)](https://github.com/bharel/mkdocs-render-swagger-plugin) — `!!swagger FILENAME!!` syntax, file-relative resolution; HIGH confidence
-- [FastAPI — Extending OpenAPI](https://fastapi.tiangolo.com/how-to/extending-openapi/) — official `app.openapi()` method documentation; HIGH confidence
-- [FastAPI — Generate openapi schema without running server (Discussion #1490)](https://github.com/fastapi/fastapi/issues/1490) — confirmed pattern, multiple community verifications; MEDIUM confidence
-- [Caddy — handle_path directive](https://caddyserver.com/docs/caddyfile/directives/handle_path) — prefix stripping behaviour confirmed; HIGH confidence
-- [Caddy — Common Caddyfile Patterns](https://caddyserver.com/docs/caddyfile/patterns) — path-based routing; HIGH confidence
-- [docker-nginx-mkdocs-material (nwesterhausen)](https://github.com/nwesterhausen/docker-nginx-mkdocs-material) — multi-stage build pattern (Python builder + nginx); MEDIUM confidence
-- Codebase analysis: `puppeteer/cert-manager/Caddyfile`, `puppeteer/compose.server.yaml`, `puppeteer/dashboard/src/layouts/MainLayout.tsx`, `puppeteer/dashboard/src/AppRoutes.tsx`, `puppeteer/dashboard/src/views/Docs.tsx` (direct read; HIGH confidence)
+- Direct codebase analysis: `db.py`, `models.py`, `main.py`, `job_service.py`, `node.py` (2026-03-17)
+- `cryptography` library RSA signing: existing usage in `node.py ensure_identity()` (RSA-2048 key generation + CSR signing) confirms the library is available and the key format is consistent
+- Requirements: `.planning/REQUIREMENTS.md` — OUTPUT-01..07, RETRY-01..03, ENVTAG-01..04
+- Project context: `.planning/PROJECT.md` — v10.0 goals and architectural constraints
 
 ---
 
-*Architecture research for: MkDocs Material docs container integrated into existing Caddy + Docker Compose stack*
-*Researched: 2026-03-16*
+*Architecture research for: Axiom v10.0 — pull-architecture job orchestrator feature integration*
+*Researched: 2026-03-17*
