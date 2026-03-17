@@ -5,7 +5,8 @@
 - ✅ **v1.0–v6.0** — Milestones 1–6 (Production Reliability → Remote Validation) — shipped 2026-03-06/09
 - ✅ **v7.0 — Advanced Foundry & Smelter** — Phases 11–15 (shipped 2026-03-16)
 - ✅ **v8.0 — mop-push CLI & Job Staging** — Phases 17–19 (shipped 2026-03-15)
-- 🚧 **v9.0 — Enterprise Documentation** — Phases 20–25 (in progress)
+- 🚧 **v9.0 — Enterprise Documentation** — Phases 20–25, 28 (in progress)
+- 📋 **v10.0 — Axiom Commercial Release** — Phases 26–27 (not started)
 
 ## Phases
 
@@ -43,6 +44,16 @@ Archive: `.planning/milestones/v8.0-ROADMAP.md`
 - [x] **Phase 23: Getting Started & Core Feature Guides** — End-to-end first-run walkthrough, Foundry guide, mop-push CLI guide — establishes nav architecture (completed 2026-03-17)
 - [x] **Phase 24: Extended Feature Guides & Security** — Job scheduling, RBAC, OAuth guides + full mTLS, audit log, air-gap security & compliance section (completed 2026-03-17)
 - [x] **Phase 25: Runbooks & Troubleshooting** — Symptom-first node, job, and Foundry troubleshooting guides + FAQ (completed 2026-03-17)
+
+### Phase 28: Infrastructure Gap Closure
+**Goal:** Restore offline/air-gap capability by re-adding the `privacy` and `offline` MkDocs plugins removed in the Phase 22 regression commit (ab25961) — any fresh docs image build must produce a CDN-free site
+**Requirements:** INFRA-06, SECU-04
+**Gap Closure:** Closes gaps from v9.0 audit (INFRA-06 unsatisfied; SECU-04 air-gap checklist item broken)
+
+Plans:
+- [ ] 28-01-PLAN.md — Restore privacy + offline plugins in docs/mkdocs.yml; verify builder deps; confirm CDN-free build
+
+---
 
 ## Phase Details
 
@@ -164,6 +175,27 @@ Plans:
 | 23. Getting Started & Core Feature Guides | 4/4 | Complete    | 2026-03-17 | - |
 | 24. Extended Feature Guides & Security | 5/5 | Complete    | 2026-03-17 | - |
 | 25. Runbooks & Troubleshooting | 4/4 | Complete    | 2026-03-17 | - |
+| 28. Infrastructure Gap Closure | v9.0 | 0/1 | Not started | - |
+| 26. Axiom Branding & Community Foundation | v10.0 | 0/TBD | Not started | - |
+| 27. CI/CD, Packaging & Distribution | v10.0 | 0/TBD | Not started | - |
+
+### Phase 26: Axiom Branding & Community Foundation
+
+**Goal:** The project presents a professional, unified "Axiom" identity to the open-source community — root README rebranded, CONTRIBUTING.md with CLA in place, GitHub issue/PR templates standardised, CHANGELOG.md established, and all user-facing "MoP/Puppeteer/Puppet" naming migrated to Axiom equivalents
+**Depends on:** Phase 25
+**Plans:** TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 26 to break down)
+
+### Phase 27: CI/CD, Packaging & Distribution
+
+**Goal:** The platform ships via automated, reproducible pipelines — GitHub Actions CI runs tests on every PR and builds Docker CE/EE images on release, `axiom-sdk` is published to PyPI, and the Puppet agent has a documented installation path for end users
+**Depends on:** Phase 26
+**Plans:** TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 27 to break down)
 
 ---
 

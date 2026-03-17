@@ -14,7 +14,7 @@ Requirements for the v9.0 milestone. Each maps to roadmap phases.
 - [x] **INFRA-03**: Docs site builds with `--strict` flag (warnings treated as errors)
 - [x] **INFRA-04**: Caddy routes `/docs/*` to the docs container with correct asset URL handling (`site_url` aligned)
 - [x] **INFRA-05**: `/docs/*` path is protected by Cloudflare Access policy (not publicly exposed)
-- [x] **INFRA-06**: Docs site works offline / air-gapped (no external CDN assets at runtime)
+- [ ] **INFRA-06**: Docs site works offline / air-gapped (no external CDN assets at runtime)
 
 ### Dashboard Integration
 
@@ -100,7 +100,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INFRA-03 | Phase 20 | Complete |
 | INFRA-04 | Phase 20 | Complete |
 | INFRA-05 | Phase 20 | Complete |
-| INFRA-06 | Phase 20 | Complete |
+| INFRA-06 | Phase 28 | Pending |
 | DASH-01 | Phase 21 | Complete |
 | DASH-02 | Phase 21 | Complete |
 | APIREF-01 | Phase 21 | Complete |
@@ -119,7 +119,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SECU-01 | Phase 24 | Complete |
 | SECU-02 | Phase 24 | Complete |
 | SECU-03 | Phase 24 | Complete |
-| SECU-04 | Phase 24 | Complete |
+| SECU-04 | Phase 24 + Phase 28 | Pending (blocked by INFRA-06) |
 | RUN-01 | Phase 25 | Complete |
 | RUN-02 | Phase 25 | Complete |
 | RUN-03 | Phase 25 | Complete |
@@ -129,6 +129,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v9.0 requirements: 29 total
 - Mapped to phases: 29
 - Unmapped: 0 ✓
+- Pending (gap closure): INFRA-06 (Phase 28), SECU-04 (blocked by INFRA-06)
 
 ---
 *Requirements defined: 2026-03-16*
