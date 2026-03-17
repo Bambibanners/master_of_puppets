@@ -1,103 +1,72 @@
-# Master of Puppets (MoP)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0--alpha-orange.svg)](#)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
 
-[![Status](https://img.shields.io/badge/Status-Production--Ready-success.svg)](#)
-[![Security](https://img.shields.io/badge/Security-Zero--Trust-blue.svg)](#)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](#)
+# Axiom
 
-**Master of Puppets (MoP)** is a high-performance, enterprise-grade orchestration framework designed for secure and observable task execution across distributed environments. Built with a **Zero-Trust** architecture, MoP ensures that every component is mutually authenticated and every workload is cryptographically verified.
+Axiom is a secure automation and orchestration platform for running jobs across distributed nodes. It uses mTLS-enrolled nodes, Ed25519-signed jobs, and container-isolated execution, with a React dashboard and CLI for day-to-day operations.
 
-## 🚀 Key Value Propositions
+## Key Capabilities
 
-*   **Zero-Trust Security**: Mutual TLS (mTLS) by default for all Control Plane <-> Node communications.
-*   **Pull-Based Execution**: Nodes (Puppets) proactively poll for work, eliminating the need for inbound firewall rules on execution targets.
-*   **Cryptographic Integrity**: All jobs must be signed using Ed25519 keys, ensuring only authorized workloads are executed.
-*   **Enterprise Observability**: Real-time telemetry, job status tracking, and node health monitoring via a modern React Dashboard.
-*   **Stateless Scaling**: Execution nodes are stateless and ephemeral, designed to run in isolated container environments (Podman/Docker).
+- **mTLS node enrollment** — nodes join via one-time tokens; each holds a unique X.509 client certificate
+- **Ed25519 job signing** — all jobs must be cryptographically signed before dispatch; nodes verify before execution
+- **Container-isolated execution** — jobs run in Docker or Podman containers with configurable resource limits
+- **Role-Based Access Control** — admin, operator, and viewer roles with per-permission granularity
+- **Foundry image builder** — compose custom node images from blueprint ingredients via a guided UI wizard
+- **Smelter Registry** — vetted ingredient catalog with CVE scanning and lifecycle enforcement
+- **axiom-push CLI** — OAuth 2.0 device flow authentication, job signing, and push workflow from the terminal
+- **Job scheduling** — APScheduler-backed cron definitions with capability targeting and node selection
 
----
+## Community Edition vs Enterprise Edition
 
-## 🏗 Architecture Overview
+| Feature | CE (Apache 2.0) | EE (Proprietary) |
+|---------|-----------------|------------------|
+| Core orchestrator + Axiom Nodes | Yes | Yes |
+| Job scheduling (cron + capability targeting) | Yes | Yes |
+| mTLS node enrollment and certificate lifecycle | Yes | Yes |
+| Ed25519 job signing and verification | Yes | Yes |
+| Role-Based Access Control (RBAC) | Yes | Yes |
+| Foundry image builder | Yes | Yes |
+| Smelter Registry (CVE scanning, ingredient catalog) | Yes | Yes |
+| Package Mirroring (offline/air-gapped builds) | Yes | Yes |
+| axiom-push CLI with OAuth device flow | Yes | Yes |
+| Job Staging and publish workflow | Yes | Yes |
+| MkDocs documentation site | Yes | Yes |
+| Single Sign-On (SSO / OIDC) | — | Yes |
+| Advanced RBAC (attribute-based, time-limited grants) | — | Yes |
+| Enterprise audit and compliance reporting | — | Yes |
 
-MoP is comprised of three primary pillars:
+CE is free forever under the Apache License 2.0. See [LICENSE](LICENSE) and [LEGAL.md](LEGAL.md).
 
-### 1. The Puppeteer (Control Plane)
-The central nervous system of the platform.
-*   **API Gateway**: FastAPI-based RESTful API with OIDC/OAuth2 integration.
-*   **PKI Authority**: Manages node enrollment, CSR signing, and certificate rotation.
-*   **Scheduler**: Advanced recurring task engine and job queue management.
-*   **Persistence**: PostgreSQL for robust state and history management.
-
-### 2. The Puppet (Execution Node)
-Lightweight, secure worker agents.
-*   **Secure Enrollment**: Bootstraps trust via one-time join tokens and automated CSR generation.
-*   **Workload Isolation**: Executes tasks in isolated subprocesses or containerized environments.
-*   **Proactive Reporting**: Continuous heartbeats including system metrics and job lifecycle events.
-
-### 3. MoP SDK & CLI
-The primary interface for developers and automated CI/CD pipelines.
-*   **Device Flow Auth**: Modern OAuth2 Device Flow for secure CLI authentication.
-*   **Job Signing**: Built-in utilities for signing scripts before deployment.
-*   **Programmatic Access**: Full Python SDK for integrating MoP into existing platforms.
-
----
-
-## 🚦 Getting Started
-
-### Prerequisites
-*   Python 3.12+
-*   Docker & Docker Compose (for full stack deployment)
-*   Node.js & npm (for dashboard development)
-
-### Deployment (Quick Start)
-Deploy the full control plane stack using Docker Compose:
+## Quick Start
 
 ```bash
+# Clone the repository
+git clone https://github.com/your-org/axiom.git
+cd axiom
+
+# Copy and configure environment variables
+cp puppeteer/.env.example puppeteer/.env
+# Edit puppeteer/.env — set SECRET_KEY, ENCRYPTION_KEY, ADMIN_PASSWORD
+
+# Start the full stack
 docker compose -f puppeteer/compose.server.yaml up -d
 ```
 
-### CLI Installation & Authentication
-Install the MoP SDK and authenticate via the CLI:
+The dashboard is available at `https://localhost` once the stack is up. The default admin credentials are set by `ADMIN_PASSWORD` in your `.env` file.
 
-```bash
-# Install SDK
-pip install ./mop_sdk
+For the complete setup guide — including node enrollment, job signing, and production configuration — see the documentation.
 
-# Login via Device Flow
-mop-push login --url https://mop.your-enterprise.com
-```
+## Documentation
 
-### Deploying a Job
-1.  **Generate Keys**: Create an Ed25519 key pair for job signing.
-2.  **Push Job**:
-    ```bash
-    mop-push job create \
-      --name "System-Cleanup" \
-      --script "./scripts/cleanup.py" \
-      --key "./keys/private.pem" \
-      --key-id "ops-team-01" \
-      --cron "0 0 * * *" \
-      --tags "prod,linux"
-    ```
+Full documentation is served within a running Axiom instance at `/docs/`, built with MkDocs Material. It covers getting started, feature guides, security, runbooks, and the API reference.
 
----
+Online: [https://dev.master-of-puppets.work/docs/](https://dev.master-of-puppets.work/docs/)
 
-## 🛡 Security & Compliance
+## Contributing
 
-MoP is designed to meet the rigorous security requirements of modern enterprise environments:
-*   **Identity**: Each node has a unique X.509 identity.
-*   **Encryption**: All data in transit is encrypted via TLS 1.3.
-*   **Provenance**: Strict Ed25519 signature verification prevents unauthorized code execution.
-*   **Auditability**: Comprehensive logging of all API access, job submissions, and execution results.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute, the CLA, and the enterprise edition boundary.
 
-For detailed security documentation, see [docs/security.md](docs/security.md).
+## License
 
----
-
-## 📖 Documentation
-*   [Architecture Deep Dive](docs/architecture.md)
-*   [Deployment Guide](docs/deployment_guide.md)
-*   [API Reference](docs/API_REFERENCE.md)
-*   [User Guide](docs/UserGuide.md)
-
----
-*© 2026 Master of Puppets Project. Built for security, scale, and simplicity.*
+Apache License 2.0 — see [LICENSE](LICENSE).
