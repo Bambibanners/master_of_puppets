@@ -2,8 +2,8 @@
 phase: 27
 slug: ci-cd-packaging-distribution
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-17
 ---
 
@@ -45,9 +45,9 @@ created: 2026-03-17
 | Release workflow creation | 01 | 1 | v* tag → Docker + PyPI | smoke | `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` | ❌ W0 | ⬜ pending |
 | Backend tests pass with dummy env | 01 | 1 | pytest CI compatibility | unit | `cd puppeteer && API_KEY=ci-dummy-key ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= DATABASE_URL=sqlite+aiosqlite:///./test.db pytest` | ✅ | ⬜ pending |
 | Frontend tests pass in CI mode | 01 | 1 | vitest non-watch | unit | `cd puppeteer/dashboard && npx vitest run` | ✅ | ⬜ pending |
-| Installer rebranding | 02 | 2 | No MoP/Master strings | content | `grep -r "Master of Puppets\|[^a-zA-Z]MoP[^a-zA-Z]" puppeteer/installer/ 2>/dev/null; echo "exit:$?"` | ✅ | ⬜ pending |
-| PyPI package builds | 01 | 1 | axiom-sdk wheel+sdist | smoke | `pip install build && cd ee/axiom_sdk && python -m build && ls dist/` | ✅ | ⬜ pending |
-| Docs update | 03 | 3 | curl one-liner documented | manual | See manual verifications | ✅ | ⬜ pending |
+| Installer rebranding | 02 | 1 | No MoP/Master strings | content | `grep -r "Master of Puppets\|[^a-zA-Z]MoP[^a-zA-Z]" puppeteer/installer/ 2>/dev/null; echo "exit:$?"` | ✅ | ⬜ pending |
+| PyPI package builds | 01 | 1 | axiom-sdk wheel+sdist | smoke | `pip install build && python -m build && ls dist/` | ✅ | ⬜ pending |
+| Docs update | 02 | 1 | curl one-liner documented | content | `python3 -c "c=open('docs/docs/getting-started/enroll-node.md').read(); assert 'installer.sh' in c and 'installer/compose' in c; print('PASS')"` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -57,7 +57,7 @@ created: 2026-03-17
 
 Existing infrastructure covers all application behavior. No new test files needed.
 
-- [ ] Verify `pyyaml` available for YAML syntax smoke tests: `python3 -c "import yaml"` (usually pre-installed on ubuntu-latest)
+- [x] Verify `pyyaml` available for YAML syntax smoke tests: `python3 -c "import yaml"` (usually pre-installed on ubuntu-latest)
 
 *Existing `puppeteer/tests/` and `puppeteer/dashboard/src/views/__tests__/` cover all application behavior. This phase adds workflow files (validated by syntax check) and docs.*
 
@@ -75,11 +75,11 @@ Existing infrastructure covers all application behavior. No new test files neede
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** ready
