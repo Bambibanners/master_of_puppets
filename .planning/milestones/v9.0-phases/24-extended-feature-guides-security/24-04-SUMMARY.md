@@ -74,7 +74,7 @@ Each task was committed atomically:
 1. **Task 1: Write security/index.md — Security Overview** - `4464db9` (feat)
 2. **Task 2: Write security/mtls.md — mTLS and Certificates guide** - `87b91bd` (feat)
 
-**Plan metadata:** (pending)
+**Plan metadata:** `1f0fdeb` (docs: complete plan)
 
 ## Files Created/Modified
 
