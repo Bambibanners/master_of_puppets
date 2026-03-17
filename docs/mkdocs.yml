@@ -32,8 +32,17 @@ nav:
       - mop-push CLI: feature-guides/mop-push.md
     - Platform Config:
       - Foundry: feature-guides/foundry.md
+      - Job Scheduling: feature-guides/job-scheduling.md
+      - RBAC: feature-guides/rbac.md
+      - OAuth & Authentication: feature-guides/oauth.md
+    - Reference:
+      - RBAC Permission Reference: feature-guides/rbac-reference.md
   - Security:
     - Overview: security/index.md
+    - mTLS & Certificates: security/mtls.md
+    - RBAC Hardening: security/rbac-hardening.md
+    - Audit Log: security/audit-log.md
+    - Air-Gap Operation: security/air-gap.md
   - Runbooks:
     - Overview: runbooks/index.md
   - Developer:
