@@ -1,4 +1,4 @@
-# Master of Puppets — Installer Pester Tests
+# Axiom — Installer Pester Tests
 # Wave 0: RED stubs for WIN-01 through WIN-05
 # Run: Invoke-Pester ./installer.Tests.ps1 -Output Minimal
 # Note: WIN-01 and WIN-02 use inline function definitions (RED via missing real implementations).

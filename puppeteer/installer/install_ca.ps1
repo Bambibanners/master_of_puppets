@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Imports the Master of Puppets Internal Root CA into the Windows Trusted Root Store.
+    Imports the Axiom Internal Root CA into the Windows Trusted Root Store.
     
 .DESCRIPTION
     This script downloads the Root CA from the Server (or takes a local file) and imports it
@@ -8,7 +8,7 @@
     Browsers and PowerShell/Curl to trust the server without security warnings.
 
 .PARAMETER ServerUrl
-    URL of the Master of Puppets server (default: https://localhost:8001).
+    URL of the Axiom orchestrator server (default: https://localhost:8001).
     
 .PARAMETER CaPath
     Optional path to a local CA file. If not provided, it fetches from the server.

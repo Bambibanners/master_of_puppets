@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Master of Puppets - Universal Installer (v1.0) - Linux/macOS
+# Axiom - Universal Installer (v1.0) - Linux/macOS
 # Usage:
 #   curl -sSL https://server:8001/api/installer.sh | bash -s -- --token "eyJ..."
 #   ./install_universal.sh --token "eyJ..." --count 3
@@ -44,10 +44,10 @@ install_ca() {
 
     log "Installing Root CA to system trust store..."
     if [[ -f /etc/debian_version ]]; then
-        cp bootstrap_ca.crt /usr/local/share/ca-certificates/mop-root.crt
+        cp bootstrap_ca.crt /usr/local/share/ca-certificates/axiom-root.crt
         update-ca-certificates
     elif [[ -f /etc/redhat-release ]]; then
-        cp bootstrap_ca.crt /etc/pki/ca-trust/source/anchors/mop-root.crt
+        cp bootstrap_ca.crt /etc/pki/ca-trust/source/anchors/axiom-root.crt
         update-ca-trust
     else
         log "Unsupported OS for auto-CA installation. Please install bootstrap_ca.crt manually."

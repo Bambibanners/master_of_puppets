@@ -1,5 +1,5 @@
 #!/bin/bash
-# Master of Puppets - Linux Node Installer
+# Axiom - Linux Node Installer
 
 # Args
 HUB_URL="${1:-https://localhost:8001}"

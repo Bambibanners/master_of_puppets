@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Master of Puppets — Server Deployment Script (Remote Linux)
+# Axiom — Server Deployment Script (Remote Linux)
 # Usage: ./deploy_server.sh [hostname]
 
 set -euo pipefail
@@ -17,7 +17,7 @@ NC='\033[0m'
 log() { echo -e "${CYAN}[Deploy]${NC} $1"; }
 log_green() { echo -e "${GREEN}[Deploy]${NC} $1"; }
 
-log "Starting Master of Puppets Server Deployment..."
+log "Starting Axiom Server Deployment..."
 log "Detected Hostname/IP: ${SERVER_HOSTNAME}"
 
 # 1. Dependency Check
@@ -55,7 +55,7 @@ log "Building and launching stack..."
 docker compose -f compose.server.yaml up -d --build
 
 # 4. Success & Instructions
-log_green "🚀 Master of Puppets Server is running!"
+log_green "🚀 Axiom Server is running!"
 log ""
 log "Dashboard: https://${SERVER_HOSTNAME}"
 log "Bootstrap (Node Enrollment):"

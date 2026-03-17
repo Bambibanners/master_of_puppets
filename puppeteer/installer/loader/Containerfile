@@ -1,4 +1,4 @@
-# Master of Puppets — Loader Container
+# Axiom — Loader Container
 # Runs the puppeteer server stack deployment from inside a container.
 # The host Podman socket is accessed via TCP relay (DOCKER_HOST env var).
 #

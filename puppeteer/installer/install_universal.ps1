@@ -1,4 +1,4 @@
-                                                                                                                                                # Master of Puppets - Universal Installer (v1.0)
+# Axiom - Universal Installer (v1.0)
 # Usage:
 #   iex (irm https://server:8001/api/installer) -Role Node -Token "eyJ..."
 #   ./install_universal.ps1 -Role Node -Token "eyJ..." -Count 3
