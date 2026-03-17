@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v9.0
 milestone_name: — Enterprise Documentation
 status: completed
-stopped_at: Completed 25-01-PLAN.md
-last_updated: "2026-03-17T16:28:17.984Z"
+stopped_at: Completed 25-03-PLAN.md
+last_updated: "2026-03-17T16:32:26.714Z"
 last_activity: 2026-03-16 — Plan 21-02 checkpoint approved, all verification passed
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 20
-  completed_plans: 17
+  completed_plans: 19
   percent: 100
 ---
 
@@ -76,6 +76,8 @@ Progress: [██████████] 100% (plans completed vs total discov
 - [Phase 24-extended-feature-guides-security]: Air-gap checklist embedded as fenced markdown block for copy-paste offline use
 - [Phase 25-01]: Stub-first nav pattern reused from Phase 24 — four runbook nav entries added in plan 01 so Wave 2 content plans can write into existing files without breaking strict mode
 - [Phase 25-01]: Runbooks overview uses symptom-first framing to orient operators toward observable state rather than internal component names
+- [Phase 25-runbooks-troubleshooting]: Zombie reaper (zombie_timeout_minutes, default 30 min, configurable) documented as the effective operator-visible job timeout — 30-second direct-subprocess fallback intentionally omitted
+- [Phase 25-runbooks-troubleshooting]: DEAD_LETTER job status carries danger admonition (cannot be retried in-place — must resubmit new job) to prevent operator confusion
 
 ### Pending Todos
 
@@ -89,6 +91,6 @@ Progress: [██████████] 100% (plans completed vs total discov
 
 ## Session Continuity
 
-Last session: 2026-03-17T16:28:17.982Z
-Stopped at: Completed 25-01-PLAN.md
+Last session: 2026-03-17T16:32:15.232Z
+Stopped at: Completed 25-03-PLAN.md
 Resume file: None
