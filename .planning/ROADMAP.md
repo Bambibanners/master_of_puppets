@@ -123,7 +123,7 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-- [ ] 24-01-PLAN.md — Nav update + stub files for all 9 Phase 24 pages (Wave 1)
+- [x] 24-01-PLAN.md — Nav update + stub files for all 9 Phase 24 pages (Wave 1) (completed 2026-03-17)
 - [ ] 24-02-PLAN.md — Job scheduling guide (FEAT-03) + OAuth & authentication guide (FEAT-05) (Wave 2)
 - [ ] 24-03-PLAN.md — RBAC operational guide (FEAT-04) + RBAC permission reference (Wave 2)
 - [ ] 24-04-PLAN.md — Security Overview + mTLS & Certificates guide (SECU-01) (Wave 3)
@@ -162,7 +162,7 @@ Plans:
 | 21. API Reference + Dashboard Integration | 2/2 | Complete    | 2026-03-16 | - |
 | 22. Developer Documentation | 3/3 | Complete    | 2026-03-17 | - |
 | 23. Getting Started & Core Feature Guides | 4/4 | Complete    | 2026-03-17 | - |
-| 24. Extended Feature Guides & Security | 5/5 | Complete   | 2026-03-17 | - |
+| 24. Extended Feature Guides & Security | 5/5 | Complete    | 2026-03-17 | - |
 | 25. Runbooks & Troubleshooting | v9.0 | 0/4 | Not started | - |
 
 ---
