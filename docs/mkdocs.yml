@@ -26,5 +26,6 @@ nav:
   - Home: index.md
   - Developer:
     - Architecture: developer/architecture.md
+    - Setup & Deployment: developer/setup-deployment.md
   - API Reference:
     - Overview: api-reference/index.md
