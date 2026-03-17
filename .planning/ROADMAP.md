@@ -194,10 +194,12 @@ Plans:
 
 **Goal:** The platform ships via automated, reproducible pipelines — GitHub Actions CI runs tests on every PR and builds Docker CE/EE images on release, `axiom-sdk` is published to PyPI, and the Puppet agent has a documented installation path for end users
 **Depends on:** Phase 26
-**Plans:** TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 27 to break down)
+- [ ] 27-01-PLAN.md — GitHub Actions CI workflow (pytest matrix + vitest + docker-validate) + release workflow (multi-arch GHCR + PyPI OIDC)
+- [ ] 27-02-PLAN.md — Installer scripts Axiom rebranding + enroll-node.md curl one-liner as primary path
+- [ ] 27-03-PLAN.md — PyPI Trusted Publisher prerequisite checkpoint (GitHub Environments + pypi.org OIDC config)
 
 ---
 
