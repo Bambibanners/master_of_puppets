@@ -2,9 +2,9 @@
 
 ## What This Is
 
-A secure, fully-featured task and job scheduler built for hostile environments. A central orchestrator ("Puppeteer") manages a mesh of worker nodes ("Puppets") using a pull architecture — nodes poll for work according to their declared capabilities. Security is structural, not bolted-on: mTLS between all components, Ed25519-signed scripts required before execution, all jobs isolated in containers inside the puppet's environment.
+**Axiom** — a secure, fully-featured task and job scheduler built for hostile environments. A central orchestrator manages a mesh of worker nodes using a pull architecture — nodes poll for work according to their declared capabilities. Security is structural, not bolted-on: mTLS between all components, Ed25519-signed scripts required before execution, all jobs isolated in containers inside the node's environment.
 
-Targets homelab and enterprise internal deployments where nodes may be shared or partially untrusted. Designed to integrate with CI/CD pipelines for environment-tagged deployment promotion (DEV → TEST → PROD).
+Targets homelab and enterprise internal deployments where nodes may be shared or partially untrusted. Ships with a full enterprise documentation site (`/docs/`) covering every operator and developer workflow, from getting started through security hardening and troubleshooting. Designed to integrate with CI/CD pipelines for environment-tagged deployment promotion (DEV → TEST → PROD).
 
 ## Core Value
 
@@ -37,16 +37,25 @@ Jobs run reliably — on the right node, when scheduled, with their output captu
 - ✓ Foundry Wizard UI — 5-step guided composition wizard with OS filtering and Smelter integration — v7.0
 - ✓ Smelt-Check + BOM + Image Lifecycle — post-build validation, JSON BOM, package index, ACTIVE/DEPRECATED/REVOKED enforcement — v7.0
 
-### Active — v9.0 Enterprise Documentation
+### Validated — v9.0 Enterprise Documentation
 
-- [ ] MkDocs Material container — docs service in compose.server.yaml, git-backed markdown in `docs/`
-- [ ] Dashboard integration — replace in-app Docs view with link/redirect to docs container
-- [ ] Auto-generated API reference — built from FastAPI's `/openapi.json`, rendered in MkDocs
-- [ ] Developer documentation — architecture guide, setup & deployment, contributing guide
-- [ ] User getting started guide — end-to-end first-run walkthrough (install → node → job)
-- [ ] Feature guides — Foundry, Smelter, mop-push CLI, job scheduling, RBAC, OAuth, Staging
-- [ ] Security & compliance guide — mTLS setup, cert rotation, RBAC config, audit log, air-gap
-- [ ] Runbooks & troubleshooting — common failures, node recovery, cert issues, FAQ
+- ✓ MkDocs Material docs container — standalone docs service at `/docs/`, two-stage Dockerfile, air-gapped (CDN-free) — v9.0
+- ✓ Dashboard integration — sidebar "Docs" link to external docs site; in-app renderer removed — v9.0
+- ✓ Auto-generated API reference — OpenAPI snapshot at build time, Swagger UI in MkDocs — v9.0
+- ✓ Developer documentation — architecture guide (Mermaid), setup/deployment, contributing guide, pyproject.toml — v9.0
+- ✓ User getting started guide — end-to-end first-run walkthrough (install → node → first job) — v9.0
+- ✓ Feature guides — Foundry, Smelter, axiom-push CLI, job scheduling, RBAC, OAuth, Staging — v9.0
+- ✓ Security & compliance guides — mTLS, cert rotation, RBAC hardening, audit log, air-gap operation — v9.0
+- ✓ Runbooks & troubleshooting — symptom-first node/job/Foundry guides + FAQ — v9.0
+- ✓ Axiom rebranding — CLI renamed `axiom-push`, README rewrite, CONTRIBUTING + CHANGELOG, GitHub community health files, full MkDocs naming pass — v9.0
+- ✓ CI/CD pipelines — GitHub Actions CI (pytest + vitest + docker-validate) + release workflow (multi-arch GHCR + PyPI OIDC) — v9.0
+
+### Active — v10.0 Axiom Commercial Release
+
+- [ ] PyPI Trusted Publisher activation — create `axiom-laboratories` org, `axiom-sdk` project, configure OIDC
+- [ ] Public documentation — evaluate making `/docs/` publicly accessible (or subset) for open-source adoption
+- [ ] Job output capture — stdout/stderr, exit codes, per-execution records (EXEC-01)
+- [ ] Execution history — queryable timeline of past runs per job and per node (EXEC-02)
 
 ### Planned — Future Milestones
 
@@ -68,7 +77,11 @@ Jobs run reliably — on the right node, when scheduled, with their output captu
 
 ## Context
 
-Existing codebase is functional and deployed. Backend is FastAPI + SQLAlchemy (SQLite dev, Postgres prod). Frontend is React/Vite. Node agent is Python, runs inside Docker. Infrastructure uses Caddy (TLS termination) + Cloudflare tunnel for dashboard access.
+Codebase is functional, deployed, and fully documented. Backend is FastAPI + SQLAlchemy (SQLite dev, Postgres prod). Frontend is React/Vite. Node agent is Python, runs inside Docker. Infrastructure uses Caddy (TLS termination) + Cloudflare tunnel for dashboard access.
+
+Documentation site lives at `/docs/` — MkDocs Material, git-backed markdown in `docs/`, containerised with nginx, air-gapped (CDN-free). API reference is auto-generated from FastAPI OpenAPI schema at container build time.
+
+CLI is `axiom-push` (formerly `mop-push`) — installable as `axiom-sdk` Python package. GitHub Actions CI/CD pipelines in place for multi-arch GHCR images and PyPI publishing (awaiting `axiom-laboratories` org creation).
 
 Known deferred issues: SQLite NodeStats pruning compat (MIN-6), Foundry build dir cleanup (MIN-7), per-request DB query in require_permission (MIN-8), non-deterministic node ID scan order (WARN-8). See `.agent/reports/core-pipeline-gaps.md`.
 
@@ -100,26 +113,25 @@ The security model is zero-trust by default. Any feature that requires relaxing 
 | Soft-purge for ingredient delete | Preserves mirror files and audit history; is_active=False flag | ✓ Good |
 | Image lifecycle status (ACTIVE/DEPRECATED/REVOKED) on puppet_templates | Enrollment and work-pull enforcement without DB joins; status is the authority | ✓ Good |
 | Phase 16 (Security & Governance) deferred | No production blockers; provenance/--secret deferred to avoid over-engineering v7.0 | ⚠️ Revisit |
+| MkDocs Material over DB-backed wiki | Git-backed markdown, no DB, portable, all Insider features free (9.7.0+) | ✓ Good |
+| Two-stage Dockerfile for docs (builder + nginx) | mkdocs serve is not production-safe (GitHub issue #1825) | ✓ Good |
+| Caddy `handle /docs/*` + nginx `alias` | `handle_path` strips prefix → silently breaks all CSS/JS asset resolution | ✓ Good |
+| openapi.json generated at container build time | No running server required; dummy env vars (postgresql+asyncpg, API_KEY) in Dockerfile builder stage | ✓ Good |
+| CLI renamed `axiom-push`; package `axiom-sdk` | Axiom brand alignment; mop-push name retired | ✓ Good |
+| CDN verification uses `https://` prefix match | Privacy plugin stores assets under `assets/external/fonts.googleapis.com/` — bare domain grep matches local paths (false positive) | ✓ Good |
+| PyPI Trusted Publisher setup deferred | GitHub org `axiom-laboratories` and PyPI project `axiom-sdk` do not exist yet | — Pending |
 
-## Current Milestone: v9.0 Enterprise Documentation
+## Current Milestone: v10.0 Axiom Commercial Release
 
-**Goal:** Bring all technical and user documentation to enterprise standard, hosted as a containerised MkDocs wiki within the stack and linked from the dashboard.
+**Goal:** Activate the release infrastructure (PyPI + GHCR), determine public docs strategy, and begin job execution improvements for production-grade observability.
 
-**Target features:**
-- MkDocs Material container — standalone docs service in compose.server.yaml, git-backed markdown, portable
-- Dashboard integration — replace existing in-app Docs view with link to the docs container
-- Auto-generated API reference — OpenAPI-driven, always in sync with the code
-- Developer documentation — architecture guide, setup/deployment, contributing guide
-- User documentation — getting started E2E walkthrough, per-feature guides, security & compliance, runbooks/troubleshooting
+## Current State — v9.0 Complete (2026-03-17)
 
-## Current State — v7.0, v8.0 & v9.0 In Progress (2026-03-16)
+Axiom (formerly Master of Puppets) now ships with a full enterprise documentation site at `/docs/`. The docs container is a standalone MkDocs Material service — air-gapped (CDN-free), auto-generated API reference, task/audience-oriented navigation covering getting started through security hardening and troubleshooting.
 
-The Foundry is now a fully governed build pipeline. Operators compose images through a 5-step wizard that filters tools by OS family and sources packages from the Smelter Registry. Every build is validated by an ephemeral Smelt-Check container, produces a JSON Bill of Materials, and carries a lifecycle status (ACTIVE/DEPRECATED/REVOKED) enforced at node enrollment and job dispatch.
+The CLI is now `axiom-push` (installable as `axiom-sdk`). GitHub Actions CI/CD pipelines are in place and verified; only the `axiom-laboratories` GitHub org and PyPI project need to be created to activate automated publishing.
 
-In parallel, the operator toolchain gained `mop-push` (v8.0): sign and push jobs from the terminal, review in the Staging dashboard, publish with one click. The full job lifecycle (DRAFT → ACTIVE → DEPRECATED → REVOKED) is enforced at dispatch.
-
-**Shipped in v7.0:** Compatibility Engine, Smelter Registry (CVE scanning + enforcement), Package Mirroring (PyPI + APT sidecars), Foundry Wizard UI, Smelt-Check + BOM + Lifecycle.
-**Shipped in v8.0:** OAuth device flow, `mop-push` CLI, job lifecycle status, Dashboard Staging view, OIDC v2 architecture doc.
+**Shipped in v9.0:** Docs container infrastructure (CDN-free, CF Access protected), API reference pipeline, developer docs (architecture + setup + contributing), full operator docs (getting started, Foundry, axiom-push, job scheduling, RBAC, OAuth, mTLS, audit, air-gap), runbooks + FAQ, Axiom rebranding, CI/CD pipelines.
 
 ---
-*Last updated: 2026-03-16 after v8.0 milestone — v9.0 started*
+*Last updated: 2026-03-17 after v9.0 milestone — Enterprise Documentation complete*

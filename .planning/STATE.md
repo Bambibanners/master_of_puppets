@@ -1,36 +1,35 @@
 ---
 gsd_state_version: 1.0
-milestone: v9.0
-milestone_name: — Enterprise Documentation
-status: completed
-stopped_at: Completed 27-03-PLAN.md
+milestone: v10.0
+milestone_name: — Axiom Commercial Release
+status: between_milestones
+stopped_at: v9.0 milestone archived
 last_updated: "2026-03-17T22:30:15.802Z"
-last_activity: 2026-03-16 — Plan 21-02 checkpoint approved, all verification passed
+last_activity: 2026-03-17 — v9.0 milestone complete, archived
 progress:
-  total_phases: 9
-  completed_phases: 9
-  total_plans: 27
-  completed_plans: 27
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-16)
+See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Jobs run reliably — on the right node, when scheduled, with output captured — without weakening the security model.
-**Current focus:** Phase 21 — API Reference & Dashboard Integration
+**Current focus:** Planning v10.0 — Axiom Commercial Release
 
 ## Current Position
 
-Phase: 21 of 25 (API Reference & Dashboard Integration)
-Plan: 2 of N in current phase
-Status: Complete — all tasks and checkpoint approved
-Last activity: 2026-03-16 — Plan 21-02 checkpoint approved, all verification passed
+Phase: None (between milestones)
+Status: v9.0 Enterprise Documentation complete — 9 phases, 27 plans shipped
+Last activity: 2026-03-17 — v9.0 archived, all 29 requirements satisfied
 
-Progress: [██████████] 100% (plans completed vs total discovered)
+Progress: [██████████] 100% v9.0 complete
 
 ## Accumulated Context
 
@@ -110,11 +109,12 @@ Progress: [██████████] 100% (plans completed vs total discov
 
 ### Blockers/Concerns
 
-- [Phase 20]: CF Access policy scope decision needed before starting — gate all /docs/* or only /docs/security/*? Affects Caddyfile design.
-- [Phase 21]: Test export_openapi.py locally against a clean Python env as first task — SQLAlchemy async engine may require dummy env vars (DATABASE_URL, ENCRYPTION_KEY) at import time.
+None — v9.0 complete. Key open items for v10.0:
+- PyPI Trusted Publisher setup blocked on `axiom-laboratories` GitHub org creation
+- CF Access policy enforcement for /docs/* deferred (local routing confirmed working)
 
 ## Session Continuity
 
-Last session: 2026-03-17T22:26:44.441Z
-Stopped at: Completed 27-03-PLAN.md
+Last session: 2026-03-17
+Stopped at: v9.0 milestone archived
 Resume file: None

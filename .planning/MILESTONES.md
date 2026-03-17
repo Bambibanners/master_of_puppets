@@ -26,3 +26,19 @@
 
 ---
 
+## v9.0 Enterprise Documentation (Shipped: 2026-03-17)
+
+**Phases completed:** 9 phases (20–28), 27 plans
+**Git range:** `b9796c3` → `110feb8` (134 commits, 173 files, +22,548 / -1,741 lines)
+
+**Key accomplishments:**
+- Docs container — MkDocs Material at `/docs/`, two-stage Dockerfile (python:3.12-slim builder + nginx:alpine), Caddy routing, CDN-free (privacy + offline plugins download all Google Fonts/CDN assets at build time)
+- Auto-generated API reference — FastAPI OpenAPI schema exported at container build time (no running server), Swagger UI rendered in MkDocs with 17 tag groups
+- Developer documentation — architecture guide with Mermaid diagrams, setup & deployment guide, contributing guide with Black/Ruff setup and no-Alembic warning
+- Complete operator documentation — end-to-end getting started walkthrough + Foundry, axiom-push CLI, job scheduling, RBAC, OAuth feature guides; mTLS, RBAC hardening, audit log, air-gap security guides
+- Runbooks & FAQ — symptom-first troubleshooting for nodes, jobs, and Foundry; unified FAQ with all 4 required gotchas (blueprint dict format, EXECUTION_MODE=direct, JOIN_TOKEN, ADMIN_PASSWORD)
+- Axiom rebranding — CLI renamed `axiom-push`, README rewrite (<80 lines, links to docs), CONTRIBUTING + CHANGELOG + GitHub community health files, full MkDocs naming pass across 21 docs files
+- CI/CD pipelines — GitHub Actions CI (pytest matrix + vitest + docker-validate) + release workflow (multi-arch GHCR + PyPI OIDC); PyPI Trusted Publisher setup deferred pending org creation
+
+---
+

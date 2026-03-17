@@ -60,9 +60,51 @@
 - Always redeploy dashboard build before running Playwright tests against the live stack
 - DB migrations must be applied before restarting the agent container after schema-changing commits
 
+## Milestone: v9.0 — Enterprise Documentation
+
+**Shipped:** 2026-03-17
+**Phases:** 9 (20–28) | **Plans:** 27
+
+### What Was Built
+- MkDocs Material docs site at `/docs/` — two-stage Dockerfile, Caddy routing, air-gapped (CDN-free via privacy + offline plugins)
+- Auto-generated API reference from FastAPI OpenAPI schema at container build time
+- Complete operator documentation: getting started E2E walkthrough, all 7 feature guides, security & compliance (mTLS, RBAC, audit, air-gap), symptom-first runbooks and FAQ
+- Axiom rebranding: CLI renamed `axiom-push`, README, CONTRIBUTING, CHANGELOG, GitHub community health files, full MkDocs naming pass
+- GitHub Actions CI/CD pipelines for multi-arch GHCR and PyPI OIDC release
+
+### What Worked
+- Stub-first nav pattern: create all stub files before content plans so `mkdocs build --strict` passes throughout — no broken builds between plans
+- Admonition-as-gotcha pattern: warning/danger admonitions for known operator failure modes inline with the relevant step (not in a separate "Gotchas" section)
+- Wave-based parallel execution: Phase 24 and 25 each delivered 4-5 guides in parallel waves without conflicts
+- Symptom-first framing for runbooks: H3 headers are observable states ("Node shows offline but container is running") not component names — immediately searchable by operators in distress
+- The CDN verification pattern (https:// prefix match vs. bare domain) caught a real false positive that would have shipped a broken air-gap claim
+
+### What Was Inefficient
+- INFRA-06 gap closure (Phase 28) was caused by a regression in Phase 22 that should have been caught at plan verification time — the privacy/offline plugin configuration was an explicit requirement in the Phase 20 plan
+- ROADMAP.md milestones header was stale (listed "Phases 20-25, 28" missing 26 and 27) because phases were added late
+- PyPI Trusted Publisher setup required manual org creation outside the milestone scope — this dependency should have been identified and either resolved or explicitly deferred before Phase 27 was planned
+
+### Patterns Established
+- `npx vitest run` (not `npm run test`) in CI to avoid watch mode hang
+- id-token:write scoped per-job to PyPI publish jobs only — not at workflow level
+- CDN verification: `grep -rq 'https://fonts.googleapis.com\|https://cdn.jsdelivr.net' /usr/share/nginx/html && echo FAIL || echo PASS`
+- Docs container dummy env vars: `postgresql+asyncpg://dummy/dummy` and `API_KEY=dummy` required in Dockerfile builder stage for openapi.json generation
+- Plugin ordering locked: `search → privacy → offline → swagger-ui-tag`
+
+### Key Lessons
+- Plan for dependency validation before documentation phases — if a guide describes a feature, verify the feature is actually in the state the guide claims (air-gap guide + INFRA-06)
+- For branding milestones, do a grep pass for the old name before calling the phase complete — 21 docs files is a lot to audit manually
+- PyPI/GitHub org dependencies should be explicit "pre-flight checklist" items at the start of a distribution phase, not discovered at the end
+
+### Cost Observations
+- 9 phases, 27 plans, 134 commits in 2 days
+- Primarily documentation work — heavy on write/edit operations, light on Bash execution compared to infrastructure milestones
+- Wave-based parallel execution effective: phases with 4-5 plans completed in the same number of agent invocations as phases with 2 plans
+
 ## Cross-Milestone Trends
 
 | Milestone | Phases | Plans | Key pattern |
 |-----------|--------|-------|-------------|
-| v7.0 | 5 | 34 | Infrastructure-heavy milestone; gap-closure plans expected for complex service phases |
+| v7.0 | 5 | 34 | Infrastructure-heavy; gap-closure plans expected for complex service interactions |
 | v8.0 | 3 | 14 | CLI + backend + UI in one milestone; Playwright as final gate |
+| v9.0 | 9 | 27 | Documentation milestone; stub-first nav pattern; regression gap closure required |
