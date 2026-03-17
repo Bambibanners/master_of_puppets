@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v9.0
 milestone_name: — Enterprise Documentation
 status: completed
-stopped_at: Completed 25-02-PLAN.md
-last_updated: "2026-03-17T16:32:36.323Z"
+stopped_at: Completed 25-04-PLAN.md
+last_updated: "2026-03-17T16:33:23.070Z"
 last_activity: 2026-03-16 — Plan 21-02 checkpoint approved, all verification passed
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
   percent: 100
 ---
 
@@ -80,6 +80,9 @@ Progress: [██████████] 100% (plans completed vs total discov
 - [Phase 25-runbooks-troubleshooting]: DEAD_LETTER job status carries danger admonition (cannot be retried in-place — must resubmit new job) to prevent operator confusion
 - [Phase 25-02]: nodes.md H3 headers use plain-text symptom descriptions (not backtick-wrapped log lines) to ensure reliable MkDocs anchor slug generation for jump table links
 - [Phase 25-02]: faq.md anchor cross-link included in nodes.md despite faq.md being a stub — link resolves when plan 25-04 fills FAQ content
+- [Phase 25-04]: Foundry runbook clusters mirror failure surface: Build Failures / Smelt-Check Failures / Registry Issues — matching how operators observe failures in dashboard
+- [Phase 25-04]: FAQ Ed25519 signing entry uses danger admonition with explicit wording that no flag/env/API option exists to disable verification
+- [Phase 25-04]: ADMIN_PASSWORD FAQ entry directs to dashboard Reset Password flow with warning admonition against dropping the DB
 
 ### Pending Todos
 
@@ -93,6 +96,6 @@ Progress: [██████████] 100% (plans completed vs total discov
 
 ## Session Continuity
 
-Last session: 2026-03-17T16:32:36.321Z
-Stopped at: Completed 25-02-PLAN.md
+Last session: 2026-03-17T16:33:23.068Z
+Stopped at: Completed 25-04-PLAN.md
 Resume file: None

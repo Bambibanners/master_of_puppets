@@ -42,7 +42,7 @@ Archive: `.planning/milestones/v8.0-ROADMAP.md`
 - [x] **Phase 22: Developer Documentation** — Architecture guide with Mermaid diagrams, setup & deployment guide, contributing guide (completed 2026-03-17)
 - [x] **Phase 23: Getting Started & Core Feature Guides** — End-to-end first-run walkthrough, Foundry guide, mop-push CLI guide — establishes nav architecture (completed 2026-03-17)
 - [x] **Phase 24: Extended Feature Guides & Security** — Job scheduling, RBAC, OAuth guides + full mTLS, audit log, air-gap security & compliance section (completed 2026-03-17)
-- [ ] **Phase 25: Runbooks & Troubleshooting** — Symptom-first node, job, and Foundry troubleshooting guides + FAQ
+- [x] **Phase 25: Runbooks & Troubleshooting** — Symptom-first node, job, and Foundry troubleshooting guides + FAQ (completed 2026-03-17)
 
 ## Phase Details
 
@@ -163,7 +163,7 @@ Plans:
 | 22. Developer Documentation | 3/3 | Complete    | 2026-03-17 | - |
 | 23. Getting Started & Core Feature Guides | 4/4 | Complete    | 2026-03-17 | - |
 | 24. Extended Feature Guides & Security | 5/5 | Complete    | 2026-03-17 | - |
-| 25. Runbooks & Troubleshooting | 3/4 | In Progress|  | - |
+| 25. Runbooks & Troubleshooting | 4/4 | Complete   | 2026-03-17 | - |
 
 ---
 
