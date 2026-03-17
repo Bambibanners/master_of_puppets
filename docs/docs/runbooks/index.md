@@ -1,7 +1,18 @@
 # Runbooks
 
-Operational runbooks and troubleshooting guides are coming in the next release.
+Symptom-first troubleshooting guides for operators. Find the observable state that matches
+what you are seeing, not the internal component name.
 
-This section will cover node troubleshooting, job execution failures, Foundry build issues, and the FAQ.
+## Guides
 
-If you need help now, check the [Architecture](../developer/architecture.md) guide or open an issue.
+| Guide | Use when |
+|-------|----------|
+| [Node Troubleshooting](nodes.md) | A node shows Offline, fails to enroll, or reports cert errors |
+| [Job Execution](jobs.md) | A job is stuck in Queued, SECURITY_REJECTED, or DEAD_LETTER |
+| [Foundry](foundry.md) | A template build fails, Smelt-Check rejects an image, or registry push fails |
+| [FAQ](faq.md) | You hit a known misconfiguration or have an operational how-to question |
+
+---
+
+If your problem is not covered here, check the [Architecture guide](../developer/architecture.md)
+or open an issue on GitHub.
