@@ -176,17 +176,19 @@ Plans:
 | 24. Extended Feature Guides & Security | 5/5 | Complete    | 2026-03-17 | - |
 | 25. Runbooks & Troubleshooting | 4/4 | Complete    | 2026-03-17 | - |
 | 28. Infrastructure Gap Closure | v9.0 | 0/1 | Not started | - |
-| 26. Axiom Branding & Community Foundation | v10.0 | 0/TBD | Not started | - |
+| 26. Axiom Branding & Community Foundation | v10.0 | 0/3 | Not started | - |
 | 27. CI/CD, Packaging & Distribution | v10.0 | 0/TBD | Not started | - |
 
 ### Phase 26: Axiom Branding & Community Foundation
 
 **Goal:** The project presents a professional, unified "Axiom" identity to the open-source community — root README rebranded, CONTRIBUTING.md with CLA in place, GitHub issue/PR templates standardised, CHANGELOG.md established, and all user-facing "MoP/Puppeteer/Puppet" naming migrated to Axiom equivalents
 **Depends on:** Phase 25
-**Plans:** TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 26 to break down)
+- [ ] 26-01-PLAN.md — pyproject.toml CLI rename (mop-push → axiom-push) + GitHub community health files (issue templates, PR template, CODE_OF_CONDUCT)
+- [ ] 26-02-PLAN.md — README.md rewrite (Axiom gateway doc) + CONTRIBUTING.md (CLA, EE boundary) + CHANGELOG.md (Keep a Changelog format)
+- [ ] 26-03-PLAN.md — MkDocs full naming pass: mop-push.md → axiom-push.md rename, mkdocs.yml update, all 21 docs files
 
 ### Phase 27: CI/CD, Packaging & Distribution
 
