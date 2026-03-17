@@ -163,7 +163,7 @@ Plans:
 | 22. Developer Documentation | 3/3 | Complete    | 2026-03-17 | - |
 | 23. Getting Started & Core Feature Guides | 4/4 | Complete    | 2026-03-17 | - |
 | 24. Extended Feature Guides & Security | 5/5 | Complete    | 2026-03-17 | - |
-| 25. Runbooks & Troubleshooting | 4/4 | Complete   | 2026-03-17 | - |
+| 25. Runbooks & Troubleshooting | 4/4 | Complete    | 2026-03-17 | - |
 
 ---
 

@@ -55,10 +55,10 @@ Requirements for the v9.0 milestone. Each maps to roadmap phases.
 
 ### Runbooks & Troubleshooting
 
-- [ ] **RUN-01**: Node troubleshooting guide covers enrollment failures, heartbeat loss, and cert errors (symptom-first)
-- [ ] **RUN-02**: Job execution troubleshooting covers dispatch failures, signing errors, and timeout patterns
-- [ ] **RUN-03**: Foundry troubleshooting covers build failures, Smelt-Check failures, and registry issues
-- [ ] **RUN-04**: FAQ addresses the top operator questions (common misconfigurations, gotchas)
+- [x] **RUN-01**: Node troubleshooting guide covers enrollment failures, heartbeat loss, and cert errors (symptom-first)
+- [x] **RUN-02**: Job execution troubleshooting covers dispatch failures, signing errors, and timeout patterns
+- [x] **RUN-03**: Foundry troubleshooting covers build failures, Smelt-Check failures, and registry issues
+- [x] **RUN-04**: FAQ addresses the top operator questions (common misconfigurations, gotchas)
 
 ## Future Requirements
 
@@ -120,10 +120,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SECU-02 | Phase 24 | Complete |
 | SECU-03 | Phase 24 | Complete |
 | SECU-04 | Phase 24 | Complete |
-| RUN-01 | Phase 25 | Pending |
-| RUN-02 | Phase 25 | Pending |
-| RUN-03 | Phase 25 | Pending |
-| RUN-04 | Phase 25 | Pending |
+| RUN-01 | Phase 25 | Complete |
+| RUN-02 | Phase 25 | Complete |
+| RUN-03 | Phase 25 | Complete |
+| RUN-04 | Phase 25 | Complete |
 
 **Coverage:**
 - v9.0 requirements: 29 total
