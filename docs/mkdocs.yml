@@ -45,6 +45,10 @@ nav:
     - Air-Gap Operation: security/air-gap.md
   - Runbooks:
     - Overview: runbooks/index.md
+    - Node Troubleshooting: runbooks/nodes.md
+    - Job Execution: runbooks/jobs.md
+    - Foundry: runbooks/foundry.md
+    - FAQ: runbooks/faq.md
   - Developer:
     - Architecture: developer/architecture.md
     - Setup & Deployment: developer/setup-deployment.md
