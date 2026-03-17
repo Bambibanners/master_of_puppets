@@ -120,14 +120,14 @@ Plans:
   3. The mTLS guide contains the complete cert rotation procedure (existing node with expiring cert) with prerequisite checks, step-by-step commands, and a verification step
   4. The air-gap guide covers package mirroring setup, offline build validation, and the network isolation checklist in full
   5. The audit log guide describes every event type and includes example query patterns for compliance reporting
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
-- [ ] 24-01: Job scheduling guide (JobDefinitions, cron, targeting, staging review)
-- [ ] 24-02: RBAC guide (roles, permissions, user management, service principals)
-- [ ] 24-03: OAuth / authentication guide (device flow, token lifecycle, API keys)
-- [ ] 24-04: mTLS guide (Root CA, JOIN_TOKEN, enrollment, revocation, rotation)
-- [ ] 24-05: RBAC configuration + audit log + air-gap operation guides
+- [ ] 24-01-PLAN.md — Nav update + stub files for all 9 Phase 24 pages (Wave 1)
+- [ ] 24-02-PLAN.md — Job scheduling guide (FEAT-03) + OAuth & authentication guide (FEAT-05) (Wave 2)
+- [ ] 24-03-PLAN.md — RBAC operational guide (FEAT-04) + RBAC permission reference (Wave 2)
+- [ ] 24-04-PLAN.md — Security Overview + mTLS & Certificates guide (SECU-01) (Wave 3)
+- [ ] 24-05-PLAN.md — RBAC Hardening (SECU-02) + Audit Log (SECU-03) + Air-Gap Operation (SECU-04) (Wave 3)
 
 ### Phase 25: Runbooks & Troubleshooting
 **Goal**: Operators facing a broken system can find the root cause and recovery steps by searching for the symptom they observe — not by knowing which component owns the problem
