@@ -11,7 +11,7 @@
 
 - [ ] **RELEASE-01**: Operator can publish `axiom-sdk` to PyPI automatically via GitHub Actions OIDC (Trusted Publisher — `axiom-laboratories` org + PyPI project prerequisites documented and configured)
 - [ ] **RELEASE-02**: Multi-arch GHCR images (`ghcr.io/axiom-laboratories/axiom`) publish automatically when a version tag is pushed, using the existing release workflow
-- [ ] **RELEASE-03**: Operator has a documented decision on public `/docs/` access — either a public-facing subdomain/path for open-source adoption, or an explicit deferral with rationale
+- [x] **RELEASE-03**: Operator has a documented decision on public `/docs/` access — either a public-facing subdomain/path for open-source adoption, or an explicit deferral with rationale
 
 ### Job Output & Execution History
 
@@ -41,9 +41,9 @@
 
 ### Licence Compliance
 
-- [ ] **LICENCE-01**: `LEGAL.md` documents the certifi MPL-2.0 usage decision — read-only CA bundle, no source modification, obligations satisfied
+- [x] **LICENCE-01**: `LEGAL.md` documents the certifi MPL-2.0 usage decision — read-only CA bundle, no source modification, obligations satisfied
 - [x] **LICENCE-02**: `mop-sdk/pyproject.toml` (and root `pyproject.toml`) includes a `License-Expression` field — `Apache-2.0` for CE, `LicenseRef-Proprietary` for EE, consistent with the dual-licence model
-- [ ] **LICENCE-03**: `NOTICE` file at repo root lists all required third-party attribution — caniuse-lite CC-BY-4.0, and any other packages with attribution requirements identified in the audit
+- [x] **LICENCE-03**: `NOTICE` file at repo root lists all required third-party attribution — caniuse-lite CC-BY-4.0, and any other packages with attribution requirements identified in the audit
 - [x] **LICENCE-04**: paramiko LGPL-2.1 linkage is assessed — dynamic-only import confirmed and documented in `LEGAL.md`, or replaced with `asyncssh` (MIT) if EE wheel bundling requires static linking
 
 ---
@@ -81,7 +81,7 @@
 |-------------|-------|--------|
 | RELEASE-01 | Phase 33 | Pending |
 | RELEASE-02 | Phase 33 | Pending |
-| RELEASE-03 | Phase 33 | Pending |
+| RELEASE-03 | Phase 33 | Complete |
 | OUTPUT-01 | Phase 29 | Complete |
 | OUTPUT-02 | Phase 29 | Complete |
 | OUTPUT-03 | Phase 32 | Pending |
@@ -96,9 +96,9 @@
 | ENVTAG-02 | Phase 31 | Pending |
 | ENVTAG-03 | Phase 32 | Pending |
 | ENVTAG-04 | Phase 31 | Pending |
-| LICENCE-01 | Phase 33 | Pending |
+| LICENCE-01 | Phase 33 | Complete |
 | LICENCE-02 | Phase 33 | Complete |
-| LICENCE-03 | Phase 33 | Pending |
+| LICENCE-03 | Phase 33 | Complete |
 | LICENCE-04 | Phase 33 | Complete |
 
 **Coverage:**

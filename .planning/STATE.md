@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: — Axiom Commercial Release
 status: planning
-stopped_at: Completed 33-01-PLAN.md — paramiko removal and PEP 639 licence metadata
-last_updated: "2026-03-18T13:13:02.889Z"
+stopped_at: Completed 33-02-PLAN.md — LEGAL-COMPLIANCE.md, NOTICE, DECISIONS.md
+last_updated: "2026-03-18T13:16:26.185Z"
 last_activity: 2026-03-17 — v10.0 roadmap created
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -117,6 +117,8 @@ Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 - [Phase 33-01]: paramiko removed without replacement — zero application imports, eliminates LGPL-2.1 concern entirely
 - [Phase 33-01]: puppeteer/pyproject.toml gets minimal compliance stub [project] section — not distributable, exists solely for License-Expression metadata
 - [Phase 33-01]: PEP 639 string format: license = "Apache-2.0" (never table format); setuptools>=77.0 required for correct wheel metadata
+- [Phase 33-02]: certifi MPL-2.0 assessed as compliant: read-only CA bundle lookup does not trigger file-level copyleft (MPL-2.0 Section 3.1)
+- [Phase 33-02]: /docs/ remains behind CF Access for v10.0; review triggers: CE community onboarding OR 2027-03-04 token expiry (ADR-001 in DECISIONS.md)
 
 ### v10.0 Research Flags (carry into planning)
 
@@ -148,7 +150,7 @@ None — v9.0 complete. Key open items for v10.0:
 
 ## Session Continuity
 
-Last session: 2026-03-18T13:13:02.887Z
-Stopped at: Completed 33-01-PLAN.md — paramiko removal and PEP 639 licence metadata
+Last session: 2026-03-18T13:16:26.182Z
+Stopped at: Completed 33-02-PLAN.md — LEGAL-COMPLIANCE.md, NOTICE, DECISIONS.md
 Resume file: None
 Next action: `/gsd:plan-phase 29`
