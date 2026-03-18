@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: — Axiom Commercial Release
 status: planning
-stopped_at: Completed 31-02-PLAN.md — env_tag wiring in job_service, scheduler_service, node.py
-last_updated: "2026-03-18T17:29:32Z"
-last_activity: 2026-03-18 — Phase 31 Plan 02 complete
+stopped_at: Completed 31-03-PLAN.md — CI/CD dispatch routes POST /api/dispatch and GET /api/dispatch/{job_guid}/status
+last_updated: "2026-03-18T17:35:44.626Z"
+last_activity: 2026-03-17 — v10.0 roadmap created
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 0
 ---
 
@@ -137,6 +137,8 @@ Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 - [Phase 31-02]: pull_work env_tag guard placed AFTER existing env: prefix isolation block — backward compat preserved; new column check is additive
 - [Phase 31-02]: node.env_tag overwritten on every heartbeat — node.py is source of truth; operator override deferred to Phase 32 (ENVTAG-03)
 - [Phase 31-02]: ENV_TAG read inside heartbeat_loop() per-iteration — live reload without container restart
+- [Phase 31-environment-tags-cicd-dispatch]: poll_url built with PUBLIC_URL env var fallback to request.base_url — avoids localhost URLs in Docker
+- [Phase 31-environment-tags-cicd-dispatch]: _TERMINAL_STATUSES constant defined at module level in main.py adjacent to dispatch routes
 
 ### v10.0 Research Flags (carry into planning)
 
@@ -168,7 +170,7 @@ None — v9.0 complete. Key open items for v10.0:
 
 ## Session Continuity
 
-Last session: 2026-03-18T17:26:26.440Z
-Stopped at: Completed 31-01-PLAN.md — env_tag schema, model contracts, dispatch models, migration_v34.sql
+Last session: 2026-03-18T17:35:34.123Z
+Stopped at: Completed 31-03-PLAN.md — CI/CD dispatch routes POST /api/dispatch and GET /api/dispatch/{job_guid}/status
 Resume file: None
 Next action: `/gsd:plan-phase 29`

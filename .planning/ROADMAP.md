@@ -55,7 +55,7 @@ Archive: `.planning/milestones/v9.0-ROADMAP.md`
 
 - [x] **Phase 29: Backend Completeness — Output Capture + Retry Wiring** — Close node.py output gaps, wire scheduler retry propagation, add output retention pruning (completed 2026-03-18)
 - [x] **Phase 30: Runtime Attestation** — Node RSA signing of execution bundles, orchestrator verification, attestation storage and export (completed 2026-03-18)
-- [ ] **Phase 31: Environment Tags + CI/CD Dispatch** — First-class env_tag column, ENV_TAG heartbeat support, structured POST /api/dispatch endpoint
+- [x] **Phase 31: Environment Tags + CI/CD Dispatch** — First-class env_tag column, ENV_TAG heartbeat support, structured POST /api/dispatch endpoint (completed 2026-03-18)
 - [ ] **Phase 32: Dashboard UI — Execution History, Retry State, Env Tags** — Execution history panel, retry state badges, attestation verification badges, env tag badges and filters
 - [x] **Phase 33: Licence Compliance + Release Infrastructure** — LEGAL.md, NOTICE file, pyproject.toml licence fields, axiom-laboratories org, PyPI Trusted Publisher, GHCR activation (completed 2026-03-18)
 
@@ -199,7 +199,7 @@ Plans:
 | 28. Infrastructure Gap Closure | v9.0 | 1/1 | Complete | 2026-03-17 |
 | 29. Backend Completeness — Output Capture + Retry Wiring | 3/3 | Complete    | 2026-03-18 | — |
 | 30. Runtime Attestation | 3/3 | Complete    | 2026-03-18 | — |
-| 31. Environment Tags + CI/CD Dispatch | 2/3 | In Progress|  | — |
+| 31. Environment Tags + CI/CD Dispatch | 3/3 | Complete   | 2026-03-18 | — |
 | 32. Dashboard UI — Execution History, Retry State, Env Tags | v10.0 | 0/? | Not started | — |
 | 33. Licence Compliance + Release Infrastructure | 3/4 | Complete    | 2026-03-18 | — |
 
