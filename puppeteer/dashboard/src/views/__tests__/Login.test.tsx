@@ -18,6 +18,6 @@ describe('Login Component', () => {
 
         expect(screen.getByText(/System Login/i)).toBeInTheDocument();
         expect(screen.getByPlaceholderText(/admin/i)).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /Enter Control Plane/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Login/i })).toBeInTheDocument();
     });
 });
