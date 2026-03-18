@@ -2,6 +2,7 @@ import logging
 import uuid
 import json
 import random
+import hashlib
 from datetime import datetime, timedelta
 from typing import List, Optional, Union, Dict
 from packaging.version import Version, InvalidVersion
@@ -364,18 +365,26 @@ class JobService:
         selected_job.status = 'ASSIGNED'
         selected_job.node_id = node_id
         selected_job.started_at = datetime.utcnow()
-        
+
+        # RETRY-02: Set job_run_id at first dispatch; idempotent — retries reuse the same UUID
+        if selected_job.job_run_id is None:
+            selected_job.job_run_id = str(uuid.uuid4())
+
         encrypted_payload = json.loads(selected_job.payload)
         payload = decrypt_secrets(encrypted_payload)
-        
+
         await db.commit()
-        
+
         work_resp = WorkResponse(
             guid=selected_job.guid,
             task_type=selected_job.task_type,
             payload=payload,
             memory_limit=selected_job.memory_limit,
             cpu_limit=selected_job.cpu_limit,
+            max_retries=selected_job.max_retries,
+            backoff_multiplier=selected_job.backoff_multiplier,
+            timeout_minutes=selected_job.timeout_minutes,
+            started_at=selected_job.started_at,
         )
         return PollResponse(job=work_resp, config=node_config)
 
