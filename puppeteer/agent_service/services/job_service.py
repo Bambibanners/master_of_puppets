@@ -322,7 +322,14 @@ class JobService:
             # Rule: If Job is env-targeted, Node must have at least one of those env tags
             if job_env_tags and not any(et in node_env_tags for et in job_env_tags):
                 continue
-            
+
+            # ENVTAG-02: first-class env_tag column check (added Phase 31)
+            # Runs AFTER the env: tag prefix guard, which is preserved for backward compat.
+            if candidate.env_tag:
+                node_env_tag = (node.env_tag or "").upper() if node and node.env_tag else None
+                if node_env_tag != candidate.env_tag.upper():
+                    continue
+
             # Check Memory Limit
             if candidate.memory_limit and node.job_memory_limit:
                 try:
@@ -394,10 +401,12 @@ class JobService:
         """Processes a heartbeat from a node."""
         stats_json = json.dumps(hb.stats) if hb.stats else None
         
-        # Security SEC-02: Prevent self-escalation via env: tags. 
+        # Security SEC-02: Prevent self-escalation via env: tags.
         # Only operator_tags can control environment segmentation.
         sanitized_tags = [t for t in hb.tags if not t.startswith("env:")] if hb.tags else None
         tags_json = json.dumps(sanitized_tags) if sanitized_tags is not None else None
+        # ENVTAG-01: store first-class env_tag from heartbeat (already normalised to uppercase by HeartbeatPayload validator)
+        # This is a dedicated column, NOT subject to SEC-02 stripping.
         
         caps_json = json.dumps(hb.capabilities) if hb.capabilities else None
 
@@ -419,6 +428,7 @@ class JobService:
                 node.stats = stats_json
             if tags_json:
                 node.tags = tags_json
+            node.env_tag = hb.env_tag
             
             # Security TDA-03: Zero-Trust Capability Guard
             if caps_json:
