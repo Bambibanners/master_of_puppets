@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: — Axiom Commercial Release
 status: planning
-stopped_at: Completed 32-02-PLAN.md
-last_updated: "2026-03-18T20:13:10.159Z"
+stopped_at: Completed 32-03-PLAN.md
+last_updated: "2026-03-18T20:19:19.778Z"
 last_activity: 2026-03-17 — v10.0 roadmap created
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 20
-  completed_plans: 16
+  completed_plans: 17
   percent: 0
 ---
 
@@ -145,6 +145,8 @@ Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 - [Phase 32-01]: scheduled_job_id filter uses subquery through jobs table (not join) — ExecutionRecord has no direct FK to ScheduledJob; chain is ScheduledJob.id -> Job.scheduled_job_id -> Job.guid -> ExecutionRecord.job_guid
 - [Phase Phase 32-02]: getAllByText used instead of getByText for History regression guards — filter labels appear in multiple DOM nodes
 - [Phase Phase 32-02]: fireEvent used instead of userEvent.click — @testing-library/user-event not installed; avoids adding dependency for JobDefinitions tests
+- [Phase 32-03]: font-mono class reserved for log area container only — header metadata uses style={{ fontFamily: 'monospace' }} to avoid querySelector collision in tests
+- [Phase 32-03]: scrollIntoView called with ?. optional chaining — jsdom does not implement it, crashes without guard; behavior identical in real browsers
 
 ### v10.0 Research Flags (carry into planning)
 
@@ -176,7 +178,7 @@ None — v9.0 complete. Key open items for v10.0:
 
 ## Session Continuity
 
-Last session: 2026-03-18T20:13:05.099Z
-Stopped at: Completed 32-02-PLAN.md
+Last session: 2026-03-18T20:19:19.776Z
+Stopped at: Completed 32-03-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 29`
