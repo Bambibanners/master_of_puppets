@@ -36,6 +36,7 @@ from .models import (
     ServicePrincipalCreate, ServicePrincipalResponse, ServicePrincipalCreatedResponse,
     ServicePrincipalUpdate, ServicePrincipalTokenRequest, ServicePrincipalRotateResponse,
     ExecutionRecordResponse,
+    AttestationExportResponse,
     AlertResponse,
     WebhookCreate, WebhookResponse,
     ImageBOMResponse, PackageIndexResponse,
@@ -177,10 +178,11 @@ async def lifespan(app: FastAPI):
                 "signatures:read", "signatures:write", "tokens:write",
                 "alerts:read", "alerts:write",
                 "webhooks:read", "webhooks:write",
+                "history:read",
             ]
             VIEWER_PERMS = [
                 "jobs:read", "nodes:read", "definitions:read", "foundry:read", "signatures:read",
-                "alerts:read",
+                "alerts:read", "history:read",
             ]
             seeds = (
                 [RolePermission(role="operator", permission=p) for p in OPERATOR_PERMS] +
@@ -473,7 +475,13 @@ async def list_executions(
             completed_at=r.completed_at,
             output_log=log,
             truncated=r.truncated,
-            duration_seconds=duration
+            duration_seconds=duration,
+            stdout=r.stdout,
+            stderr=r.stderr,
+            script_hash=r.script_hash,
+            hash_mismatch=r.hash_mismatch,
+            attempt_number=r.attempt_number,
+            job_run_id=r.job_run_id,
         ))
     return responses
 
@@ -510,8 +518,51 @@ async def get_execution(
         completed_at=r.completed_at,
         output_log=log,
         truncated=r.truncated,
-        duration_seconds=duration
+        duration_seconds=duration,
+        stdout=r.stdout,
+        stderr=r.stderr,
+        script_hash=r.script_hash,
+        hash_mismatch=r.hash_mismatch,
+        attempt_number=r.attempt_number,
+        job_run_id=r.job_run_id,
     )
+
+@app.get("/api/executions/{id}/attestation", response_model=AttestationExportResponse,
+         tags=["Execution Records"])
+async def get_execution_attestation(
+    id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("history:read"))
+):
+    """Export attestation bundle and verification result for an execution record.
+
+    Returns 404 if the execution record does not exist or has no attestation data.
+    """
+    result = await db.execute(select(ExecutionRecord).where(ExecutionRecord.id == id))
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Execution record not found")
+    if not record.attestation_bundle:
+        raise HTTPException(status_code=404, detail="No attestation for this execution")
+
+    # Extract cert_serial from bundle bytes if possible
+    cert_serial = None
+    try:
+        import json as _json
+        import base64 as _b64
+        bundle_data = _json.loads(_b64.b64decode(record.attestation_bundle))
+        cert_serial = bundle_data.get("cert_serial")
+    except Exception:
+        pass
+
+    return AttestationExportResponse(
+        bundle_b64=record.attestation_bundle,
+        signature_b64=record.attestation_signature or "",
+        cert_serial=cert_serial,
+        node_id=record.node_id,
+        attestation_verified=record.attestation_verified,
+    )
+
 
 # Serve Installer Scripts
 @app.get("/api/node/compose", tags=["System"])
