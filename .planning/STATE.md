@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: — Axiom Commercial Release
 status: planning
-stopped_at: Completed 33-04-PLAN.md — release pipeline verified, RELEASE-01 and RELEASE-02 satisfied
-last_updated: "2026-03-18T16:08:13.937Z"
+stopped_at: Completed 30-01-PLAN.md — test scaffold and DB schema extension for runtime attestation
+last_updated: "2026-03-18T16:53:38.821Z"
 last_activity: 2026-03-17 — v10.0 roadmap created
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 7
-  completed_plans: 6
+  total_plans: 10
+  completed_plans: 7
   percent: 0
 ---
 
@@ -122,6 +122,9 @@ Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 - [Phase 33-04]: 1.0.0a0 is first published version on both testpypi and pypi — pending publisher auto-created the project on first OIDC push
 - [Phase 33-04]: production PyPI publish succeeded alongside testpypi — both RELEASE-01 and RELEASE-02 satisfied; pypi.org package live
 - [Phase 33-04]: 400 Bad Request on second testpypi push is expected: PyPI uses 400 for duplicate version, not 409 — first push success confirmed
+- [Phase 30-runtime-attestation]: RSA sign/verify: 3-arg sign, 4-arg verify — distinct from Ed25519 2-arg pattern in signature_service.py
+- [Phase 30-runtime-attestation]: Canonical attestation bundle: json.dumps(sort_keys=True, separators=(',',':')) — determinism proven by test
+- [Phase 30-runtime-attestation]: attestation_verified states: 'verified', 'failed', 'missing', None — String(16) sufficient
 
 ### v10.0 Research Flags (carry into planning)
 
@@ -153,7 +156,7 @@ None — v9.0 complete. Key open items for v10.0:
 
 ## Session Continuity
 
-Last session: 2026-03-18T16:04:33.961Z
-Stopped at: Completed 33-04-PLAN.md — release pipeline verified, RELEASE-01 and RELEASE-02 satisfied
+Last session: 2026-03-18T16:53:38.819Z
+Stopped at: Completed 30-01-PLAN.md — test scaffold and DB schema extension for runtime attestation
 Resume file: None
 Next action: `/gsd:plan-phase 29`

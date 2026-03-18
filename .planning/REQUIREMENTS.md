@@ -22,9 +22,9 @@
 
 ### Runtime Attestation
 
-- [ ] **OUTPUT-05**: Node produces a runtime attestation bundle — (script hash + stdout hash + stderr hash + exit code + start timestamp + node cert serial), serialised and signed with the node's mTLS client private key
-- [ ] **OUTPUT-06**: Orchestrator verifies the attestation signature against the stored node certificate for every execution; verification result (verified / failed / missing) is stored on the execution record
-- [ ] **OUTPUT-07**: Attestation bundles (raw signed bytes) are stored and can be exported via API for independent offline verification
+- [x] **OUTPUT-05**: Node produces a runtime attestation bundle — (script hash + stdout hash + stderr hash + exit code + start timestamp + node cert serial), serialised and signed with the node's mTLS client private key
+- [x] **OUTPUT-06**: Orchestrator verifies the attestation signature against the stored node certificate for every execution; verification result (verified / failed / missing) is stored on the execution record
+- [x] **OUTPUT-07**: Attestation bundles (raw signed bytes) are stored and can be exported via API for independent offline verification
 
 ### Retry Policy
 
@@ -86,9 +86,9 @@
 | OUTPUT-02 | Phase 29 | Complete |
 | OUTPUT-03 | Phase 32 | Pending |
 | OUTPUT-04 | Phase 32 | Pending |
-| OUTPUT-05 | Phase 30 | Pending |
-| OUTPUT-06 | Phase 30 | Pending |
-| OUTPUT-07 | Phase 30 | Pending |
+| OUTPUT-05 | Phase 30 | Complete |
+| OUTPUT-06 | Phase 30 | Complete |
+| OUTPUT-07 | Phase 30 | Complete |
 | RETRY-01 | Phase 29 | Complete |
 | RETRY-02 | Phase 29 | Complete |
 | RETRY-03 | Phase 32 | Pending |
