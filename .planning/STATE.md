@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: — Axiom Commercial Release
 status: planning
-stopped_at: Completed 32-04-PLAN.md
-last_updated: "2026-03-18T20:25:35.637Z"
+stopped_at: Completed 32-05-PLAN.md
+last_updated: "2026-03-18T20:29:41.029Z"
 last_activity: 2026-03-17 — v10.0 roadmap created
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 20
-  completed_plans: 18
+  completed_plans: 19
   percent: 0
 ---
 
@@ -149,6 +149,7 @@ Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 - [Phase 32-03]: scrollIntoView called with ?. optional chaining — jsdom does not implement it, crashes without guard; behavior identical in real browsers
 - [Phase 32]: JobDefinitions uses inline DefinitionHistoryPanel component (not a separate file) — master-detail split stays contained in one view file
 - [Phase 32]: History.tsx definitions query uses queryKey definitions-for-filter separate from executions query — allows independent caching
+- [Phase 32]: Filter dropdown only renders when env tags present; displayNodes filters grid; Radix Select scrollIntoView mocked in tests
 
 ### v10.0 Research Flags (carry into planning)
 
@@ -180,7 +181,7 @@ None — v9.0 complete. Key open items for v10.0:
 
 ## Session Continuity
 
-Last session: 2026-03-18T20:25:28.970Z
-Stopped at: Completed 32-04-PLAN.md
+Last session: 2026-03-18T20:29:41.026Z
+Stopped at: Completed 32-05-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 29`
