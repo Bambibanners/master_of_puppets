@@ -1,0 +1,16 @@
+Axiom Orchestrator
+Copyright 2024-2026 Axiom Laboratories
+
+This product includes software developed by third parties under the
+following licences:
+
+-----------------------------------------------------------------------
+caniuse-lite (CC-BY-4.0)
+-----------------------------------------------------------------------
+caniuse-lite is copyright (c) Alexis Deveria and contributors.
+Licensed under the Creative Commons Attribution 4.0 International License.
+https://creativecommons.org/licenses/by/4.0/
+Source: https://github.com/browserslist/caniuse-lite
+
+Used by: Browserslist (npm dependency for CSS autoprefixing in the
+dashboard build toolchain). No modification made to caniuse-lite data.
