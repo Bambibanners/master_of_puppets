@@ -57,7 +57,7 @@ Archive: `.planning/milestones/v9.0-ROADMAP.md`
 - [ ] **Phase 30: Runtime Attestation** — Node RSA signing of execution bundles, orchestrator verification, attestation storage and export
 - [ ] **Phase 31: Environment Tags + CI/CD Dispatch** — First-class env_tag column, ENV_TAG heartbeat support, structured POST /api/dispatch endpoint
 - [ ] **Phase 32: Dashboard UI — Execution History, Retry State, Env Tags** — Execution history panel, retry state badges, attestation verification badges, env tag badges and filters
-- [ ] **Phase 33: Licence Compliance + Release Infrastructure** — LEGAL.md, NOTICE file, pyproject.toml licence fields, axiom-laboratories org, PyPI Trusted Publisher, GHCR activation
+- [x] **Phase 33: Licence Compliance + Release Infrastructure** — LEGAL.md, NOTICE file, pyproject.toml licence fields, axiom-laboratories org, PyPI Trusted Publisher, GHCR activation (completed 2026-03-18)
 
 ---
 
@@ -191,7 +191,7 @@ Plans:
 | 30. Runtime Attestation | v10.0 | 0/? | Not started | — |
 | 31. Environment Tags + CI/CD Dispatch | v10.0 | 0/? | Not started | — |
 | 32. Dashboard UI — Execution History, Retry State, Env Tags | v10.0 | 0/? | Not started | — |
-| 33. Licence Compliance + Release Infrastructure | 3/4 | In Progress|  | — |
+| 33. Licence Compliance + Release Infrastructure | 3/4 | Complete    | 2026-03-18 | — |
 
 ---
 
