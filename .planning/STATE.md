@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: — Axiom Commercial Release
 status: planning
-stopped_at: Completed 30-01-PLAN.md — test scaffold and DB schema extension for runtime attestation
-last_updated: "2026-03-18T16:53:38.821Z"
+stopped_at: Completed 30-02-PLAN.md — node-side attestation bundle signing implemented in node.py
+last_updated: "2026-03-18T16:58:05.274Z"
 last_activity: 2026-03-17 — v10.0 roadmap created
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 10
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -125,6 +125,8 @@ Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 - [Phase 30-runtime-attestation]: RSA sign/verify: 3-arg sign, 4-arg verify — distinct from Ed25519 2-arg pattern in signature_service.py
 - [Phase 30-runtime-attestation]: Canonical attestation bundle: json.dumps(sort_keys=True, separators=(',',':')) — determinism proven by test
 - [Phase 30-runtime-attestation]: attestation_verified states: 'verified', 'failed', 'missing', None — String(16) sufficient
+- [Phase 30-runtime-attestation]: _build_and_sign_attestation() is a module-level function (not a method) — no self dependency, pure function for testability and reuse
+- [Phase 30-runtime-attestation]: Hash-order invariant enforced in execute_task(): stdout_hash + stderr_hash computed from raw bytes BEFORE build_output_log() — scrubbing must not precede hashing
 
 ### v10.0 Research Flags (carry into planning)
 
@@ -156,7 +158,7 @@ None — v9.0 complete. Key open items for v10.0:
 
 ## Session Continuity
 
-Last session: 2026-03-18T16:53:38.819Z
-Stopped at: Completed 30-01-PLAN.md — test scaffold and DB schema extension for runtime attestation
+Last session: 2026-03-18T16:58:05.272Z
+Stopped at: Completed 30-02-PLAN.md — node-side attestation bundle signing implemented in node.py
 Resume file: None
 Next action: `/gsd:plan-phase 29`
