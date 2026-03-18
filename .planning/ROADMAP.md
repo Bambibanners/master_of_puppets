@@ -149,7 +149,15 @@ Plans:
   3. An in-progress or failed run with a retry policy shows a badge displaying "Attempt N of M" in the execution detail; all attempt records appear in the history list linked under the same job run
   4. The Nodes view displays the environment tag (DEV / TEST / PROD / custom) as a badge on each node row, and a filter control allows the operator to show only nodes matching a selected environment
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 32-01-PLAN.md — Backend gaps: attestation_verified on ExecutionRecordResponse, scheduled_job_id + job_run_id filters on GET /api/executions
+- [ ] 32-02-PLAN.md — Wave 0 test scaffolds: ExecutionLogModal, History, Nodes, JobDefinitions
+- [ ] 32-03-PLAN.md — ExecutionLogModal: attestation badge, attempt tabs at top, jobRunId prop
+- [ ] 32-04-PLAN.md — JobDefinitions history panel + History.tsx definition selector
+- [ ] 32-05-PLAN.md — Nodes env tag badge and env filter dropdown
+- [ ] 32-06-PLAN.md — Full test suite + human visual verification checkpoint
 
 ---
 
