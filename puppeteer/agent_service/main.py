@@ -1495,7 +1495,7 @@ async def dispatch_job(
     }
     job_create = JobCreate(
         task_type="python_script",
-        payload=json.dumps(payload_dict),
+        payload=payload_dict,
         target_tags=json.loads(s_job.target_tags) if s_job.target_tags else None,
         capability_requirements=json.loads(s_job.capability_requirements) if s_job.capability_requirements else None,
         scheduled_job_id=s_job.id,

@@ -141,6 +141,11 @@ class JobService:
             memory_limit=job_req.memory_limit,
             cpu_limit=job_req.cpu_limit,
             depends_on=depends_on_json,
+            env_tag=job_req.env_tag,
+            max_retries=job_req.max_retries,
+            backoff_multiplier=job_req.backoff_multiplier,
+            timeout_minutes=job_req.timeout_minutes,
+            scheduled_job_id=job_req.scheduled_job_id,
             created_at=datetime.utcnow()
         )
         
@@ -461,13 +466,14 @@ class JobService:
                 node.ip = node_ip
         else:
             node = Node(
-                node_id=node_id, 
-                hostname=hb.hostname if hb.hostname else node_id, 
-                ip=node_ip, 
-                status="ONLINE", 
-                stats=stats_json, 
+                node_id=node_id,
+                hostname=hb.hostname if hb.hostname else node_id,
+                ip=node_ip,
+                status="ONLINE",
+                stats=stats_json,
                 tags=tags_json,
-                capabilities=caps_json
+                capabilities=caps_json,
+                env_tag=hb.env_tag,   # ENVTAG-01: store on first heartbeat
             )
             db.add(node)
         

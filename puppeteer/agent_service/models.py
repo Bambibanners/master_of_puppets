@@ -15,6 +15,7 @@ class JobCreate(BaseModel):
     max_retries: int = 0
     backoff_multiplier: float = 2.0
     timeout_minutes: Optional[int] = None
+    scheduled_job_id: Optional[str] = None
     env_tag: Optional[str] = None
 
     @field_validator("env_tag", mode="before")
