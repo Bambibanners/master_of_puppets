@@ -167,6 +167,7 @@ const NodeCard = ({ node, onUpgrade }: { node: Node; onUpgrade: (node: Node) => 
     const [concurrency, setConcurrency] = useState(String(node.concurrency_limit ?? 5));
     const [memLimit, setMemLimit] = useState(node.job_memory_limit ?? '512m');
     const [tags, setTags] = useState(node.tags ? node.tags.join(', ') : '');
+    const [envTag, setEnvTag] = useState(node.env_tag ?? '');
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [revoking, setRevoking] = useState(false);
@@ -269,10 +270,11 @@ const NodeCard = ({ node, onUpgrade }: { node: Node; onUpgrade: (node: Node) => 
             const res = await authenticatedFetch(`/nodes/${node.node_id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    concurrency_limit: parseInt(concurrency) || 5, 
+                body: JSON.stringify({
+                    concurrency_limit: parseInt(concurrency) || 5,
                     job_memory_limit: memLimit,
-                    tags: tagsArray 
+                    tags: tagsArray,
+                    env_tag: envTag,
                 }),
             });
             if (res.ok) {
@@ -460,13 +462,26 @@ const NodeCard = ({ node, onUpgrade }: { node: Node; onUpgrade: (node: Node) => 
                                 <X className="h-3.5 w-3.5" />
                             </Button>
                         </div>
-                        <Input
-                            value={tags}
-                            onChange={e => setTags(e.target.value)}
-                            className="h-7 w-full bg-zinc-800 border-zinc-700 text-white text-xs px-2 font-mono"
-                            placeholder="tags: env:prod, secure"
-                            title="Node tags (comma separated)"
-                        />
+                        <div className="flex items-center gap-1.5 w-full">
+                            <Input
+                                value={tags}
+                                onChange={e => setTags(e.target.value)}
+                                className="h-7 flex-1 bg-zinc-800 border-zinc-700 text-white text-xs px-2 font-mono"
+                                placeholder="tags: env:prod, secure"
+                                title="Node tags (comma separated)"
+                            />
+                            <select
+                                value={envTag}
+                                onChange={e => setEnvTag(e.target.value)}
+                                className="h-7 bg-zinc-800 border border-zinc-700 text-white text-xs px-1.5 rounded font-mono"
+                                title="Environment tag"
+                            >
+                                <option value="">no env</option>
+                                <option value="PROD">PROD</option>
+                                <option value="TEST">TEST</option>
+                                <option value="DEV">DEV</option>
+                            </select>
+                        </div>
                     </div>
                 ) : (
                     <>

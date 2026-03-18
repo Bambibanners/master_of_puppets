@@ -165,6 +165,7 @@ class Node(Base):
     client_cert_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Stored at enrollment for CRL
     template_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("puppet_templates.id"), nullable=True)
     env_tag: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    operator_env_tag: Mapped[bool] = mapped_column(Boolean, default=False)
 
 class Alert(Base):
     __tablename__ = "alerts"

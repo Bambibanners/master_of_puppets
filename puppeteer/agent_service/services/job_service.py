@@ -222,7 +222,13 @@ class JobService:
         
         await db.commit()
         
-        node_config = NodeConfig(concurrency_limit=concurrency, job_memory_limit=memory)
+        # Push operator env_tag to node so it adopts and reports it in heartbeats.
+        # None = never managed (node uses own env var). "" = explicitly cleared. "X" = set to X.
+        node_config = NodeConfig(
+            concurrency_limit=concurrency,
+            job_memory_limit=memory,
+            env_tag=node.env_tag if node.operator_env_tag and node.env_tag else ("" if node.operator_env_tag else None),
+        )
 
         # ZOMBIE REAPER: reclaim ASSIGNED jobs on this node that exceeded their timeout
         zombie_timeout_minutes = await JobService._get_zombie_timeout(db)
@@ -433,8 +439,11 @@ class JobService:
                 node.stats = stats_json
             if tags_json:
                 node.tags = tags_json
-            node.env_tag = hb.env_tag
-            
+            # Operator-set env_tag takes precedence over node self-reporting.
+            # Only update from heartbeat when no operator override is in place.
+            if not node.operator_env_tag:
+                node.env_tag = hb.env_tag
+
             # Security TDA-03: Zero-Trust Capability Guard
             if caps_json:
                 if node.expected_capabilities:

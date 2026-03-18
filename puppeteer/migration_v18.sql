@@ -4,8 +4,12 @@
 
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS depends_on TEXT;
 
--- Seed history:read permission for operators
+-- Seed history:read permission for operators and viewers
 INSERT INTO role_permissions (id, role, permission)
 VALUES (md5(random()::text), 'operator', 'history:read')
+ON CONFLICT (role, permission) DO NOTHING;
+
+INSERT INTO role_permissions (id, role, permission)
+VALUES (md5(random()::text), 'viewer', 'history:read')
 ON CONFLICT (role, permission) DO NOTHING;
 

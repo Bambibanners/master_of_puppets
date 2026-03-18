@@ -135,6 +135,7 @@ class NodeConfig(BaseModel):
     job_memory_limit: str
     job_cpu_limit: Optional[str] = None
     tags: Optional[List[str]] = None
+    env_tag: Optional[str] = None
 
 class PollResponse(BaseModel):
     job: Optional[WorkResponse] = None

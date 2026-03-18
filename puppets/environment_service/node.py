@@ -72,6 +72,7 @@ def _load_or_generate_node_id() -> str:
     return existing[0] if existing else f"node-{uuid.uuid4().hex[:8]}"
 
 NODE_ID = _load_or_generate_node_id()
+_current_env_tag = None  # Set by orchestrator via poll config; overrides ENV_TAG env var
 ROOT_CA_PATH = os.getenv("ROOT_CA_PATH", "c:/Development/Repos/master_of_puppets/ca/certs/root_ca.crt")
 CERT_FILE = f"secrets/{NODE_ID}.crt"
 KEY_FILE = f"secrets/{NODE_ID}.key"
@@ -301,7 +302,12 @@ def heartbeat_loop():
                 
                 caps = get_capabilities()
                 secret_hash = get_node_secret_hash()
-                env_tag = os.getenv("ENV_TAG")
+                if _current_env_tag is None:
+                    env_tag = os.getenv("ENV_TAG")   # never managed by orchestrator
+                elif _current_env_tag == "":
+                    env_tag = None                   # explicitly cleared via dashboard
+                else:
+                    env_tag = _current_env_tag       # operator-set value
 
                 payload = {
                     "node_id": NODE_ID,
@@ -763,8 +769,12 @@ class Node:
                 if job_data:
                     config = job_data.get("config", {})
                     if config:
-                         self.concurrency_limit = config.get("concurrency_limit", 5)
-                    self.job_memory_limit = config.get("job_memory_limit", self.job_memory_limit)
+                        global _current_env_tag
+                        self.concurrency_limit = config.get("concurrency_limit", 5)
+                        self.job_memory_limit = config.get("job_memory_limit", self.job_memory_limit)
+                        pushed_tag = config.get("env_tag")  # None=unmanaged, ""=cleared, "X"=set
+                        if pushed_tag is not None and pushed_tag != _current_env_tag:
+                            _current_env_tag = pushed_tag  # "" stored as sentinel for "cleared"
 
                     work = job_data.get("job")
                     if work:

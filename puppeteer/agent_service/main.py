@@ -1734,6 +1734,7 @@ async def list_nodes(current_user: User = Depends(require_permission("nodes:read
             "concurrency_limit": n.concurrency_limit,
             "job_memory_limit": n.job_memory_limit,
             "stats_history": history_map.get(n.node_id, []),
+            "env_tag": n.env_tag,
         })
     return resp
 
@@ -1747,14 +1748,18 @@ async def update_node_config(node_id: str, config: NodeConfig, current_user: Use
     node.job_memory_limit = config.job_memory_limit
     if config.tags is not None:
         node.operator_tags = json.dumps(config.tags)
-    
+    if config.env_tag is not None:
+        node.env_tag = config.env_tag if config.env_tag != "" else None
+        node.operator_env_tag = True  # Stays True even when cleared — distinguishes "never touched" from "explicitly cleared"
+
     await db.commit()
     return {
-        "status": "updated", 
-        "node_id": node_id, 
-        "concurrency_limit": config.concurrency_limit, 
+        "status": "updated",
+        "node_id": node_id,
+        "concurrency_limit": config.concurrency_limit,
         "job_memory_limit": config.job_memory_limit,
-        "tags": config.tags
+        "tags": config.tags,
+        "env_tag": node.env_tag,
     }
 
 @app.delete("/nodes/{node_id}", status_code=204, tags=["Nodes"])
