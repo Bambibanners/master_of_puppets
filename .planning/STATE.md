@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: — Axiom Commercial Release
 status: planning
-stopped_at: Phase 32 context gathered
-last_updated: "2026-03-18T19:42:17.288Z"
+stopped_at: Completed 32-01-PLAN.md
+last_updated: "2026-03-18T20:07:52.203Z"
 last_activity: 2026-03-17 — v10.0 roadmap created
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 14
-  completed_plans: 14
+  total_plans: 20
+  completed_plans: 15
   percent: 0
 ---
 
@@ -141,6 +141,8 @@ Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 - [Phase 31-environment-tags-cicd-dispatch]: _TERMINAL_STATUSES constant defined at module level in main.py adjacent to dispatch routes
 - [Phase 31-environment-tags-cicd-dispatch]: scheduled_job_id added to JobCreate as Optional[str]=None — dispatch route was already passing it, model needed to accept it without validation error
 - [Phase 33]: Plan 33-03 deferred to gap-closure plan 33-04 — GitHub org axiom-laboratories and PyPI project axiom-agent-sdk did not exist when 33-03 was scheduled; 33-04 completed all objectives on 2026-03-18
+- [Phase 32-01]: attestation_verified exposed as Optional[str] = None on ExecutionRecordResponse — matches DB String(16) column; accepts 'verified', 'failed', 'missing', or None
+- [Phase 32-01]: scheduled_job_id filter uses subquery through jobs table (not join) — ExecutionRecord has no direct FK to ScheduledJob; chain is ScheduledJob.id -> Job.scheduled_job_id -> Job.guid -> ExecutionRecord.job_guid
 
 ### v10.0 Research Flags (carry into planning)
 
@@ -172,7 +174,7 @@ None — v9.0 complete. Key open items for v10.0:
 
 ## Session Continuity
 
-Last session: 2026-03-18T19:42:17.286Z
-Stopped at: Phase 32 context gathered
-Resume file: .planning/phases/32-dashboard-ui-execution-history-retry-state-env-tags/32-CONTEXT.md
+Last session: 2026-03-18T20:07:52.201Z
+Stopped at: Completed 32-01-PLAN.md
+Resume file: None
 Next action: `/gsd:plan-phase 29`
