@@ -102,7 +102,12 @@ Plans:
   4. `GET /api/executions/{id}/attestation` returns the raw attestation bundle bytes and signature, suitable for offline verification by an independent party
   5. An execution where the node's cert has been revoked after execution stores `failed` as the verification result — not a server error
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 30-01-PLAN.md — Test scaffold, DB schema extension (3 attestation columns), Pydantic model updates, migration_v33.sql
+- [ ] 30-02-PLAN.md — Node-side: _build_and_sign_attestation(), hash-order wiring in execute_task(), report_result() extended
+- [ ] 30-03-PLAN.md — Orchestrator: attestation_service.py, job_service wiring, GET /api/executions/{id}/attestation endpoint
 
 ---
 
@@ -188,7 +193,7 @@ Plans:
 | 27. CI/CD, Packaging & Distribution | v9.0 | 3/3 | Complete | 2026-03-17 |
 | 28. Infrastructure Gap Closure | v9.0 | 1/1 | Complete | 2026-03-17 |
 | 29. Backend Completeness — Output Capture + Retry Wiring | 3/3 | Complete    | 2026-03-18 | — |
-| 30. Runtime Attestation | v10.0 | 0/? | Not started | — |
+| 30. Runtime Attestation | v10.0 | 0/3 | Not started | — |
 | 31. Environment Tags + CI/CD Dispatch | v10.0 | 0/? | Not started | — |
 | 32. Dashboard UI — Execution History, Retry State, Env Tags | v10.0 | 0/? | Not started | — |
 | 33. Licence Compliance + Release Infrastructure | 3/4 | Complete    | 2026-03-18 | — |
