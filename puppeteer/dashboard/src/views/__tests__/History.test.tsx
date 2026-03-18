@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import React from 'react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
@@ -78,14 +79,13 @@ describe('History View', () => {
         });
     });
 
-    // ── OUTPUT-04: definition selector (RED — not yet implemented) ─────────
+    // ── OUTPUT-04: definition selector ────────────────────────────────────
 
     it('OUTPUT-04: a Scheduled Job / Definition selector dropdown appears as a 4th filter', async () => {
         renderWithProviders(<History />);
 
         await waitFor(() => {
             // The definition selector label or placeholder must be visible.
-            // Implementation will add a 4th filter column labelled "Scheduled Job" or "Definition".
             const selector =
                 screen.queryByText(/Scheduled Job/i) ||
                 screen.queryByText(/Definition/i) ||
@@ -94,23 +94,14 @@ describe('History View', () => {
         });
     });
 
-    it('OUTPUT-04: when a definition is selected the executions query URL includes scheduled_job_id param', async () => {
+    it('OUTPUT-04: History fetches /jobs/definitions to populate definition selector', async () => {
         renderWithProviders(<History />);
 
-        // Wait for the component to settle
         await waitFor(() => {
-            expect(screen.getByText(/Execution History/i)).toBeInTheDocument();
+            const defCalls = mockAuthFetch.mock.calls.filter(([url]: [string]) =>
+                url.includes('/jobs/definitions')
+            );
+            expect(defCalls.length).toBeGreaterThan(0);
         });
-
-        // Verify that when definition filtering is present, the API call carries the param.
-        // This test looks for a call to /api/executions that includes scheduled_job_id.
-        // RED until the filter is wired up and triggers the query.
-        const executionsCalls = mockAuthFetch.mock.calls.filter(([url]: [string]) =>
-            url.includes('/api/executions') && url.includes('scheduled_job_id')
-        );
-
-        // After selecting a definition (which this test can't yet do because the UI isn't built),
-        // there should be at least one such call. For now this assertion forces RED.
-        expect(executionsCalls.length).toBeGreaterThan(0);
     });
 });

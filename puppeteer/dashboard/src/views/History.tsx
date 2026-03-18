@@ -28,17 +28,27 @@ const History = () => {
     const [nodeId, setNodeId] = useState('');
     const [status, setStatus] = useState('ALL');
     const [jobGuid, setJobGuid] = useState('');
+    const [definitionId, setDefinitionId] = useState('');
     const [selectedEx, setSelectedEx] = useState<number | null>(null);
     const limit = 25;
 
+    const { data: definitions } = useQuery({
+        queryKey: ['definitions-for-filter'],
+        queryFn: async () => {
+            const res = await authenticatedFetch('/jobs/definitions');
+            return res.json() as Promise<Array<{ id: string; name: string }>>;
+        }
+    });
+
     const { data: executions, isLoading } = useQuery({
-        queryKey: ['executions', page, nodeId, status, jobGuid],
+        queryKey: ['executions', page, nodeId, status, jobGuid, definitionId],
         queryFn: async () => {
             let url = `/api/executions?skip=${page * limit}&limit=${limit}`;
             if (nodeId) url += `&node_id=${nodeId}`;
             if (status !== 'ALL') url += `&status=${status}`;
             if (jobGuid) url += `&job_guid=${jobGuid}`;
-            
+            if (definitionId) url += `&scheduled_job_id=${definitionId}`;
+
             const res = await authenticatedFetch(url);
             return res.json();
         }
@@ -65,7 +75,7 @@ const History = () => {
             </div>
 
             {/* Filter Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-900/50 p-4 rounded-xl border border-zinc-900 shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-zinc-900/50 p-4 rounded-xl border border-zinc-900 shadow-sm">
                 <div className="space-y-2">
                     <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider px-1">Job GUID</label>
                     <div className="relative">
@@ -103,6 +113,20 @@ const History = () => {
                             <SelectItem value="SECURITY_REJECTED">Security Rejected</SelectItem>
                             <SelectItem value="DEAD_LETTER">Dead Letter</SelectItem>
                             <SelectItem value="RETRYING">Retrying</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider px-1">Scheduled Job</label>
+                    <Select value={definitionId || 'ALL'} onValueChange={v => { setDefinitionId(v === 'ALL' ? '' : v); setPage(0); }}>
+                        <SelectTrigger className="bg-zinc-950 border-zinc-800 focus:border-primary/50">
+                            <SelectValue placeholder="All Definitions" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                            <SelectItem value="ALL">All Definitions</SelectItem>
+                            {(definitions ?? []).map(def => (
+                                <SelectItem key={def.id} value={def.id}>{def.name}</SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                 </div>
