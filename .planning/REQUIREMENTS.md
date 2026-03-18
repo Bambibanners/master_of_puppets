@@ -35,7 +35,7 @@
 ### Environment Tags & CI/CD Targeting
 
 - [x] **ENVTAG-01**: Node has a configurable environment tag (DEV / TEST / PROD, or custom string) declared at enrollment and stored on the node record
-- [ ] **ENVTAG-02**: Job definitions and ad-hoc dispatches can specify an environment tag as an additional targeting constraint (combined with existing capability matching)
+- [x] **ENVTAG-02**: Job definitions and ad-hoc dispatches can specify an environment tag as an additional targeting constraint (combined with existing capability matching)
 - [ ] **ENVTAG-03**: Dashboard Nodes view displays the environment tag for each node; tag is filterable
 - [ ] **ENVTAG-04**: A documented CI/CD dispatch API endpoint accepts environment tag as a targeting parameter and returns structured JSON (job id, status, node assigned) — suitable for pipeline integration
 
@@ -93,7 +93,7 @@
 | RETRY-02 | Phase 29 | Complete |
 | RETRY-03 | Phase 32 | Pending |
 | ENVTAG-01 | Phase 31 | Complete |
-| ENVTAG-02 | Phase 31 | Pending |
+| ENVTAG-02 | Phase 31 | Complete |
 | ENVTAG-03 | Phase 32 | Pending |
 | ENVTAG-04 | Phase 31 | Pending |
 | LICENCE-01 | Phase 33 | Complete |

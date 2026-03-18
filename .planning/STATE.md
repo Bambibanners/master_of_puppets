@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: — Axiom Commercial Release
 status: planning
-stopped_at: Completed 31-01-PLAN.md — env_tag schema, model contracts, dispatch models, migration_v34.sql
-last_updated: "2026-03-18T17:26:26.443Z"
-last_activity: 2026-03-17 — v10.0 roadmap created
+stopped_at: Completed 31-02-PLAN.md — env_tag wiring in job_service, scheduler_service, node.py
+last_updated: "2026-03-18T17:29:32Z"
+last_activity: 2026-03-18 — Phase 31 Plan 02 complete
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 13
-  completed_plans: 10
+  completed_plans: 11
   percent: 0
 ---
 
@@ -134,6 +134,9 @@ Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 - [Phase 31-environment-tags-cicd-dispatch]: DispatchStatusResponse.is_terminal is a plain bool field (caller provides it) — no automatic derivation in model
 - [Phase 31-environment-tags-cicd-dispatch]: pull_work source-inspection tests intentionally RED in Plan 31-01 — ENVTAG-02 implementation deferred to Plan 31-02 per wave design
 - [Phase 31-environment-tags-cicd-dispatch]: migration_v34.sql uses IF NOT EXISTS — safe for existing Postgres deployments; fresh deployments handled by create_all
+- [Phase 31-02]: pull_work env_tag guard placed AFTER existing env: prefix isolation block — backward compat preserved; new column check is additive
+- [Phase 31-02]: node.env_tag overwritten on every heartbeat — node.py is source of truth; operator override deferred to Phase 32 (ENVTAG-03)
+- [Phase 31-02]: ENV_TAG read inside heartbeat_loop() per-iteration — live reload without container restart
 
 ### v10.0 Research Flags (carry into planning)
 
