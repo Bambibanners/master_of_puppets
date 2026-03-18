@@ -186,7 +186,6 @@ def test_cert_serial_matches(rsa_cert_and_key):
 # Task 2 — DB schema inspection test (enabled after Task 2 adds columns)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="Enabled in Task 2 after attestation columns are added to ExecutionRecord")
 def test_execution_record_has_attestation_columns():
     """ExecutionRecord must declare all three attestation columns in its source.
 

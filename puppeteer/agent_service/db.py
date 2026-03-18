@@ -231,6 +231,9 @@ class ExecutionRecord(Base):
     hash_mismatch: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True, default=False)
     attempt_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     job_run_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    attestation_bundle: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    attestation_signature: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    attestation_verified: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
 
     __table_args__ = (
         Index("ix_execution_records_job_guid", "job_guid"),

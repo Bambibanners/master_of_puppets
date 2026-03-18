@@ -63,6 +63,8 @@ class ResultReport(BaseModel):
     security_rejected: bool = False
     retriable: Optional[bool] = None  # None = non-retriable (default); True = retry eligible
     script_hash: Optional[str] = None
+    attestation_bundle: Optional[str] = None    # base64(bundle JSON bytes)
+    attestation_signature: Optional[str] = None # base64(RSA signature bytes)
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -602,3 +604,17 @@ class ExecutionRecordResponse(BaseModel):
     output_log: List[Dict[str, str]] = []
     truncated: bool = False
     duration_seconds: Optional[float] = None
+    stdout: Optional[str] = None
+    stderr: Optional[str] = None
+    script_hash: Optional[str] = None
+    hash_mismatch: Optional[bool] = None
+    attempt_number: Optional[int] = None
+    job_run_id: Optional[str] = None
+
+
+class AttestationExportResponse(BaseModel):
+    bundle_b64: str
+    signature_b64: str
+    cert_serial: Optional[str] = None
+    node_id: Optional[str] = None
+    attestation_verified: Optional[str] = None
