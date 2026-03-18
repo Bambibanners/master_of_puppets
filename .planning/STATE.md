@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: Axiom Commercial Release
-status: defining_requirements
-stopped_at: requirements definition
+status: roadmap_ready
+stopped_at: roadmap created — ready for phase planning
 last_updated: "2026-03-17T00:00:00.000Z"
-last_activity: 2026-03-17 — Milestone v10.0 started
+last_activity: 2026-03-17 — v10.0 roadmap created (Phases 29–33)
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,16 +21,26 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Jobs run reliably — on the right node, when scheduled, with output captured — without weakening the security model.
-**Current focus:** Defining requirements for v10.0 — Axiom Commercial Release
+**Current focus:** v10.0 Axiom Commercial Release — Phase 29 next
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 29 — Backend Completeness (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-03-17 — Milestone v10.0 started
+Status: Roadmap created, awaiting phase planning
+Last activity: 2026-03-17 — v10.0 roadmap created
 
-Progress: [░░░░░░░░░░] 0% v10.0 not started
+Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
+
+## v10.0 Phase Summary
+
+| Phase | Goal | Requirements | Status |
+|-------|------|--------------|--------|
+| 29 — Backend Completeness | Output capture + retry wiring complete and stable | OUTPUT-01, OUTPUT-02, RETRY-01, RETRY-02 | Not started |
+| 30 — Runtime Attestation | RSA-signed execution bundles verified by orchestrator | OUTPUT-05, OUTPUT-06, OUTPUT-07 | Not started |
+| 31 — Environment Tags + CI/CD Dispatch | First-class env tags + structured dispatch API | ENVTAG-01, ENVTAG-02, ENVTAG-04 | Not started |
+| 32 — Dashboard UI | Execution history, retry state, attestation badges, env tags | OUTPUT-03, OUTPUT-04, RETRY-03, ENVTAG-03 | Not started |
+| 33 — Licence + Release | LEGAL.md, NOTICE, pyproject.toml, PyPI Trusted Publisher, GHCR | LICENCE-01..04, RELEASE-01..03 | Not started |
 
 ## Accumulated Context
 
@@ -98,24 +108,37 @@ Progress: [░░░░░░░░░░] 0% v10.0 not started
 - [Phase 27-03]: Task 2 (PyPI Trusted Publisher + GitHub Environments setup) deferred — GitHub org axiom-laboratories and PyPI project axiom-sdk do not exist yet; intentional, to be completed when org is created
 - [Phase 27-03]: GHCR image path ghcr.io/axiom-laboratories/axiom retained as-is in release.yml — intended target org; no change needed until org is created and repo transferred
 
+### v10.0 Research Flags (carry into planning)
+
+- **Phase 30 (Attestation):** Node mTLS key is RSA-2048 — NOT Ed25519. Attestation signing uses `key.sign(data, padding.PKCS1v15(), hashes.SHA256())` (3 args). RSA verify on orchestrator uses 4 args. Do NOT copy from `signature_service.py`. Unit test RSA sign/verify round-trip with a test cert fixture before implementing node-side code.
+- **Phase 29/30:** Attestation hash order invariant — hash raw bytes FIRST, then scrub, then truncate, then store. Computing hashes after scrubbing means independent verifiers cannot reproduce them.
+- **Phase 29:** Output retention pruning must use SQLite-compatible delete pattern — `DELETE WHERE rowid IN (SELECT rowid ... LIMIT N)`, NOT `DELETE WHERE id IN (SELECT ... LIMIT N)`.
+- **Phase 31 (CI/CD Dispatch):** The 409 response contract when no eligible node exists must be confirmed stable before being documented as the CI/CD integration API — once published it cannot change without a breaking-change notice.
+- **Phase 33:** paramiko LGPL-2.1 linkage assessment: if EE wheel bundling creates static linking scenario, replace paramiko with asyncssh (MIT). This becomes an implementation task in Phase 33.
+- **Phase 33:** PyPI pending publisher must be configured before the first version tag — configure and immediately dry-run against test.pypi.org to catch OIDC name mismatches.
+
 ### Roadmap Evolution
 
 - Phase 26 added: Axiom Branding & Community Foundation (from AXIOM_RELEASE_PLAN.md Phase 3)
 - Phase 27 added: CI/CD, Packaging & Distribution (from AXIOM_RELEASE_PLAN.md Phase 4)
+- v10.0 roadmap created 2026-03-17: Phases 29–33 derived from 21 requirements
 
 ### Pending Todos
 
 - [ ] Investigate `test_report_result` pre-existing failure (noted in Phase 17 summary as baseline, not a regression)
-- [ ] Cryptographically signed job execution
+- [ ] Confirm public /docs/ access decision (RELEASE-03) before Phase 33 closes
+- [ ] Decide on `failed_node_ids` retry exclusion column during Phase 29 planning (research flag — defer as MIN or include in v10.0)
 
 ### Blockers/Concerns
 
 None — v9.0 complete. Key open items for v10.0:
-- PyPI Trusted Publisher setup blocked on `axiom-laboratories` GitHub org creation
-- CF Access policy enforcement for /docs/* deferred (local routing confirmed working)
+- PyPI Trusted Publisher setup blocked on `axiom-laboratories` GitHub org creation (Phase 33)
+- CF Access policy enforcement for /docs/* deferred (local routing confirmed working) — decision required for RELEASE-03
+- paramiko LGPL-2.1 assessment pending (Phase 33 — may trigger asyncssh migration)
 
 ## Session Continuity
 
 Last session: 2026-03-17
-Stopped at: v9.0 milestone archived
+Stopped at: v10.0 roadmap created — Phase 29 ready for planning
 Resume file: None
+Next action: `/gsd:plan-phase 29`

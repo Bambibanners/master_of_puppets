@@ -6,7 +6,7 @@
 - ✅ **v7.0 — Advanced Foundry & Smelter** — Phases 11–15 (shipped 2026-03-16)
 - ✅ **v8.0 — mop-push CLI & Job Staging** — Phases 17–19 (shipped 2026-03-15)
 - ✅ **v9.0 — Enterprise Documentation** — Phases 20–28 (shipped 2026-03-17)
-- 📋 **v10.0 — Axiom Commercial Release** — (not started)
+- 📋 **v10.0 — Axiom Commercial Release** — Phases 29–33 (in progress)
 
 ## Phases
 
@@ -51,6 +51,111 @@ Archive: `.planning/milestones/v9.0-ROADMAP.md`
 
 </details>
 
+### v10.0 — Axiom Commercial Release (Phases 29–33)
+
+- [ ] **Phase 29: Backend Completeness — Output Capture + Retry Wiring** — Close node.py output gaps, wire scheduler retry propagation, add output retention pruning
+- [ ] **Phase 30: Runtime Attestation** — Node RSA signing of execution bundles, orchestrator verification, attestation storage and export
+- [ ] **Phase 31: Environment Tags + CI/CD Dispatch** — First-class env_tag column, ENV_TAG heartbeat support, structured POST /api/dispatch endpoint
+- [ ] **Phase 32: Dashboard UI — Execution History, Retry State, Env Tags** — Execution history panel, retry state badges, attestation verification badges, env tag badges and filters
+- [ ] **Phase 33: Licence Compliance + Release Infrastructure** — LEGAL.md, NOTICE file, pyproject.toml licence fields, axiom-laboratories org, PyPI Trusted Publisher, GHCR activation
+
+---
+
+## Phase Details
+
+### Phase 29: Backend Completeness — Output Capture + Retry Wiring
+
+**Goal**: The orchestrator reliably captures, stores, and retains per-execution output from every node, and retry policies configured on job definitions actually propagate through to dispatched jobs.
+
+**Depends on**: Phase 28 (v9.0 complete)
+
+**Requirements**: OUTPUT-01, OUTPUT-02, RETRY-01, RETRY-02
+
+**Success Criteria** (what must be TRUE):
+  1. A node that executes a job and reports stdout, stderr, and exit code results in a complete `ExecutionRecord` row in the database with all fields populated (job id, node id, script hash, start time, end time, exit code, stdout, stderr)
+  2. A job definition with `max_retries=3` and exponential backoff dispatched via the scheduler creates retry attempts automatically when each attempt fails — each attempt is a distinct `ExecutionRecord` row linked to the same job run
+  3. The orchestrator runs a scheduled APScheduler pruning task that deletes `ExecutionRecord` rows older than 30 days using a SQLite-compatible delete pattern (no subquery `LIMIT` clause)
+  4. `migration_v14.sql` exists and applies cleanly to an existing database — all new columns are nullable and additive
+  5. `WorkResponse` includes `max_retries`, `backoff_multiplier`, `timeout_minutes`, and `started_at` fields when a node polls for work
+
+**Plans**: TBD
+
+---
+
+### Phase 30: Runtime Attestation
+
+**Goal**: Every job execution produces a cryptographically signed attestation bundle that the orchestrator verifies using the node's mTLS certificate — giving operators tamper-evident proof of what ran, where, and what it produced.
+
+**Depends on**: Phase 29 (ExecutionRecord columns and retry wiring must be in place so attestation fields have a stable home and `started_at` is available for bundle construction)
+
+**Requirements**: OUTPUT-05, OUTPUT-06, OUTPUT-07
+
+**Success Criteria** (what must be TRUE):
+  1. A node produces an attestation bundle containing `script_hash`, `stdout_hash`, `stderr_hash`, `exit_code`, `start_timestamp`, and `cert_serial`, serialised with `json.dumps(bundle, sort_keys=True, separators=(',',':'))`, and signs it with its RSA-2048 mTLS private key using `padding.PKCS1v15()` and `hashes.SHA256()` — the bundle fields are hashed in raw-bytes-first order (hash raw bytes → scrub → truncate → store)
+  2. The orchestrator's `attestation_service.py` verifies the RSA signature against the stored `client_cert_pem` for the reporting node; the `attestation_verified` column on the `ExecutionRecord` is set to `verified`, `failed`, or `missing` accordingly
+  3. A unit test performs a full RSA sign/verify round-trip against a test certificate fixture, and a mutation test confirms that modifying `exit_code` in the bundle after signing causes verification to fail
+  4. `GET /api/executions/{id}/attestation` returns the raw attestation bundle bytes and signature, suitable for offline verification by an independent party
+  5. An execution where the node's cert has been revoked after execution stores `failed` as the verification result — not a server error
+
+**Plans**: TBD
+
+---
+
+### Phase 31: Environment Tags + CI/CD Dispatch
+
+**Goal**: Nodes carry a first-class environment tag (DEV/TEST/PROD or custom) that job dispatches can target, and a stable documented API endpoint exists for CI/CD pipelines to dispatch jobs by environment and poll for results.
+
+**Depends on**: Phase 29 (retry config must flow through dispatch path so the CI/CD endpoint returns accurate retry-aware responses)
+
+**Requirements**: ENVTAG-01, ENVTAG-02, ENVTAG-04
+
+**Success Criteria** (what must be TRUE):
+  1. A node started with `ENV_TAG=PROD` reports that tag in its heartbeat payload and the orchestrator stores it in the `env_tag` column on the `nodes` table — the tag is visible in `GET /nodes` responses
+  2. A job dispatched with `env_tag: "PROD"` is only assigned to nodes whose `env_tag` column matches `PROD`; a dispatch targeting `PROD` when no PROD node is eligible returns a structured error (not a 500) with a machine-readable reason
+  3. `POST /api/dispatch` accepts `{job_definition_id, env_tag, ...}`, requires service principal auth, and returns `{job_guid, status, job_definition, env_tag, poll_url}` — the `poll_url` field points to a stable endpoint that CI/CD pipelines can poll until the job reaches a terminal state
+  4. `GET /api/dispatch/{job_guid}/status` returns structured JSON with `{status, exit_code, node_id, attempt, started_at, completed_at}` — suitable for pipeline pass/fail decisions without HTML scraping
+
+**Plans**: TBD
+
+---
+
+### Phase 32: Dashboard UI — Execution History, Retry State, Env Tags
+
+**Goal**: Operators can view the complete execution history for any job or node in the dashboard, see retry state on in-progress and failed runs, inspect stdout/stderr output in a readable terminal view, and see environment tags on nodes.
+
+**Depends on**: Phase 29 (ExecutionRecord API), Phase 30 (attestation_verified column), Phase 31 (env_tag on NodeResponse)
+
+**Requirements**: OUTPUT-03, OUTPUT-04, RETRY-03, ENVTAG-03
+
+**Success Criteria** (what must be TRUE):
+  1. The Jobs view shows an execution history panel listing all past runs for a selected job definition — each row shows timestamp, node, exit code, duration, and attestation status (VERIFIED / FAILED / MISSING badge)
+  2. Clicking a run in the execution history expands a terminal-style stdout/stderr view with colour-coded exit status — the output is not rendered as raw JSON
+  3. An in-progress or failed run with a retry policy shows a badge displaying "Attempt N of M" in the execution detail; all attempt records appear in the history list linked under the same job run
+  4. The Nodes view displays the environment tag (DEV / TEST / PROD / custom) as a badge on each node row, and a filter control allows the operator to show only nodes matching a selected environment
+
+**Plans**: TBD
+
+---
+
+### Phase 33: Licence Compliance + Release Infrastructure
+
+**Goal**: Axiom's dual-licence obligations are documented and compliant, and the release infrastructure (PyPI Trusted Publisher, GHCR multi-arch images, docs access) is activated so version tags trigger automated publishing.
+
+**Depends on**: Nothing (fully independent of all feature phases — can run in parallel at any point before the first version tag is pushed)
+
+**Requirements**: LICENCE-01, LICENCE-02, LICENCE-03, LICENCE-04, RELEASE-01, RELEASE-02, RELEASE-03
+
+**Success Criteria** (what must be TRUE):
+  1. `LEGAL.md` at the repo root documents the certifi MPL-2.0 usage decision (read-only CA bundle, no modification) and the paramiko LGPL-2.1 linkage assessment (dynamic-only import confirmed, or replaced with `asyncssh` if EE wheel bundling requires static linking)
+  2. `NOTICE` file at the repo root lists all required third-party attribution including caniuse-lite CC-BY-4.0 and any other packages identified in the licence audit
+  3. Both `mop-sdk/pyproject.toml` and the root `pyproject.toml` include a `License-Expression` field (`Apache-2.0` for CE, `LicenseRef-Proprietary` for EE) and `setuptools>=62.3` for PEP 639 support
+  4. The `axiom-laboratories` GitHub organisation exists, the `axiom-sdk` PyPI project has a configured Trusted Publisher (pending publisher via OIDC — not a standard API token), and pushing a version tag triggers the release workflow with a dry-run against test.pypi.org passing first
+  5. A documented decision on public `/docs/` access exists — either a confirmed public-facing path for open-source adoption, or an explicit deferral with written rationale referencing the CF Access policy
+
+**Plans**: TBD
+
+---
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -72,6 +177,11 @@ Archive: `.planning/milestones/v9.0-ROADMAP.md`
 | 26. Axiom Branding & Community Foundation | v9.0 | 3/3 | Complete | 2026-03-17 |
 | 27. CI/CD, Packaging & Distribution | v9.0 | 3/3 | Complete | 2026-03-17 |
 | 28. Infrastructure Gap Closure | v9.0 | 1/1 | Complete | 2026-03-17 |
+| 29. Backend Completeness — Output Capture + Retry Wiring | v10.0 | 0/? | Not started | — |
+| 30. Runtime Attestation | v10.0 | 0/? | Not started | — |
+| 31. Environment Tags + CI/CD Dispatch | v10.0 | 0/? | Not started | — |
+| 32. Dashboard UI — Execution History, Retry State, Env Tags | v10.0 | 0/? | Not started | — |
+| 33. Licence Compliance + Release Infrastructure | v10.0 | 0/? | Not started | — |
 
 ---
 

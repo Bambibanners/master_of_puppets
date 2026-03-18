@@ -77,37 +77,35 @@
 
 ## Traceability
 
-*Populated during roadmap creation.*
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RELEASE-01 | — | Pending |
-| RELEASE-02 | — | Pending |
-| RELEASE-03 | — | Pending |
-| OUTPUT-01 | — | Pending |
-| OUTPUT-02 | — | Pending |
-| OUTPUT-03 | — | Pending |
-| OUTPUT-04 | — | Pending |
-| OUTPUT-05 | — | Pending |
-| OUTPUT-06 | — | Pending |
-| OUTPUT-07 | — | Pending |
-| RETRY-01 | — | Pending |
-| RETRY-02 | — | Pending |
-| RETRY-03 | — | Pending |
-| ENVTAG-01 | — | Pending |
-| ENVTAG-02 | — | Pending |
-| ENVTAG-03 | — | Pending |
-| ENVTAG-04 | — | Pending |
-| LICENCE-01 | — | Pending |
-| LICENCE-02 | — | Pending |
-| LICENCE-03 | — | Pending |
-| LICENCE-04 | — | Pending |
+| RELEASE-01 | Phase 33 | Pending |
+| RELEASE-02 | Phase 33 | Pending |
+| RELEASE-03 | Phase 33 | Pending |
+| OUTPUT-01 | Phase 29 | Pending |
+| OUTPUT-02 | Phase 29 | Pending |
+| OUTPUT-03 | Phase 32 | Pending |
+| OUTPUT-04 | Phase 32 | Pending |
+| OUTPUT-05 | Phase 30 | Pending |
+| OUTPUT-06 | Phase 30 | Pending |
+| OUTPUT-07 | Phase 30 | Pending |
+| RETRY-01 | Phase 29 | Pending |
+| RETRY-02 | Phase 29 | Pending |
+| RETRY-03 | Phase 32 | Pending |
+| ENVTAG-01 | Phase 31 | Pending |
+| ENVTAG-02 | Phase 31 | Pending |
+| ENVTAG-03 | Phase 32 | Pending |
+| ENVTAG-04 | Phase 31 | Pending |
+| LICENCE-01 | Phase 33 | Pending |
+| LICENCE-02 | Phase 33 | Pending |
+| LICENCE-03 | Phase 33 | Pending |
+| LICENCE-04 | Phase 33 | Pending |
 
 **Coverage:**
 - v10.0 requirements: 21 total
-- Mapped to phases: 0
-- Unmapped: 21 ⚠️
+- Mapped to phases: 21
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-17*
-*Last updated: 2026-03-17 after initial definition*
+*Last updated: 2026-03-17 — traceability populated after roadmap creation*
