@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: — Axiom Commercial Release
 status: planning
-stopped_at: Phase 33 context gathered
-last_updated: "2026-03-18T12:49:26.549Z"
+stopped_at: Completed 33-01-PLAN.md — paramiko removal and PEP 639 licence metadata
+last_updated: "2026-03-18T13:13:02.889Z"
 last_activity: 2026-03-17 — v10.0 roadmap created
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 6
+  completed_plans: 4
   percent: 0
 ---
 
@@ -114,6 +114,9 @@ Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 - [Phase 29]: orchestrator_hash always stored on ExecutionRecord (not node_hash) — independent verifiers can reproduce it from the job payload alone; hash_mismatch logs at WARNING only — enforcement deferred to Phase 30 attestation layer
 - [Phase 29]: AST-based source extraction used to test _check_execution_mode() without triggering full module import side effects
 - [Phase 29]: script_hash computed after signature verification passes, before runtime.run() — attestation hash order invariant preserved
+- [Phase 33-01]: paramiko removed without replacement — zero application imports, eliminates LGPL-2.1 concern entirely
+- [Phase 33-01]: puppeteer/pyproject.toml gets minimal compliance stub [project] section — not distributable, exists solely for License-Expression metadata
+- [Phase 33-01]: PEP 639 string format: license = "Apache-2.0" (never table format); setuptools>=77.0 required for correct wheel metadata
 
 ### v10.0 Research Flags (carry into planning)
 
@@ -145,7 +148,7 @@ None — v9.0 complete. Key open items for v10.0:
 
 ## Session Continuity
 
-Last session: 2026-03-18T12:49:26.547Z
-Stopped at: Phase 33 context gathered
-Resume file: .planning/phases/33-licence-compliance-release-infrastructure/33-CONTEXT.md
+Last session: 2026-03-18T13:13:02.887Z
+Stopped at: Completed 33-01-PLAN.md — paramiko removal and PEP 639 licence metadata
+Resume file: None
 Next action: `/gsd:plan-phase 29`

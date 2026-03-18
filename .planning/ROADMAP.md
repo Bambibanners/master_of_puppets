@@ -191,7 +191,7 @@ Plans:
 | 30. Runtime Attestation | v10.0 | 0/? | Not started | — |
 | 31. Environment Tags + CI/CD Dispatch | v10.0 | 0/? | Not started | — |
 | 32. Dashboard UI — Execution History, Retry State, Env Tags | v10.0 | 0/? | Not started | — |
-| 33. Licence Compliance + Release Infrastructure | v10.0 | 0/? | Not started | — |
+| 33. Licence Compliance + Release Infrastructure | 1/3 | In Progress|  | — |
 
 ---
 

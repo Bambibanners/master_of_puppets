@@ -42,9 +42,9 @@
 ### Licence Compliance
 
 - [ ] **LICENCE-01**: `LEGAL.md` documents the certifi MPL-2.0 usage decision — read-only CA bundle, no source modification, obligations satisfied
-- [ ] **LICENCE-02**: `mop-sdk/pyproject.toml` (and root `pyproject.toml`) includes a `License-Expression` field — `Apache-2.0` for CE, `LicenseRef-Proprietary` for EE, consistent with the dual-licence model
+- [x] **LICENCE-02**: `mop-sdk/pyproject.toml` (and root `pyproject.toml`) includes a `License-Expression` field — `Apache-2.0` for CE, `LicenseRef-Proprietary` for EE, consistent with the dual-licence model
 - [ ] **LICENCE-03**: `NOTICE` file at repo root lists all required third-party attribution — caniuse-lite CC-BY-4.0, and any other packages with attribution requirements identified in the audit
-- [ ] **LICENCE-04**: paramiko LGPL-2.1 linkage is assessed — dynamic-only import confirmed and documented in `LEGAL.md`, or replaced with `asyncssh` (MIT) if EE wheel bundling requires static linking
+- [x] **LICENCE-04**: paramiko LGPL-2.1 linkage is assessed — dynamic-only import confirmed and documented in `LEGAL.md`, or replaced with `asyncssh` (MIT) if EE wheel bundling requires static linking
 
 ---
 
@@ -97,9 +97,9 @@
 | ENVTAG-03 | Phase 32 | Pending |
 | ENVTAG-04 | Phase 31 | Pending |
 | LICENCE-01 | Phase 33 | Pending |
-| LICENCE-02 | Phase 33 | Pending |
+| LICENCE-02 | Phase 33 | Complete |
 | LICENCE-03 | Phase 33 | Pending |
-| LICENCE-04 | Phase 33 | Pending |
+| LICENCE-04 | Phase 33 | Complete |
 
 **Coverage:**
 - v10.0 requirements: 21 total
