@@ -21,6 +21,7 @@ Test inventory:
 
 import json
 import base64
+import hashlib
 import inspect
 import pytest
 from datetime import datetime, timezone
@@ -206,6 +207,83 @@ def test_execution_record_has_attestation_columns():
     )
     assert "attestation_verified" in source, (
         "ExecutionRecord must have an 'attestation_verified' column"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Task 2 — Hash-order invariant and cert-serial structural tests (Plan 30-02)
+# ---------------------------------------------------------------------------
+
+def test_bundle_hash_order_invariant(rsa_cert_and_key):
+    """Hash-order invariant: hashes must be computed from raw bytes, not scrubbed output.
+
+    This test documents the correctness invariant: the orchestrator cannot
+    re-verify hashes from its own scrubbed copy; it must trust the node-reported
+    hash in the signed bundle.
+
+    Scenario: stdout contains a secret value. The node hashes it raw (before scrubbing).
+    A downstream consumer scrubs the secret and computes a scrubbed hash. These must
+    differ. If the bundle were signed over the scrubbed hash, signature verification
+    against the raw hash would raise InvalidSignature.
+    """
+    private_key, cert = rsa_cert_and_key
+    public_key = private_key.public_key()
+
+    raw_stdout = "secret_value visible output"
+    scrubbed_stdout = raw_stdout.replace("secret_value", "[REDACTED]")
+
+    # Hashes must differ — this is the invariant violation if scrubbing happens first
+    stdout_hash = hashlib.sha256(raw_stdout.encode('utf-8')).hexdigest()
+    scrubbed_hash = hashlib.sha256(scrubbed_stdout.encode('utf-8')).hexdigest()
+    assert stdout_hash != scrubbed_hash, (
+        "Raw and scrubbed hashes must differ — if they are equal the test is invalid"
+    )
+
+    # Sign a bundle using the raw (correct) hash
+    bundle = {
+        "cert_serial": str(cert.serial_number),
+        "exit_code": 0,
+        "script_hash": "a" * 64,
+        "start_timestamp": "2026-03-18T12:00:00Z",
+        "stderr_hash": "e" * 64,
+        "stdout_hash": stdout_hash,
+    }
+    bundle_bytes = json.dumps(bundle, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    signature = private_key.sign(bundle_bytes, padding.PKCS1v15(), hashes.SHA256())
+
+    # A verifier using the scrubbed hash would produce different bundle bytes
+    tampered_bundle = dict(bundle)
+    tampered_bundle["stdout_hash"] = scrubbed_hash
+    tampered_bytes = json.dumps(tampered_bundle, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+    # Verification against the tampered (scrubbed) bundle must raise InvalidSignature
+    with pytest.raises(InvalidSignature):
+        public_key.verify(signature, tampered_bytes, padding.PKCS1v15(), hashes.SHA256())
+
+
+def test_cert_serial_extracted_correctly(rsa_cert_and_key):
+    """cert_serial in bundle must equal str(cert.serial_number) — structural test.
+
+    Verifies the expected format without any signing: the bundle's cert_serial
+    field is the stringified integer serial, matching cert.serial_number exactly.
+    """
+    _, cert = rsa_cert_and_key
+
+    bundle = {
+        "cert_serial": str(cert.serial_number),
+        "exit_code": 0,
+        "script_hash": "b" * 64,
+        "start_timestamp": "2026-03-18T12:00:00Z",
+        "stderr_hash": "c" * 64,
+        "stdout_hash": "d" * 64,
+    }
+
+    bundle_bytes = json.dumps(bundle, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    decoded = json.loads(bundle_bytes.decode("utf-8"))
+
+    assert decoded["cert_serial"] == str(cert.serial_number), (
+        f"Decoded cert_serial ({decoded['cert_serial']!r}) must equal "
+        f"str(cert.serial_number) ({str(cert.serial_number)!r})"
     )
 
 
