@@ -4,7 +4,7 @@ milestone: v10.0
 milestone_name: — Axiom Commercial Release
 status: planning
 stopped_at: "Completed 31-04-PLAN.md — ENVTAG-01 and ENVTAG-04 bug fixes: payload dict, Job() constructor fields, Node() first-heartbeat env_tag"
-last_updated: "2026-03-18T18:13:25.581Z"
+last_updated: "2026-03-18T18:16:20.490Z"
 last_activity: 2026-03-17 — v10.0 roadmap created
 progress:
   total_phases: 5
