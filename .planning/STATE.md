@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: — Axiom Commercial Release
 status: planning
-stopped_at: Completed 33-02-PLAN.md — LEGAL-COMPLIANCE.md, NOTICE, DECISIONS.md
-last_updated: "2026-03-18T13:16:26.185Z"
+stopped_at: Completed 33-04-PLAN.md — release pipeline verified, RELEASE-01 and RELEASE-02 satisfied
+last_updated: "2026-03-18T16:04:42.539Z"
 last_activity: 2026-03-17 — v10.0 roadmap created
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 6
-  completed_plans: 5
+  total_plans: 7
+  completed_plans: 6
   percent: 0
 ---
 
@@ -119,6 +119,9 @@ Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 - [Phase 33-01]: PEP 639 string format: license = "Apache-2.0" (never table format); setuptools>=77.0 required for correct wheel metadata
 - [Phase 33-02]: certifi MPL-2.0 assessed as compliant: read-only CA bundle lookup does not trigger file-level copyleft (MPL-2.0 Section 3.1)
 - [Phase 33-02]: /docs/ remains behind CF Access for v10.0; review triggers: CE community onboarding OR 2027-03-04 token expiry (ADR-001 in DECISIONS.md)
+- [Phase 33-04]: 1.0.0a0 is first published version on both testpypi and pypi — pending publisher auto-created the project on first OIDC push
+- [Phase 33-04]: production PyPI publish succeeded alongside testpypi — both RELEASE-01 and RELEASE-02 satisfied; pypi.org package live
+- [Phase 33-04]: 400 Bad Request on second testpypi push is expected: PyPI uses 400 for duplicate version, not 409 — first push success confirmed
 
 ### v10.0 Research Flags (carry into planning)
 
@@ -150,7 +153,7 @@ None — v9.0 complete. Key open items for v10.0:
 
 ## Session Continuity
 
-Last session: 2026-03-18T13:16:26.182Z
-Stopped at: Completed 33-02-PLAN.md — LEGAL-COMPLIANCE.md, NOTICE, DECISIONS.md
+Last session: 2026-03-18T16:04:33.961Z
+Stopped at: Completed 33-04-PLAN.md — release pipeline verified, RELEASE-01 and RELEASE-02 satisfied
 Resume file: None
 Next action: `/gsd:plan-phase 29`

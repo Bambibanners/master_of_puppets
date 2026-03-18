@@ -9,8 +9,8 @@
 
 ### Release Infrastructure
 
-- [ ] **RELEASE-01**: Operator can publish `axiom-sdk` to PyPI automatically via GitHub Actions OIDC (Trusted Publisher — `axiom-laboratories` org + PyPI project prerequisites documented and configured)
-- [ ] **RELEASE-02**: Multi-arch GHCR images (`ghcr.io/axiom-laboratories/axiom`) publish automatically when a version tag is pushed, using the existing release workflow
+- [x] **RELEASE-01**: Operator can publish `axiom-sdk` to PyPI automatically via GitHub Actions OIDC (Trusted Publisher — `axiom-laboratories` org + PyPI project prerequisites documented and configured)
+- [x] **RELEASE-02**: Multi-arch GHCR images (`ghcr.io/axiom-laboratories/axiom`) publish automatically when a version tag is pushed, using the existing release workflow
 - [x] **RELEASE-03**: Operator has a documented decision on public `/docs/` access — either a public-facing subdomain/path for open-source adoption, or an explicit deferral with rationale
 
 ### Job Output & Execution History
@@ -79,8 +79,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RELEASE-01 | Phase 33 | Pending |
-| RELEASE-02 | Phase 33 | Pending |
+| RELEASE-01 | Phase 33 | Complete |
+| RELEASE-02 | Phase 33 | Complete |
 | RELEASE-03 | Phase 33 | Complete |
 | OUTPUT-01 | Phase 29 | Complete |
 | OUTPUT-02 | Phase 29 | Complete |
