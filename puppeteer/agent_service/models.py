@@ -637,6 +637,7 @@ class ExecutionRecordResponse(BaseModel):
     hash_mismatch: Optional[bool] = None
     attempt_number: Optional[int] = None
     job_run_id: Optional[str] = None
+    attestation_verified: Optional[str] = None
 
 
 class AttestationExportResponse(BaseModel):
