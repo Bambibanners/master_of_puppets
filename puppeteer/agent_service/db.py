@@ -42,6 +42,7 @@ class Job(Base):
     timeout_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     depends_on: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON list of GUIDs
     job_run_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    env_tag: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
 
 
 class RolePermission(Base):
@@ -80,6 +81,7 @@ class ScheduledJob(Base):
     max_retries: Mapped[int] = mapped_column(Integer, default=0)
     backoff_multiplier: Mapped[float] = mapped_column(Float, default=2.0)
     timeout_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    env_tag: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
 
 class Token(Base):
     __tablename__ = "tokens"
@@ -162,6 +164,7 @@ class Node(Base):
     node_secret_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Binding secret
     client_cert_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Stored at enrollment for CRL
     template_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("puppet_templates.id"), nullable=True)
+    env_tag: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
 
 class Alert(Base):
     __tablename__ = "alerts"

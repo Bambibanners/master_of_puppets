@@ -15,6 +15,12 @@ class JobCreate(BaseModel):
     max_retries: int = 0
     backoff_multiplier: float = 2.0
     timeout_minutes: Optional[int] = None
+    env_tag: Optional[str] = None
+
+    @field_validator("env_tag", mode="before")
+    @classmethod
+    def normalize_env_tag(cls, v):
+        return v.strip().upper() if isinstance(v, str) and v.strip() else None
 
 class RegisterRequest(BaseModel):
     client_secret: str
@@ -116,6 +122,12 @@ class HeartbeatPayload(BaseModel):
     capabilities: Optional[Dict[str, str]] = None
     job_telemetry: Optional[Dict[str, Dict]] = None # guid -> metrics
     upgrade_result: Optional[Dict] = None # status, output, error
+    env_tag: Optional[str] = None
+
+    @field_validator("env_tag", mode="before")
+    @classmethod
+    def normalize_env_tag(cls, v):
+        return v.strip().upper() if isinstance(v, str) and v.strip() else None
 
 class NodeConfig(BaseModel):
     concurrency_limit: int
@@ -171,6 +183,7 @@ class NodeResponse(BaseModel):
     concurrency_limit: Optional[int] = None
     job_memory_limit: Optional[str] = None
     stats_history: Optional[List[Dict]] = None
+    env_tag: Optional[str] = None
 
 class SignatureCreate(BaseModel):
     name: str
@@ -198,6 +211,12 @@ class JobDefinitionCreate(BaseModel):
     max_retries: int = 0
     backoff_multiplier: float = 2.0
     timeout_minutes: Optional[int] = None
+    env_tag: Optional[str] = None
+
+    @field_validator("env_tag", mode="before")
+    @classmethod
+    def normalize_env_tag(cls, v):
+        return v.strip().upper() if isinstance(v, str) and v.strip() else None
 
 class JobDefinitionResponse(BaseModel):
     id: str
@@ -218,6 +237,7 @@ class JobDefinitionResponse(BaseModel):
     max_retries: int = 0
     backoff_multiplier: float = 2.0
     timeout_minutes: Optional[int] = None
+    env_tag: Optional[str] = None
 
     @field_validator('target_tags', mode='before')
     @classmethod
@@ -256,6 +276,7 @@ class JobDefinitionUpdate(BaseModel):
     backoff_multiplier: Optional[float] = None
     timeout_minutes: Optional[int] = None
     status: Optional[str] = None
+    env_tag: Optional[str] = None
 
     @field_validator("status")
     @classmethod
@@ -266,6 +287,11 @@ class JobDefinitionUpdate(BaseModel):
         if v not in valid:
             raise ValueError(f"status must be one of {sorted(valid)}, got '{v}'")
         return v
+
+    @field_validator("env_tag", mode="before")
+    @classmethod
+    def normalize_env_tag(cls, v):
+        return v.strip().upper() if isinstance(v, str) and v.strip() else None
 
 class JobPushRequest(BaseModel):
     name: Optional[str] = None   # for create (name-based upsert)
@@ -618,3 +644,37 @@ class AttestationExportResponse(BaseModel):
     cert_serial: Optional[str] = None
     node_id: Optional[str] = None
     attestation_verified: Optional[str] = None
+
+
+# --- CI/CD Dispatch (Phase 31) ---
+
+class DispatchRequest(BaseModel):
+    job_definition_id: str
+    env_tag: Optional[str] = None
+    max_retries: Optional[int] = None
+    timeout_minutes: Optional[int] = None
+
+    @field_validator("env_tag", mode="before")
+    @classmethod
+    def normalize_env_tag(cls, v):
+        return v.strip().upper() if isinstance(v, str) and v.strip() else None
+
+
+class DispatchResponse(BaseModel):
+    job_guid: str
+    status: str
+    job_definition_id: str
+    job_definition_name: str
+    env_tag: Optional[str] = None
+    poll_url: str
+
+
+class DispatchStatusResponse(BaseModel):
+    job_guid: str
+    status: str
+    exit_code: Optional[int] = None
+    node_id: Optional[str] = None
+    attempt: Optional[int] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    is_terminal: bool
