@@ -9,8 +9,8 @@ Requirements for the CE/EE Split Completion milestone.
 
 ### CE Gap Fixes
 
-- [ ] **GAP-01**: CE mode returns 402 (not 404) for all EE routes — all 7 stub routers mounted in `load_ee_plugins()`
-- [ ] **GAP-02**: `load_ee_plugins()` uses `importlib.metadata.entry_points()` instead of deprecated `pkg_resources`
+- [x] **GAP-01**: CE mode returns 402 (not 404) for all EE routes — all 7 stub routers mounted in `load_ee_plugins()`
+- [x] **GAP-02**: `load_ee_plugins()` uses `importlib.metadata.entry_points()` instead of deprecated `pkg_resources`
 - [x] **GAP-03**: EE-only test files (`test_lifecycle_enforcement`, `test_foundry_mirror`, `test_smelter`, `test_staging`) isolated with `@pytest.mark.ee_only` marker + conftest skip logic
 - [x] **GAP-04**: `test_bootstrap_admin.py` `User.role` attribute references removed — CE pytest suite passes cleanly
 - [ ] **GAP-05**: `NodeConfig` Pydantic model stripped of EE-only fields (`concurrency_limit`, `job_memory_limit`, `job_cpu_limit`)
@@ -65,8 +65,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GAP-01 | Phase 34 | Pending |
-| GAP-02 | Phase 34 | Pending |
+| GAP-01 | Phase 34 | Complete |
+| GAP-02 | Phase 34 | Complete |
 | GAP-03 | Phase 34 | Complete |
 | GAP-04 | Phase 34 | Complete |
 | GAP-05 | Phase 34 | Pending |
