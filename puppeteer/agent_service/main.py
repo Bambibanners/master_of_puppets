@@ -81,6 +81,10 @@ limiter = Limiter(key_func=get_remote_address)
 async def lifespan(app: FastAPI):
     # Startup logic
     await init_db()
+    # Load EE plugins (or CE stubs)
+    from .ee import load_ee_plugins
+    from .db import engine
+    app.state.ee = load_ee_plugins(app, engine)
     # Bootstrap Admin
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(User).where(User.username == "admin"))
@@ -1447,6 +1451,25 @@ async def rotate_sp_secret(
 @app.get("/", tags=["System"])
 async def health_check():
     return {"status": "healthy", "service": "Agent Service v0.7"}
+
+
+@app.get("/api/features", tags=["System"])
+async def get_features(request: Request):
+    ctx = getattr(request.app.state, "ee", None)
+    if ctx is None:
+        return {"audit": False, "foundry": False, "webhooks": False,
+                "triggers": False, "rbac": False, "resource_limits": False,
+                "service_principals": False, "api_keys": False}
+    return {
+        "audit": ctx.audit,
+        "foundry": ctx.foundry,
+        "webhooks": ctx.webhooks,
+        "triggers": ctx.triggers,
+        "rbac": ctx.rbac,
+        "resource_limits": ctx.resource_limits,
+        "service_principals": ctx.service_principals,
+        "api_keys": ctx.api_keys,
+    }
 
 @app.get("/jobs", response_model=List[JobResponse], tags=["Jobs"])
 async def list_jobs(skip: int = 0, limit: int = 50, status: Optional[str] = None, current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
