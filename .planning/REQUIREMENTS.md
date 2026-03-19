@@ -65,34 +65,34 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GAP-01 | — | Pending |
-| GAP-02 | — | Pending |
-| GAP-03 | — | Pending |
-| GAP-04 | — | Pending |
-| GAP-05 | — | Pending |
-| GAP-06 | — | Pending |
-| EE-01 | — | Pending |
-| EE-02 | — | Pending |
-| EE-03 | — | Pending |
-| EE-04 | — | Pending |
-| EE-05 | — | Pending |
-| EE-06 | — | Pending |
-| EE-07 | — | Pending |
-| EE-08 | — | Pending |
-| BUILD-01 | — | Pending |
-| BUILD-02 | — | Pending |
-| BUILD-03 | — | Pending |
-| BUILD-04 | — | Pending |
-| BUILD-05 | — | Pending |
-| DIST-01 | — | Pending |
-| DIST-02 | — | Pending |
-| DIST-03 | — | Pending |
+| GAP-01 | Phase 34 | Pending |
+| GAP-02 | Phase 34 | Pending |
+| GAP-03 | Phase 34 | Pending |
+| GAP-04 | Phase 34 | Pending |
+| GAP-05 | Phase 34 | Pending |
+| GAP-06 | Phase 34 | Pending |
+| EE-01 | Phase 35 | Pending |
+| EE-02 | Phase 35 | Pending |
+| EE-03 | Phase 35 | Pending |
+| EE-04 | Phase 35 | Pending |
+| EE-05 | Phase 35 | Pending |
+| EE-06 | Phase 35 | Pending |
+| EE-07 | Phase 35 | Pending |
+| EE-08 | Phase 35 | Pending |
+| BUILD-01 | Phase 36 | Pending |
+| BUILD-02 | Phase 36 | Pending |
+| BUILD-03 | Phase 36 | Pending |
+| BUILD-04 | Phase 36 | Pending |
+| BUILD-05 | Phase 36 | Pending |
+| DIST-01 | Phase 37 | Pending |
+| DIST-02 | Phase 37 | Pending |
+| DIST-03 | Phase 37 | Pending |
 
 **Coverage:**
 - v11.0 requirements: 22 total
-- Mapped to phases: 0 (roadmapper will fill)
-- Unmapped: 22 ⚠️
+- Mapped to phases: 22
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-19*
-*Last updated: 2026-03-19 after initial definition*
+*Last updated: 2026-03-19 — traceability filled by roadmapper*
