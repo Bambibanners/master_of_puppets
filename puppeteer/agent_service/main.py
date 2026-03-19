@@ -1652,7 +1652,12 @@ async def list_executions(
             "duration_seconds": (
                 (r.completed_at - r.started_at).total_seconds()
                 if r.started_at and r.completed_at else None
-            )
+            ),
+            "stdout": r.stdout,
+            "stderr": r.stderr,
+            "attempt_number": r.attempt_number,
+            "job_run_id": r.job_run_id,
+            "attestation_verified": r.attestation_verified,
         }
         for r in records
     ]
