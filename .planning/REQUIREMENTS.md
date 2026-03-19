@@ -1,111 +1,98 @@
-# Requirements: Axiom Orchestrator
+# Requirements: Axiom
 
-**Defined:** 2026-03-17
+**Defined:** 2026-03-19
 **Core Value:** Jobs run reliably — on the right node, when scheduled, with their output captured — without any step in the chain weakening the security model.
 
----
+## v11.0 Requirements
 
-## v10.0 Requirements — Axiom Commercial Release
+Requirements for the CE/EE Split Completion milestone.
 
-### Release Infrastructure
+### CE Gap Fixes
 
-- [x] **RELEASE-01**: Operator can publish `axiom-sdk` to PyPI automatically via GitHub Actions OIDC (Trusted Publisher — `axiom-laboratories` org + PyPI project prerequisites documented and configured)
-- [x] **RELEASE-02**: Multi-arch GHCR images (`ghcr.io/axiom-laboratories/axiom`) publish automatically when a version tag is pushed, using the existing release workflow
-- [x] **RELEASE-03**: Operator has a documented decision on public `/docs/` access — either a public-facing subdomain/path for open-source adoption, or an explicit deferral with rationale
+- [ ] **GAP-01**: CE mode returns 402 (not 404) for all EE routes — all 7 stub routers mounted in `load_ee_plugins()`
+- [ ] **GAP-02**: `load_ee_plugins()` uses `importlib.metadata.entry_points()` instead of deprecated `pkg_resources`
+- [ ] **GAP-03**: EE-only test files (`test_lifecycle_enforcement`, `test_foundry_mirror`, `test_smelter`, `test_staging`) isolated with `@pytest.mark.ee_only` marker + conftest skip logic
+- [ ] **GAP-04**: `test_bootstrap_admin.py` `User.role` attribute references removed — CE pytest suite passes cleanly
+- [ ] **GAP-05**: `NodeConfig` Pydantic model stripped of EE-only fields (`concurrency_limit`, `job_memory_limit`, `job_cpu_limit`)
+- [ ] **GAP-06**: `job_service.py` EE field workarounds (`concurrency_limit=0` hardcoding) removed and replaced with CE-appropriate defaults
 
-### Job Output & Execution History
+### EE Plugin
 
-- [x] **OUTPUT-01**: Node captures stdout, stderr, and exit code for every job execution and reports them to the orchestrator on completion
-- [x] **OUTPUT-02**: Orchestrator stores per-execution records (job id, node id, script hash, start time, end time, exit code, stdout, stderr)
-- [x] **OUTPUT-03**: User can view stdout/stderr output for any past execution from the dashboard (Jobs view or Staging view)
-- [x] **OUTPUT-04**: User can query execution history — list of all past runs for a given job definition or node, with status and timestamps
+- [ ] **EE-01**: `axiom-ee` private GitHub repo created with `EEPlugin` class skeleton
+- [ ] **EE-02**: `EEPlugin.register()` is async and mounts all 7 EE routers via `app.include_router()`
+- [ ] **EE-03**: `EEPlugin.register()` creates EE DB tables via separate `EEBase.metadata.create_all(engine)`
+- [ ] **EE-04**: All 7 router files use absolute imports — no relative imports from CE codebase
+- [ ] **EE-05**: `pyproject.toml` entry_points configured (`[project.entry-points."axiom.ee"]`) and validated
+- [ ] **EE-06**: CE-alone smoke test passes: 13 tables created, all EE routes return 402, `GET /api/features` returns all false
+- [ ] **EE-07**: CE+EE combined install smoke test passes: EE tables present, EE routes functional, `GET /api/features` returns all true
+- [ ] **EE-08**: `axiom-ee` stub wheel published to PyPI to reserve the package name
 
-### Runtime Attestation
+### Compilation
 
-- [x] **OUTPUT-05**: Node produces a runtime attestation bundle — (script hash + stdout hash + stderr hash + exit code + start timestamp + node cert serial), serialised and signed with the node's mTLS client private key
-- [x] **OUTPUT-06**: Orchestrator verifies the attestation signature against the stored node certificate for every execution; verification result (verified / failed / missing) is stored on the execution record
-- [x] **OUTPUT-07**: Attestation bundles (raw signed bytes) are stored and can be exported via API for independent offline verification
+- [ ] **BUILD-01**: EE source audited and cleaned for Cython compatibility — no `@dataclass` decorators, `__init__.py` excluded from `ext_modules`
+- [ ] **BUILD-02**: Cython `ext_modules` list configured in EE `pyproject.toml` — enumerates each `.py` file explicitly
+- [ ] **BUILD-03**: `cibuildwheel` CI pipeline in `axiom-ee` repo builds wheels for amd64 + arm64, Python 3.11 / 3.12 / 3.13
+- [ ] **BUILD-04**: Published EE wheel verified to contain no `.py` source files — only `.so` compiled extensions
+- [ ] **BUILD-05**: CE+EE combined smoke test passes after installing compiled `.so` wheel (not just source install)
 
-### Retry Policy
+### Licensing & Publishing
 
-- [x] **RETRY-01**: User can configure a retry policy on a job definition — maximum retry count and backoff strategy (fixed interval or exponential)
-- [x] **RETRY-02**: When a job execution fails (non-zero exit code or node timeout), the orchestrator automatically re-dispatches according to the retry policy; each attempt is a separate execution record linked to the same job run
-- [x] **RETRY-03**: Dashboard displays retry state (attempt N of M) on in-progress and failed runs, and shows all attempt records in execution history
+- [ ] **DIST-01**: Ed25519 offline licence key validation implemented in EE plugin — payload carries `customer_id`, `exp`, `features`; public key hardcoded in compiled binary; checked at startup only
+- [ ] **DIST-02**: `axiom-ce` image published to Docker Hub in existing `release.yml` — two-step addition alongside GHCR
+- [ ] **DIST-03**: MkDocs docs updated with CE/EE admonition callouts — EE-only feature sections marked with `!!! enterprise` admonitions
 
-### Environment Tags & CI/CD Targeting
+## Future Requirements
 
-- [x] **ENVTAG-01**: Node has a configurable environment tag (DEV / TEST / PROD, or custom string) declared at enrollment and stored on the node record
-- [x] **ENVTAG-02**: Job definitions and ad-hoc dispatches can specify an environment tag as an additional targeting constraint (combined with existing capability matching)
-- [x] **ENVTAG-03**: Dashboard Nodes view displays the environment tag for each node; tag is filterable
-- [x] **ENVTAG-04**: A documented CI/CD dispatch API endpoint accepts environment tag as a targeting parameter and returns structured JSON (job id, status, node assigned) — suitable for pipeline integration
+### v12.0+
 
-### Licence Compliance
+- **DIST-04**: Licence issuance portal — web UI or automated pipeline to generate and deliver signed licence keys to customers
+- **DIST-05**: Periodic licence re-validation — check licence on a schedule, not only at startup
+- **EE-09**: OIDC/SAML SSO integration
+- **EE-10**: Custom RBAC roles + fine-grained permissions
 
-- [x] **LICENCE-01**: `LEGAL.md` documents the certifi MPL-2.0 usage decision — read-only CA bundle, no source modification, obligations satisfied
-- [x] **LICENCE-02**: `mop-sdk/pyproject.toml` (and root `pyproject.toml`) includes a `License-Expression` field — `Apache-2.0` for CE, `LicenseRef-Proprietary` for EE, consistent with the dual-licence model
-- [x] **LICENCE-03**: `NOTICE` file at repo root lists all required third-party attribution — caniuse-lite CC-BY-4.0, and any other packages with attribution requirements identified in the audit
-- [x] **LICENCE-04**: paramiko LGPL-2.1 linkage is assessed — dynamic-only import confirmed and documented in `LEGAL.md`, or replaced with `asyncssh` (MIT) if EE wheel bundling requires static linking
-
----
-
-## v11.0 Requirements — Job Pipeline (Deferred)
-
-### Job Dependencies
-
-- **PIPELINE-01**: User can declare that job B depends on job A — job B is dispatched only after job A completes successfully
-- **PIPELINE-02**: Job dependency chains support linear sequences (A → B → C)
-- **PIPELINE-03**: Job dependency graphs support fan-out and fan-in (DAG topology)
-
-### Conditional Triggers
-
-- **PIPELINE-04**: User can configure a conditional trigger — job B dispatches only if job A exits with a specific code or produces output matching a pattern
-- **PIPELINE-05**: External signal triggers — an authenticated API call can trigger a job definition outside of its cron schedule
-
----
-
-## Out of Scope — v10.0
+## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| DAG job dependencies | Deferred to v11.0 — retry + env tags + attestation are the v10 focus |
-| Conditional triggers | Deferred to v11.0 — same rationale |
-| SLSA provenance | Structured attestation deferred; runtime attestation (OUTPUT-05..07) covers the immediate need |
-| Live log streaming | WebSocket streaming of job output deferred — captured post-execution output covers v10 observability needs |
-| External OIDC / SSO | MoP-native OAuth device flow sufficient for v10; OIDC documented as v2 path |
-
----
+| Licence issuance portal | Product decision required on customer onboarding flow — not blocking v11.0 |
+| Online licence validation | Air-gapped deployments are a core use case — offline Ed25519 is required; online as optional future enhancement |
+| Nuitka compilation | Undocumented multi-module wheel workflow; Cython is the established standard |
+| Compiling `__init__.py` to .so | CPython bug #59828 — breaks relative imports; `__init__.py` must stay as plain Python |
 
 ## Traceability
 
+Which phases cover which requirements. Updated during roadmap creation.
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RELEASE-01 | Phase 33 | Complete |
-| RELEASE-02 | Phase 33 | Complete |
-| RELEASE-03 | Phase 33 | Complete |
-| OUTPUT-01 | Phase 29 | Complete |
-| OUTPUT-02 | Phase 29 | Complete |
-| OUTPUT-03 | Phase 32 | Complete |
-| OUTPUT-04 | Phase 32 | Complete |
-| OUTPUT-05 | Phase 30 | Complete |
-| OUTPUT-06 | Phase 30 | Complete |
-| OUTPUT-07 | Phase 30 | Complete |
-| RETRY-01 | Phase 29 | Complete |
-| RETRY-02 | Phase 29 | Complete |
-| RETRY-03 | Phase 32 | Complete |
-| ENVTAG-01 | Phase 31 | Complete |
-| ENVTAG-02 | Phase 31 | Complete |
-| ENVTAG-03 | Phase 32 | Complete |
-| ENVTAG-04 | Phase 31 | Complete |
-| LICENCE-01 | Phase 33 | Complete |
-| LICENCE-02 | Phase 33 | Complete |
-| LICENCE-03 | Phase 33 | Complete |
-| LICENCE-04 | Phase 33 | Complete |
+| GAP-01 | — | Pending |
+| GAP-02 | — | Pending |
+| GAP-03 | — | Pending |
+| GAP-04 | — | Pending |
+| GAP-05 | — | Pending |
+| GAP-06 | — | Pending |
+| EE-01 | — | Pending |
+| EE-02 | — | Pending |
+| EE-03 | — | Pending |
+| EE-04 | — | Pending |
+| EE-05 | — | Pending |
+| EE-06 | — | Pending |
+| EE-07 | — | Pending |
+| EE-08 | — | Pending |
+| BUILD-01 | — | Pending |
+| BUILD-02 | — | Pending |
+| BUILD-03 | — | Pending |
+| BUILD-04 | — | Pending |
+| BUILD-05 | — | Pending |
+| DIST-01 | — | Pending |
+| DIST-02 | — | Pending |
+| DIST-03 | — | Pending |
 
 **Coverage:**
-- v10.0 requirements: 21 total
-- Mapped to phases: 21
-- Unmapped: 0 ✓
+- v11.0 requirements: 22 total
+- Mapped to phases: 0 (roadmapper will fill)
+- Unmapped: 22 ⚠️
 
 ---
-*Requirements defined: 2026-03-17*
-*Last updated: 2026-03-17 — traceability populated after roadmap creation*
+*Requirements defined: 2026-03-19*
+*Last updated: 2026-03-19 after initial definition*
