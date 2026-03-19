@@ -119,17 +119,14 @@ def require_permission(perm: str):
 
 
 def audit(db: AsyncSession, user, action: str, resource_id: str = None, detail: dict = None):
-    """Append an audit entry if the AuditLog table exists (EE). No-op in CE."""
+    """Append an audit entry. No-op in CE (table absent — exception swallowed).
+    Works in EE regardless of which SQLAlchemy metadata AuditLog is registered in."""
     try:
-        from .db import Base
-        if "audit_log" not in Base.metadata.tables:
-            return
-        # Lazy import to avoid circular issues — the EE db models extend Base
-        from sqlalchemy import insert, text
+        from sqlalchemy import text
         db.execute(
             text("INSERT INTO audit_log (username, action, resource_id, detail) VALUES (:u, :a, :r, :d)"),
             {"u": user.username, "a": action, "r": resource_id, "d": json.dumps(detail) if detail else None}
         )
     except Exception:
-        # In CE mode the table doesn't exist; silently ignore
+        # In CE mode the table doesn't exist — silently ignore.
         pass
