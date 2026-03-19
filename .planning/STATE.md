@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v10.0
 milestone_name: — Axiom Commercial Release
 status: planning
-stopped_at: Completed 32-05-PLAN.md
-last_updated: "2026-03-18T20:29:41.029Z"
+stopped_at: Completed 32-07-PLAN.md
+last_updated: "2026-03-19T08:03:12.550Z"
 last_activity: 2026-03-17 — v10.0 roadmap created
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 20
-  completed_plans: 19
+  total_plans: 21
+  completed_plans: 20
   percent: 0
 ---
 
@@ -150,6 +150,7 @@ Progress: [░░░░░░░░░░] 0% (0/5 phases complete)
 - [Phase 32]: JobDefinitions uses inline DefinitionHistoryPanel component (not a separate file) — master-detail split stays contained in one view file
 - [Phase 32]: History.tsx definitions query uses queryKey definitions-for-filter separate from executions query — allows independent caching
 - [Phase 32]: Filter dropdown only renders when env tags present; displayNodes filters grid; Radix Select scrollIntoView mocked in tests
+- [Phase 32]: getAttestationBadge: verified == null guard + ?? 'missing' call-site fallback so DB NULL rows always render NO ATTESTATION badge
 
 ### v10.0 Research Flags (carry into planning)
 
@@ -181,7 +182,7 @@ None — v9.0 complete. Key open items for v10.0:
 
 ## Session Continuity
 
-Last session: 2026-03-18T20:29:41.026Z
-Stopped at: Completed 32-05-PLAN.md
+Last session: 2026-03-19T08:03:12.546Z
+Stopped at: Completed 32-07-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 29`
