@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v11.0
 milestone_name: — CE/EE Split Completion
 status: planning
-stopped_at: Completed 35-02-PLAN.md
-last_updated: "2026-03-19T21:26:05.670Z"
+stopped_at: Completed 35-03-PLAN.md
+last_updated: "2026-03-19T21:37:28.410Z"
 last_activity: 2026-03-19 — v11.0 roadmap created
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 9
-  completed_plans: 6
+  completed_plans: 7
   percent: 0
 ---
 
@@ -63,6 +63,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 35-private-ee-repo-plugin-wiring]: EEPlugin.register() is async — deferred router imports prevent circular startup imports; sync DDL via engine.sync_engine
 - [Phase 35]: All intra-EEBase FKs dropped as plain String per plan spec — avoids DDL ordering dependencies and simplifies Cython compilation in Phase 36
 - [Phase 35]: Trigger.job_definition_id made nullable=True — without FK constraint NULL is valid; preserves semantic without DB enforcement
+- [Phase 35]: EE Pydantic models co-located in ee/{feature}/models.py alongside SQLAlchemy models — avoids a separate pydantic/ layer per feature
+- [Phase 35]: WebhookService.dispatch_event uses httpx for real outbound HTTP — CE stub was no-op
 
 ### Pending Todos
 
@@ -79,7 +81,7 @@ None — v10.0 complete. Starting clean on v11.0:
 
 ## Session Continuity
 
-Last session: 2026-03-19T21:26:05.667Z
-Stopped at: Completed 35-02-PLAN.md
+Last session: 2026-03-19T21:37:28.399Z
+Stopped at: Completed 35-03-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 34`
