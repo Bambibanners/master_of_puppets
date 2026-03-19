@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v11.0
 milestone_name: — CE/EE Split Completion
 status: planning
-stopped_at: Completed 34-01-PLAN.md
-last_updated: "2026-03-19T20:08:47.026Z"
+stopped_at: Completed 34-03-PLAN.md
+last_updated: "2026-03-19T20:11:33.764Z"
 last_activity: 2026-03-19 — v11.0 roadmap created
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -55,6 +55,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 34-ce-baseline-fixes]: test_bootstrap_admin.py import paths fixed from puppeteer.* to agent_service.* (Rule 1 auto-fix during GAP-04 work)
 - [Phase 34-ce-baseline-fixes]: importlib.metadata.entry_points(group='axiom.ee') replaces deprecated pkg_resources in load_ee_plugins()
 - [Phase 34-ce-baseline-fixes]: _mount_ce_stubs() called in both CE paths (no-plugin else branch and except handler) — single helper pattern
+- [Phase 34]: NodeUpdateRequest replaces NodeConfig for PATCH /nodes/{node_id} — only tags and env_tag (CE-safe fields)
+- [Phase 34]: PollResponse carries env_tag directly as Optional[str] = None — no config nesting, eliminates EE-field AttributeError on CE
 
 ### Pending Todos
 
@@ -71,7 +73,7 @@ None — v10.0 complete. Starting clean on v11.0:
 
 ## Session Continuity
 
-Last session: 2026-03-19T20:08:41.325Z
-Stopped at: Completed 34-01-PLAN.md
+Last session: 2026-03-19T20:11:33.763Z
+Stopped at: Completed 34-03-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 34`
