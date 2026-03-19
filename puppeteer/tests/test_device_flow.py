@@ -76,7 +76,6 @@ async def test_token_exchange_approved(db_session):
     user = User(
         username="testuser",
         password_hash="fakehash",
-        role="admin",
         token_version=1
     )
     db_session.add(user)
@@ -103,12 +102,11 @@ async def test_token_exchange_approved(db_session):
         payload = jwt.decode(data["access_token"], SECRET_KEY, algorithms=[ALGORITHM])
         assert payload["sub"] == "testuser"
         assert payload["type"] == "device_flow"
-        assert payload["role"] == "admin"
 
 @pytest.mark.anyio
 async def test_device_approval_flow(db_session):
     # 1. Create a test user with a valid token
-    user = User(username="approver", password_hash="fake", role="admin")
+    user = User(username="approver", password_hash="fake")
     db_session.add(user)
     await db_session.commit()
     
