@@ -30,7 +30,7 @@ interface ExecutionRecord {
 }
 
 const getAttestationBadge = (verified: string | null | undefined) => {
-    if (!verified) return null;
+    if (verified == null) return null;
     const map: Record<string, { cls: string; label: string }> = {
         verified: { cls: 'bg-green-500/10 text-green-500 border-green-500/20', label: 'VERIFIED' },
         failed:   { cls: 'bg-red-500/10 text-red-500 border-red-500/20',   label: 'ATTEST FAILED' },
@@ -130,7 +130,7 @@ export const ExecutionLogModal = ({
                                             {selected.status}
                                         </Badge>
                                     )}
-                                    {selected && getAttestationBadge(selected.attestation_verified)}
+                                    {selected && getAttestationBadge(selected.attestation_verified ?? 'missing')}
                                 </DialogTitle>
                                 <p className="text-zinc-500 text-xs truncate max-w-[300px]" style={{ fontFamily: 'monospace' }}>
                                     {selected?.job_guid || jobGuid}

@@ -69,7 +69,7 @@ describe('ExecutionLogModal', () => {
         });
     });
 
-    it('OUTPUT-03: shows no attestation badge when attestation_verified is null', async () => {
+    it('OUTPUT-03: shows NO ATTESTATION badge when attestation_verified is null', async () => {
         const record = makeRecord({ attestation_verified: null, id: 11 });
 
         mockAuthFetch.mockResolvedValue({
@@ -88,7 +88,7 @@ describe('ExecutionLogModal', () => {
         await waitFor(() => {
             expect(screen.queryByText('VERIFIED')).not.toBeInTheDocument();
             expect(screen.queryByText('ATTEST FAILED')).not.toBeInTheDocument();
-            expect(screen.queryByText('NO ATTESTATION')).not.toBeInTheDocument();
+            expect(screen.queryByText('NO ATTESTATION')).toBeInTheDocument();
         });
     });
 
