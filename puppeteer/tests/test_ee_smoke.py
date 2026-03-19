@@ -1,36 +1,59 @@
 """CE+EE combined install smoke test (EE-07).
 Requires axiom-ee to be pip-installed. Marked ee_only — excluded from CE default run.
 Run with: pytest puppeteer/tests/test_ee_smoke.py -v
+
+Note: Tests call EEPlugin.register() directly rather than via ASGITransport because
+httpx.ASGITransport does not trigger ASGI lifespan events — load_ee_plugins() would
+never run, leaving all flags False and EE routes unmounted.
 """
 import pytest
-from httpx import AsyncClient, ASGITransport
+from unittest.mock import MagicMock
+from fastapi import FastAPI
+from sqlalchemy import create_engine
 
 
 pytestmark = pytest.mark.ee_only
 
 
+def _make_mock_engine():
+    sync_engine = create_engine("sqlite:///:memory:")
+    mock_engine = MagicMock()
+    mock_engine.sync_engine = sync_engine
+    return mock_engine
+
+
 @pytest.mark.asyncio
 async def test_ee_features_all_true():
-    """GET /api/features returns all 8 flags as True after CE+EE install."""
+    """EEPlugin.register() sets all 8 feature flags to True."""
     pytest.importorskip("ee.plugin", reason="axiom-ee not installed")
-    from agent_service.main import app
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        resp = await client.get("/api/features")
-        assert resp.status_code == 200
-        flags = resp.json()
-        ee_flags = ["foundry", "audit", "webhooks", "triggers", "rbac",
-                    "resource_limits", "service_principals", "api_keys"]
-        for flag in ee_flags:
-            assert flags.get(flag) is True, f"Expected {flag}=True in CE+EE, got {flags.get(flag)}"
+    from ee.plugin import EEPlugin
+    from agent_service.ee import EEContext
+
+    mock_app = FastAPI()
+    plugin = EEPlugin(mock_app, _make_mock_engine())
+    ctx = EEContext()
+    await plugin.register(ctx)
+
+    ee_flags = ["foundry", "audit", "webhooks", "triggers", "rbac",
+                "resource_limits", "service_principals", "api_keys"]
+    for flag in ee_flags:
+        assert getattr(ctx, flag) is True, f"Expected {flag}=True in CE+EE, got {getattr(ctx, flag)}"
 
 
 @pytest.mark.asyncio
-async def test_ee_blueprints_route_live():
-    """GET /api/blueprints returns 200 (not 402) after CE+EE install."""
+async def test_ee_blueprints_route_present():
+    """After EEPlugin.register(), a /blueprints route is mounted in the app (not a stub)."""
     pytest.importorskip("ee.plugin", reason="axiom-ee not installed")
-    from agent_service.main import app
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        resp = await client.get("/api/blueprints")
-        # 401 is acceptable (auth required but route exists); 402 means stub — fail
-        assert resp.status_code != 402, f"Got 402 (stub router still active) — EE plugin not wired"
-        assert resp.status_code in (200, 401), f"Unexpected status: {resp.status_code}"
+    from ee.plugin import EEPlugin
+    from agent_service.ee import EEContext
+
+    mock_app = FastAPI()
+    plugin = EEPlugin(mock_app, _make_mock_engine())
+    ctx = EEContext()
+    await plugin.register(ctx)
+
+    routes = [getattr(r, "path", "") for r in mock_app.routes]
+    blueprint_routes = [r for r in routes if "blueprint" in r.lower()]
+    assert len(blueprint_routes) > 0, (
+        f"No blueprint routes found after EEPlugin.register(). Routes: {routes}"
+    )
