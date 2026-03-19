@@ -105,11 +105,11 @@ Plans:
   5. The `axiom-ee` stub wheel is published to PyPI and the package name is reserved
 **Plans**: 5 plans
 Plans:
-- [ ] 35-01-PLAN.md — axiom-ee repo scaffold: pyproject.toml, EEBase, EEPlugin skeleton (EE-01, EE-05)
-- [ ] 35-02-PLAN.md — EE DB models: all 15 tables in ee/{feature}/models.py (EE-03)
-- [ ] 35-03-PLAN.md — Router migration: 7 routers + services, absolute imports, EEPlugin.register() (EE-02, EE-04)
-- [ ] 35-04-PLAN.md — CE async wiring: load_ee_plugins async, deps.audit() guard fix (EE-05, EE-06)
-- [ ] 35-05-PLAN.md — Smoke tests + PyPI stub wheel (EE-06, EE-07, EE-08)
+- [x] 35-01-PLAN.md — axiom-ee repo scaffold: pyproject.toml, EEBase, EEPlugin skeleton (EE-01, EE-05)
+- [x] 35-02-PLAN.md — EE DB models: all 15 tables in ee/{feature}/models.py (EE-03)
+- [x] 35-03-PLAN.md — Router migration: 7 routers + services, absolute imports, EEPlugin.register() (EE-02, EE-04)
+- [x] 35-04-PLAN.md — CE async wiring: load_ee_plugins async, deps.audit() guard fix (EE-05, EE-06)
+- [x] 35-05-PLAN.md — Smoke tests + PyPI stub wheel (EE-06, EE-07, EE-08 partial)
 
 ### Phase 36: Cython .so Build Pipeline
 **Goal**: The EE codebase compiles to `.so` extension modules via Cython and cibuildwheel, producing a multi-arch wheel with no `.py` source — and the compiled wheel passes the same CE+EE validation as the Python source install

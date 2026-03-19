@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v11.0
 milestone_name: — CE/EE Split Completion
 status: planning
-stopped_at: "Checkpoint reached in 35-05-PLAN.md (human-verify: CE+EE smoke + PyPI publish)"
-last_updated: "2026-03-19T21:46:57.960Z"
-last_activity: 2026-03-19 — v11.0 roadmap created
+stopped_at: "Completed 35-05-PLAN.md — Phase 35 complete"
+last_updated: "2026-03-19"
+last_activity: 2026-03-19 — Phase 35 complete (CE+EE smoke tests passing, axiom-ee wheel built)
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 9
   completed_plans: 9
-  percent: 0
+  percent: 50
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Jobs run reliably — on the right node, when scheduled, with their output captured — without any step in the chain weakening the security model.
-**Current focus:** Phase 34 — CE Baseline Fixes
+**Current focus:** Phase 36 — Cython .so Build Pipeline
 
 ## Current Position
 
-Phase: 34 of 37 (CE Baseline Fixes)
+Phase: 36 of 37 (Cython .so Build Pipeline)
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-03-19 — v11.0 roadmap created
+Last activity: 2026-03-19 — Phase 35 complete (CE+EE smoke tests 2 passed, axiom-ee wheel built, PyPI publish pending credentials)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█████░░░░░] 50% (2/4 phases complete)
 
 ## v11.0 Phase Summary
 
 | Phase | Goal | Requirements | Status |
 |-------|------|--------------|--------|
-| 34 — CE Baseline Fixes | CE install correct in isolation — 402 on EE routes, clean pytest, no dead-field crashes | GAP-01..06 | Not started |
-| 35 — Private EE Repo + Plugin Wiring | CE+EE combined install works from Python source — all features true, all tables present | EE-01..08 | Not started |
+| 34 — CE Baseline Fixes | CE install correct in isolation — 402 on EE routes, clean pytest, no dead-field crashes | GAP-01..06 | Complete |
+| 35 — Private EE Repo + Plugin Wiring | CE+EE combined install works from Python source — all features true, all tables present | EE-01..08 | Complete (EE-08 partial — wheel built, PyPI publish pending) |
 | 36 — Cython .so Build Pipeline | EE compiled to .so, multi-arch wheel, no .py source, compiled smoke test passes | BUILD-01..05 | Not started |
 | 37 — Licence Validation + Docs + Docker Hub | Offline licence key enforced at startup, axiom-ce on Docker Hub, CE/EE admonitions in docs | DIST-01..03 | Not started |
 
@@ -68,6 +68,7 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 35]: load_ee_plugins made async so EEPlugin.register() can be properly awaited — without this, register() silently returned a coroutine object making EEContext truthy in CE mode
 - [Phase 35]: Base.metadata.tables guard removed from deps.audit() — AuditLog is in EEBase.metadata; try/except is the sole CE/EE boundary in audit()
 - [Phase 35]: test_ce_stub_routers_return_402 calls stub handlers directly — httpx ASGITransport skips ASGI lifespan, so lifespan-mounted stubs are never registered during unit tests
+- [Phase 35-05]: axiom-ee wheel built (axiom_ee-0.1.0.dev0-py3-none-any.whl in ~/Development/axiom-ee/dist/); PyPI publish is EE-08 and requires TWINE_PASSWORD env var or ~/.pypirc — deferred to manual step
 
 ### Pending Todos
 
@@ -84,7 +85,7 @@ None — v10.0 complete. Starting clean on v11.0:
 
 ## Session Continuity
 
-Last session: 2026-03-19T21:46:53.399Z
-Stopped at: Checkpoint reached in 35-05-PLAN.md (human-verify: CE+EE smoke + PyPI publish)
+Last session: 2026-03-19
+Stopped at: Completed 35-05-PLAN.md — axiom-ee wheel built, CE+EE smoke tests passing, PyPI publish pending credentials
 Resume file: None
-Next action: `/gsd:plan-phase 34`
+Next action: `/gsd:plan-phase 36`
