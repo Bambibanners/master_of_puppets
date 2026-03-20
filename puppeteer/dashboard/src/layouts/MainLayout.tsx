@@ -30,11 +30,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { getUser, logout } from '../auth';
 import { useFeatures } from '../hooks/useFeatures';
+import { useLicence } from '../hooks/useLicence';
 import { NotificationBell } from '@/components/NotificationBell';
 
 const MainLayout = () => {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const features = useFeatures();
+    const licence = useLicence();
 
     const NavItem = ({ to, icon: Icon, label }: { to: string, icon: React.ComponentType<{ className?: string }>, label: string }) => (
         <NavLink
@@ -122,9 +124,18 @@ const MainLayout = () => {
                 </nav>
             </div>
             <div className="p-6 border-t border-zinc-900">
-                <div className="flex items-center gap-2 text-xs font-medium text-zinc-500">
-                    <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                    v1.2.0 • Online
+                <div className="flex items-center justify-between text-xs font-medium text-zinc-500">
+                    <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                        v1.2.0 • Online
+                    </div>
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
+                        licence.edition === 'enterprise'
+                            ? 'bg-indigo-500/20 text-indigo-400'
+                            : 'bg-zinc-700/50 text-zinc-400'
+                    }`}>
+                        {licence.edition === 'enterprise' ? 'EE' : 'CE'}
+                    </span>
                 </div>
             </div>
         </div>
