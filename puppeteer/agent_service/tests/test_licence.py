@@ -140,12 +140,15 @@ def test_absent_key_ce_mode():
 @pytest.mark.asyncio
 async def test_licence_endpoint_community():
     """GET /api/licence returns {edition: 'community'} when no licence loaded on app.state."""
+    from unittest.mock import MagicMock
     from agent_service.main import app
     from agent_service.deps import require_auth
-    from agent_service.db import User
 
-    # Create a fake admin user for auth bypass
-    fake_user = User(username="test-admin", role="admin", hashed_password="x", token_version=0)
+    # Use a MagicMock rather than a real SQLAlchemy User — SQLAlchemy ORM
+    # rejects unknown kwargs in the constructor.
+    fake_user = MagicMock()
+    fake_user.username = "test-admin"
+    fake_user.role = "admin"
 
     async def override_require_auth():
         return fake_user
@@ -168,11 +171,13 @@ async def test_licence_endpoint_community():
 @pytest.mark.asyncio
 async def test_licence_endpoint_enterprise():
     """GET /api/licence returns enterprise info when app.state.licence is set."""
+    from unittest.mock import MagicMock
     from agent_service.main import app
     from agent_service.deps import require_auth
-    from agent_service.db import User
 
-    fake_user = User(username="test-admin", role="admin", hashed_password="x", token_version=0)
+    fake_user = MagicMock()
+    fake_user.username = "test-admin"
+    fake_user.role = "admin"
 
     async def override_require_auth():
         return fake_user

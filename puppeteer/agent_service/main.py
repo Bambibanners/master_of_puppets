@@ -835,6 +835,22 @@ async def get_features(request: Request):
         "api_keys": ctx.api_keys,
     }
 
+@app.get("/api/licence", tags=["System"])
+async def get_licence(request: Request, current_user: User = Depends(require_auth)):
+    """Return licence metadata. Readable by all authenticated users."""
+    licence = getattr(request.app.state, 'licence', None)
+    if licence is None:
+        return {"edition": "community"}
+    from datetime import datetime, timezone
+    exp_dt = datetime.fromtimestamp(licence['exp'], tz=timezone.utc).isoformat()
+    return {
+        "edition": "enterprise",
+        "customer_id": licence.get("customer_id"),
+        "expires": exp_dt,
+        "features": licence.get("features", []),
+    }
+
+
 @app.get("/jobs", response_model=List[JobResponse], tags=["Jobs"])
 async def list_jobs(skip: int = 0, limit: int = 50, status: Optional[str] = None, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     return await JobService.list_jobs(db, skip=skip, limit=limit, status=status)
