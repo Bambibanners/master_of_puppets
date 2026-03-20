@@ -220,7 +220,7 @@ Plans:
 | 35. Private EE Repo + Plugin Wiring | v11.0 | 5/5 | Complete | 2026-03-20 |
 | 36. Cython .so Build Pipeline | v11.0 | 3/3 | Complete | 2026-03-20 |
 | 37. Licence Validation + Docs + Docker Hub | v11.0 | 3/3 | Complete | 2026-03-20 |
-| 38. Clean Teardown + Fresh CE Install | 2/2 | Complete   | 2026-03-20 | - |
+| 38. Clean Teardown + Fresh CE Install | 2/2 | Complete    | 2026-03-20 | - |
 | 39. EE Test Keypair + Dev Install | v11.1 | 0/TBD | Not started | - |
 | 40. LXC Node Provisioning | v11.1 | 0/TBD | Not started | - |
 | 41. CE Validation Pass | v11.1 | 0/TBD | Not started | - |
