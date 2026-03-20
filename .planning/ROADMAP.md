@@ -103,7 +103,10 @@ Archive: `.planning/milestones/v11.0-ROADMAP.md`
   3. After hard teardown + CE cold start, `docker exec` confirms exactly 13 CE tables exist and `GET /api/features` returns all false
   4. `GET /api/licence` returns `{"edition": "community"}` on CE-only install
   5. Admin re-seed: changing `ADMIN_PASSWORD` env var on a stack where admin already exists does NOT overwrite the DB password
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 38-01-PLAN.md — Teardown scripts (soft + hard)
+- [ ] 38-02-PLAN.md — CE install verification script
 
 ### Phase 39: EE Test Keypair + Dev Install
 **Goal**: A local Ed25519 test keypair is in place and the EE plugin is running with the test public key, enabling all licence lifecycle tests without a Cython rebuild
