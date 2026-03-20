@@ -120,7 +120,11 @@ Plans:
   2. `cibuildwheel` CI builds wheels for Python 3.11, 3.12, 3.13 on both amd64 and arm64 without errors
   3. `unzip -l axiom_ee-*.whl | grep "\.py$"` returns only `__init__.py` — no other Python source in the published wheel
   4. Installing the compiled wheel in a clean virtualenv and running CE+EE produces the same outcome as the Phase 35 source install — all features true, all routes live, all tables present
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 36-01-PLAN.md — Cython build config: setup.py + pyproject.toml + Makefile (BUILD-01, BUILD-02, BUILD-03)
+- [ ] 36-02-PLAN.md — Run cibuildwheel: produce multi-arch wheels + verify no .py source (BUILD-03, BUILD-04)
+- [ ] 36-03-PLAN.md — devpi service + Containerfile EE install + compiled wheel smoke test (BUILD-05)
 
 ### Phase 37: Licence Validation + Docs + Docker Hub
 **Goal**: EE enforces an Ed25519 offline licence key at startup, operators can pull `axiom-ce` from Docker Hub, and the MkDocs docs distinguish CE and EE features with enterprise admonitions
