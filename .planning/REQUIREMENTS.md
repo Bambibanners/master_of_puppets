@@ -23,8 +23,8 @@ Requirements for the CE/EE Split Completion milestone.
 - [x] **EE-03**: `EEPlugin.register()` creates EE DB tables via separate `EEBase.metadata.create_all(engine)`
 - [x] **EE-04**: All 7 router files use absolute imports — no relative imports from CE codebase
 - [x] **EE-05**: `pyproject.toml` entry_points configured (`[project.entry-points."axiom.ee"]`) and validated
-- [ ] **EE-06**: CE-alone smoke test passes: 13 tables created, all EE routes return 402, `GET /api/features` returns all false
-- [ ] **EE-07**: CE+EE combined install smoke test passes: EE tables present, EE routes functional, `GET /api/features` returns all true
+- [x] **EE-06**: CE-alone smoke test passes: 13 tables created, all EE routes return 402, `GET /api/features` returns all false
+- [x] **EE-07**: CE+EE combined install smoke test passes: EE tables present, EE routes functional, `GET /api/features` returns all true
 - [ ] **EE-08**: `axiom-ee` stub wheel published to PyPI to reserve the package name
 
 ### Compilation
@@ -76,8 +76,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EE-03 | Phase 35 | Complete |
 | EE-04 | Phase 35 | Complete |
 | EE-05 | Phase 35 | Complete |
-| EE-06 | Phase 35 | Pending |
-| EE-07 | Phase 35 | Pending |
+| EE-06 | Phase 35 | Complete |
+| EE-07 | Phase 35 | Complete |
 | EE-08 | Phase 35 | Pending |
 | BUILD-01 | Phase 36 | Pending |
 | BUILD-02 | Phase 36 | Pending |
