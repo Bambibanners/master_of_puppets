@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v11.1
 milestone_name: — Stack Validation
 status: planning
-stopped_at: Phase 39 context gathered
-last_updated: "2026-03-20T20:42:35.504Z"
+stopped_at: Completed 39-01-PLAN.md — EE test keypair + editable install
+last_updated: "2026-03-20T21:10:58.369Z"
 last_activity: 2026-03-20 — Roadmap created for v11.1 (Phases 38–45)
 progress:
   total_phases: 8
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
   percent: 0
 ---
 
@@ -46,6 +46,7 @@ Progress: [░░░░░░░░░░] 0%
 | — | — | — | — |
 | Phase 38-clean-teardown-fresh-ce-install P01 | 1 | 2 tasks | 2 files |
 | Phase 38-clean-teardown-fresh-ce-install P02 | 2 | 1 tasks | 1 files |
+| Phase 39-ee-test-keypair-dev-install P01 | 10 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -60,6 +61,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 38]: SECRETS_ENV points to MOP_DIR/secrets.env (not mop_validation/secrets.env) — shared credential store between stack and tests
 - [Phase 38]: verify_ce_install.py table count excludes apscheduler_jobs — APScheduler internal table is not a CE schema table
 - [Phase 38]: INST-04 manual steps embedded as INST_04_MANUAL_TEST_STEPS module constant — accessible via grep/editor without running script
+- [Phase 39]: patch_ee_source.py uses lambda replacement in re.sub to prevent \xNN byte sequences in repr(pub_raw) being treated as regex escapes
+- [Phase 39]: compose.server.yaml AXIOM_LICENCE_KEY change applied to main puppeteer/ file — the .worktrees/axiom-split/ worktree referenced in plan does not exist
 
 ### Pending Todos
 
@@ -73,7 +76,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T20:42:35.502Z
-Stopped at: Phase 39 context gathered
+Last session: 2026-03-20T21:10:58.367Z
+Stopped at: Completed 39-01-PLAN.md — EE test keypair + editable install
 Next action: `/gsd:plan-phase 38`
-Resume file: .planning/phases/39-ee-test-keypair-dev-install/39-CONTEXT.md
+Resume file: None
