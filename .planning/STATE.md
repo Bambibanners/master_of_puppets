@@ -4,7 +4,7 @@ milestone: v11.0
 milestone_name: — CE/EE Split Completion
 status: planning
 stopped_at: Completed 36-03-PLAN.md
-last_updated: "2026-03-20T14:52:12.585Z"
+last_updated: "2026-03-20T15:13:50.899Z"
 last_activity: 2026-03-19 — Phase 35 complete (CE+EE smoke tests 2 passed, axiom-ee wheel built, PyPI publish pending credentials)
 progress:
   total_phases: 4
