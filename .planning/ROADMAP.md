@@ -118,7 +118,10 @@ Plans:
   3. A signed test licence is generated; after injecting `AXIOM_LICENCE_KEY` and restarting, `GET /api/licence` returns correct `customer_id`, `exp`, and `features` values
   4. After injecting an expired test licence and restarting, `GET /api/features` returns all false and `GET /api/licence` shows expired state
   5. When `AXIOM_LICENCE_KEY` is absent entirely, the stack starts without crashing and `GET /api/features` returns all false (CE-degraded mode)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 39-01-PLAN.md — Ed25519 test keypair generation + axiom-ee editable install with patched key
+- [ ] 39-02-PLAN.md — Signed test licence generation + API-level lifecycle verification script
 
 ### Phase 40: LXC Node Provisioning
 **Goal**: Four environment-tagged LXC nodes are enrolled, heartbeating, and ready for all job and Foundry validation tests
