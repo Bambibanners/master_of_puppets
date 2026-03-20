@@ -69,9 +69,66 @@ import {
     AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { authenticatedFetch } from '../auth';
+import { authenticatedFetch, getUser } from '../auth';
+import { useLicence } from '../hooks/useLicence';
 
 // --- Sub-components for Admin ---
+
+const LicenceSection = () => {
+    const licence = useLicence();
+    const isEnterprise = licence.edition === 'enterprise';
+
+    return (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Licence</h2>
+            <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-400">Edition</span>
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                        isEnterprise
+                            ? 'bg-indigo-500/20 text-indigo-400'
+                            : 'bg-zinc-700/50 text-zinc-400'
+                    }`}>
+                        {isEnterprise ? 'Enterprise' : 'Community'}
+                    </span>
+                </div>
+                {isEnterprise && licence.customer_id && (
+                    <div className="flex items-center justify-between">
+                        <span className="text-sm text-zinc-400">Customer</span>
+                        <span className="text-sm text-white font-mono">{licence.customer_id}</span>
+                    </div>
+                )}
+                {isEnterprise && licence.expires && (
+                    <div className="flex items-center justify-between">
+                        <span className="text-sm text-zinc-400">Expires</span>
+                        <span className="text-sm text-white">
+                            {new Date(licence.expires).toLocaleDateString(undefined, {
+                                year: 'numeric', month: 'long', day: 'numeric'
+                            })}
+                        </span>
+                    </div>
+                )}
+                {isEnterprise && licence.features && licence.features.length > 0 && (
+                    <div>
+                        <span className="text-sm text-zinc-400 block mb-2">Features</span>
+                        <div className="flex flex-wrap gap-1.5">
+                            {licence.features.map(f => (
+                                <span key={f} className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 text-xs font-mono">
+                                    {f}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {!isEnterprise && (
+                    <p className="text-sm text-zinc-500">
+                        Set <code className="text-zinc-300">AXIOM_LICENCE_KEY</code> environment variable to enable Enterprise Edition features.
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+};
 
 const TriggerManager = () => {
     const queryClient = useQueryClient();
@@ -1283,6 +1340,8 @@ const Admin = () => {
                 <h1 className="text-2xl font-bold tracking-tight text-white">Admin</h1>
                 <p className="text-sm text-zinc-500 mt-1">System configuration and node onboarding.</p>
             </div>
+
+            {getUser()?.role === 'admin' && <LicenceSection />}
 
             <Tabs defaultValue="onboarding" className="space-y-6">
                 <TabsList className="bg-zinc-900 border border-zinc-800 p-1 h-11">

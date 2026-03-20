@@ -1,5 +1,5 @@
-from fastapi import FastAPI, HTTPException, Request, Depends, Header, status, WebSocket, WebSocketDisconnect, UploadFile, File, Query, Form
-from fastapi.responses import Response, StreamingResponse, HTMLResponse
+from fastapi import FastAPI, HTTPException, Request, Depends, Header, status, WebSocket, WebSocketDisconnect, Query, Form
+from fastapi.responses import Response, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -20,28 +20,17 @@ from contextlib import asynccontextmanager
 
 from .models import (
     JobCreate, RegisterRequest, RegisterResponse, JobResponse, WorkResponse,
-    ResultReport, TokenResponse, HeartbeatPayload, NodeConfig, PollResponse,
+    ResultReport, TokenResponse, HeartbeatPayload, PollResponse, NodeUpdateRequest,
     NodeResponse, SignatureCreate, SignatureResponse, JobDefinitionCreate, JobDefinitionUpdate,
     JobDefinitionResponse, JobPushRequest, PingRequest, NetworkMount, MountsConfig,
-    ImageBuildRequest, ImageResponse, EnrollmentRequest,
-    BlueprintCreate, BlueprintResponse, PuppetTemplateCreate, PuppetTemplateResponse,
-    ApprovedIngredientCreate, ApprovedIngredientUpdate, ApprovedIngredientResponse, MirrorConfigUpdate,
-    CapabilityMatrixEntry, CapabilityMatrixUpdate, UploadKeyRequest, UserCreate, UserResponse, PermissionGrant,
-    ArtifactResponse, ApprovedOSResponse,
+    UploadKeyRequest,
     EnrollmentTokenCreate,
+    EnrollmentRequest,
     SignalFire, SignalResponse,
-    TriggerCreate, TriggerResponse, TriggerUpdate,
-    UserSigningKeyCreate, UserSigningKeyResponse, UserSigningKeyGeneratedResponse,
-    UserApiKeyCreate, UserApiKeyResponse, UserApiKeyCreatedResponse,
-    ServicePrincipalCreate, ServicePrincipalResponse, ServicePrincipalCreatedResponse,
-    ServicePrincipalUpdate, ServicePrincipalTokenRequest, ServicePrincipalRotateResponse,
     ExecutionRecordResponse,
     AttestationExportResponse,
     AlertResponse,
-    WebhookCreate, WebhookResponse,
-    ImageBOMResponse, PackageIndexResponse,
     DispatchRequest, DispatchResponse, DispatchStatusResponse,
-    ALLOWED_ROLES,
 )
 from .security import (
     encrypt_secrets, decrypt_secrets, mask_secrets, verify_api_key, 
@@ -60,18 +49,13 @@ from sqlalchemy.future import select
 from sqlalchemy import update, desc, func, delete
 from collections import defaultdict
 from cryptography import x509 as _x509
-from .db import init_db, get_db, Job, Token, Config, User, Node, NodeStats, AsyncSession, Signature, ScheduledJob, Ping, AsyncSessionLocal, CapabilityMatrix, Blueprint, PuppetTemplate, RolePermission, AuditLog, RevokedCert, UserSigningKey, UserApiKey, ServicePrincipal, ExecutionRecord, Artifact, ApprovedOS, Trigger, Signal, Alert, ApprovedIngredient
+from .db import init_db, get_db, Job, Token, Config, User, Node, NodeStats, AsyncSession, Signature, ScheduledJob, Ping, AsyncSessionLocal, RevokedCert, ExecutionRecord, Signal, Alert
 from .auth import verify_password, get_password_hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, verify_token
 from .services.job_service import JobService
 from .services.signature_service import SignatureService
 from .services.scheduler_service import scheduler_service
 from .services.pki_service import pki_service
-from .services.vault_service import vault_service
-from .services.foundry_service import foundry_service
-from .services.trigger_service import trigger_service
-from .services.smelter_service import SmelterService
 from .services.alert_service import AlertService
-from .services.webhook_service import WebhookService
 
 load_dotenv()
 
@@ -81,117 +65,24 @@ limiter = Limiter(key_func=get_remote_address)
 async def lifespan(app: FastAPI):
     # Startup logic
     await init_db()
+    # Load EE plugins (or CE stubs)
+    from .ee import load_ee_plugins
+    from .db import engine
+    app.state.ee = await load_ee_plugins(app, engine)
     # Bootstrap Admin
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(User).where(User.username == "admin"))
         if not result.scalar_one_or_none():
             admin_user = User(
-                username="admin", 
-                password_hash=get_password_hash(os.getenv("ADMIN_PASSWORD", uuid.uuid4().hex)), 
-                role="admin"
+                username="admin",
+                password_hash=get_password_hash(os.getenv("ADMIN_PASSWORD", uuid.uuid4().hex)),
             )
             if not os.getenv("ADMIN_PASSWORD"):
-                print(f"⚠️  Admin User created with RANDOM password. Please set ADMIN_PASSWORD env var.")
+                print("Admin User created with RANDOM password. Please set ADMIN_PASSWORD env var.")
             else:
                 db.add(admin_user)
                 await db.commit()
-                logger.info("✅ Bootstrapped Admin User")
-    
-    # Bootstrap Capability Matrix
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(select(CapabilityMatrix).limit(1))
-        if not result.scalar_one_or_none():
-            logger.info("🌱 Seeding Capability Matrix...")
-            recipes = [
-                CapabilityMatrix(
-                    base_os_family="DEBIAN",
-                    tool_id="python-3.11",
-                    injection_recipe="RUN apt-get update && apt-get install -y python3.11 python3-pip python3-dev build-essential libssl-dev libffi-dev && ln -sf /usr/bin/python3.11 /usr/bin/python && ln -sf /usr/bin/pip3 /usr/bin/pip && pip config set global.break-system-packages true",
-                    validation_cmd="python --version",
-                    is_active=True,
-                    runtime_dependencies="[]"
-                ),
-                CapabilityMatrix(
-                    base_os_family="DEBIAN",
-                    tool_id="pwsh-7.4",
-                    injection_recipe="RUN apt-get update && apt-get install -y wget && wget https://github.com/PowerShell/PowerShell/releases/download/v7.4.1/powershell_7.4.1-1.deb_amd64.deb && dpkg -i powershell_7.4.1-1.deb_amd64.deb && apt-get install -f",
-                    validation_cmd="pwsh -version",
-                    is_active=True,
-                    runtime_dependencies="[]"
-                ),
-                CapabilityMatrix(
-                    base_os_family="ALPINE",
-                    tool_id="python-3.11",
-                    injection_recipe="RUN apk add --no-cache python3 py3-pip python3-dev build-base libffi-dev openssl-dev && ln -sf /usr/bin/python3 /usr/bin/python && ln -sf /usr/bin/pip3 /usr/bin/pip",
-                    validation_cmd="python3 --version",
-                    is_active=True,
-                    runtime_dependencies="[]"
-                ),
-                CapabilityMatrix(
-                    base_os_family="ALPINE",
-                    tool_id="pwsh-7.4",
-                    injection_recipe="RUN apk add --no-cache ca-certificates less ncurses-terminfo-base krb5-libs libgcc libintl libssl3 libstdc++ tzdata userspace-rcu zlib icu-libs curl && curl -L https://github.com/PowerShell/PowerShell/releases/download/v7.4.1/powershell-7.4.1-linux-musl-x64.tar.gz -o /tmp/powershell.tar.gz && mkdir -p /opt/microsoft/powershell/7 && tar zxf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 && chmod +x /opt/microsoft/powershell/7/pwsh && ln -s /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh && rm /tmp/powershell.tar.gz",
-                    validation_cmd="pwsh -Version",
-                    is_active=True,
-                    runtime_dependencies="[]"
-                ),
-            ]
-            db.add_all(recipes)
-            await db.commit()
-            logger.info("✅ Capability Matrix Seeded")
-        else:
-            # Existing DB — check if ALPINE recipes are missing and seed them
-            alpine_check = await db.execute(
-                select(CapabilityMatrix).where(CapabilityMatrix.base_os_family == "ALPINE").limit(1)
-            )
-            if not alpine_check.scalar_one_or_none():
-                logger.info("🌱 Seeding ALPINE Capability Matrix recipes...")
-                alpine_recipes = [
-                    CapabilityMatrix(
-                        base_os_family="ALPINE",
-                        tool_id="python-3.11",
-                        injection_recipe="RUN apk add --no-cache python3 py3-pip python3-dev build-base libffi-dev openssl-dev && ln -sf /usr/bin/python3 /usr/bin/python && ln -sf /usr/bin/pip3 /usr/bin/pip",
-                        validation_cmd="python3 --version",
-                        is_active=True,
-                        runtime_dependencies="[]"
-                    ),
-                    CapabilityMatrix(
-                        base_os_family="ALPINE",
-                        tool_id="pwsh-7.4",
-                        injection_recipe="RUN apk add --no-cache ca-certificates less ncurses-terminfo-base krb5-libs libgcc libintl libssl3 libstdc++ tzdata userspace-rcu zlib icu-libs curl && curl -L https://github.com/PowerShell/PowerShell/releases/download/v7.4.1/powershell-7.4.1-linux-musl-x64.tar.gz -o /tmp/powershell.tar.gz && mkdir -p /opt/microsoft/powershell/7 && tar zxf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 && chmod +x /opt/microsoft/powershell/7/pwsh && ln -s /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh && rm /tmp/powershell.tar.gz",
-                        validation_cmd="pwsh -Version",
-                        is_active=True,
-                        runtime_dependencies="[]"
-                    ),
-                ]
-                db.add_all(alpine_recipes)
-                await db.commit()
-                logger.info("✅ ALPINE Capability Matrix Seeded")
-
-    # Seed Role Permissions
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(select(RolePermission).limit(1))
-        if not result.scalar_one_or_none():
-            logger.info("🌱 Seeding Role Permissions...")
-            OPERATOR_PERMS = [
-                "jobs:read", "jobs:write", "nodes:read", "nodes:write",
-                "definitions:read", "definitions:write", "foundry:read", "foundry:write",
-                "signatures:read", "signatures:write", "tokens:write",
-                "alerts:read", "alerts:write",
-                "webhooks:read", "webhooks:write",
-                "history:read",
-            ]
-            VIEWER_PERMS = [
-                "jobs:read", "nodes:read", "definitions:read", "foundry:read", "signatures:read",
-                "alerts:read", "history:read",
-            ]
-            seeds = (
-                [RolePermission(role="operator", permission=p) for p in OPERATOR_PERMS] +
-                [RolePermission(role="viewer", permission=p) for p in VIEWER_PERMS]
-            )
-            db.add_all(seeds)
-            await db.commit()
-            logger.info("✅ Role Permissions Seeded")
+                logger.info("Bootstrapped Admin User")
 
     # Start Scheduler
     scheduler_service.start()
@@ -232,141 +123,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- AUTH HELPERS (must be defined before any route that uses require_permission) ---
-
-class _SPUserProxy:
-    """Makes a ServicePrincipal quack like a User for permission checks and auditing."""
-    def __init__(self, sp: ServicePrincipal):
-        self.username = f"sp:{sp.name}"
-        self.role = sp.role
-        self.token_version = 0
-        self.must_change_password = False
-        self._sp = sp
-
-
-async def _authenticate_api_key(raw_key: str, db: AsyncSession):
-    """Authenticate using a personal API key (mop_...). Returns the owning User."""
-    prefix = raw_key[:12]
-    result = await db.execute(
-        select(UserApiKey).where(UserApiKey.key_prefix == prefix)
-    )
-    candidates = result.scalars().all()
-
-    for candidate in candidates:
-        if verify_password(raw_key, candidate.key_hash):
-            if candidate.expires_at and candidate.expires_at < datetime.utcnow():
-                raise HTTPException(401, "API key has expired")
-            candidate.last_used_at = datetime.utcnow()
-            await db.commit()
-            user_result = await db.execute(
-                select(User).where(User.username == candidate.username)
-            )
-            user = user_result.scalar_one_or_none()
-            if not user:
-                raise HTTPException(401, "User account not found")
-            return user
-
-    raise HTTPException(401, "Invalid API key")
-
-
-async def _authenticate_sp_jwt(payload: dict, db: AsyncSession):
-    """Authenticate a service principal JWT. Returns an _SPUserProxy."""
-    sp_id = payload.get("sp_id")
-    if not sp_id:
-        raise HTTPException(401, "Invalid service principal token")
-
-    result = await db.execute(
-        select(ServicePrincipal).where(ServicePrincipal.id == sp_id)
-    )
-    sp = result.scalar_one_or_none()
-
-    if not sp or not sp.is_active:
-        raise HTTPException(401, "Service principal not found or disabled")
-
-    if sp.expires_at and sp.expires_at < datetime.utcnow():
-        raise HTTPException(401, "Service principal has expired")
-
-    return _SPUserProxy(sp)
-
-
-async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
-    """JWT / API key / SP token auth."""
-    # API key authentication
-    if token.startswith("mop_"):
-        return await _authenticate_api_key(token, db)
-
-    from jose import jwt, JWTError
-    from .auth import SECRET_KEY, ALGORITHM
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError:
-        raise credentials_exception
-
-    # Service principal JWT
-    if payload.get("type") == "service_principal":
-        return await _authenticate_sp_jwt(payload, db)
-
-    # Regular user JWT
-    username: str = payload.get("sub")
-    if username is None:
-        raise credentials_exception
-
-    result = await db.execute(select(User).where(User.username == username))
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise credentials_exception
-    # Reject tokens issued before a password change (token_version mismatch)
-    if payload.get("tv", 0) != user.token_version:
-        raise credentials_exception
-    return user
-
-async def get_current_user_optional(token: Optional[str] = Depends(OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)), db: AsyncSession = Depends(get_db)) -> Optional[User]:
-    """Optional JWT User Auth."""
-    if not token:
-        return None
-
-    from jose import jwt, JWTError
-    from .auth import SECRET_KEY, ALGORITHM
-
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            return None
-    except JWTError:
-        return None
-
-    result = await db.execute(select(User).where(User.username == username))
-    return result.scalar_one_or_none()
-
-_perm_cache: dict[str, set[str]] = {}
-
-def _invalidate_perm_cache(role: str | None = None) -> None:
-    """Clear cached permissions for a role (or all roles)."""
-    if role:
-        _perm_cache.pop(role, None)
-    else:
-        _perm_cache.clear()
-
-def require_permission(perm: str):
-    """Dependency factory that enforces a named permission via DB-backed RBAC."""
-    async def _check(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-        if current_user.role == "admin":
-            return current_user
-        if current_user.role not in _perm_cache:
-            result = await db.execute(
-                select(RolePermission.permission).where(RolePermission.role == current_user.role)
-            )
-            _perm_cache[current_user.role] = {row for row in result.scalars().all()}
-        if perm not in _perm_cache[current_user.role]:
-            raise HTTPException(status_code=403, detail=f"Missing permission: {perm}")
-        return current_user
-    return _check
+# --- AUTH HELPERS (moved to deps.py to avoid circular imports with EE routers) ---
+from .deps import (
+    get_current_user, get_current_user_optional, require_auth,
+    audit,
+)
 
 # --- ALERTS ---
 
@@ -375,7 +136,7 @@ async def list_alerts(
     skip: int = 0,
     limit: int = 50,
     unacknowledged_only: bool = False,
-    current_user: User = Depends(require_permission("alerts:read")),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db)
 ):
     """List system alerts with optional filtering."""
@@ -384,7 +145,7 @@ async def list_alerts(
 @app.post("/api/alerts/{alert_id}/acknowledge", tags=["Alerts & Webhooks"])
 async def acknowledge_alert(
     alert_id: int,
-    current_user: User = Depends(require_permission("alerts:write")),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db)
 ):
     """Mark an alert as acknowledged."""
@@ -393,40 +154,6 @@ async def acknowledge_alert(
         raise HTTPException(status_code=404, detail="Alert not found")
     await db.commit()
     return {"status": "acknowledged", "id": alert_id}
-
-# --- WEBHOOKS ---
-
-@app.get("/api/webhooks", response_model=List[WebhookResponse], tags=["Alerts & Webhooks"])
-async def list_webhooks(
-    current_user: User = Depends(require_permission("webhooks:read")),
-    db: AsyncSession = Depends(get_db)
-):
-    """List all registered outbound webhooks."""
-    return await WebhookService.list_webhooks(db)
-
-@app.post("/api/webhooks", response_model=WebhookResponse, tags=["Alerts & Webhooks"])
-async def create_webhook(
-    hook: WebhookCreate,
-    current_user: User = Depends(require_permission("webhooks:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Register a new outbound webhook with a signed secret."""
-    wh = await WebhookService.create_webhook(db, hook.url, hook.events)
-    await db.commit()
-    return wh
-
-@app.delete("/api/webhooks/{webhook_id}", tags=["Alerts & Webhooks"])
-async def delete_webhook(
-    webhook_id: int,
-    current_user: User = Depends(require_permission("webhooks:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Remove a webhook."""
-    success = await WebhookService.delete_webhook(db, webhook_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Webhook not found")
-    await db.commit()
-    return {"status": "deleted", "id": webhook_id}
 
 # --- Execution History ---
 
@@ -440,7 +167,7 @@ async def list_executions(
     scheduled_job_id: Optional[str] = None,
     job_run_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("history:read"))
+    current_user: User = Depends(require_auth)
 ):
     """List execution history with filtering and pagination."""
     query = select(ExecutionRecord, Job.max_retries).outerjoin(Job, Job.guid == ExecutionRecord.job_guid)
@@ -499,7 +226,7 @@ async def list_executions(
 async def get_execution(
     id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("history:read"))
+    current_user: User = Depends(require_auth)
 ):
     """Get details for a single execution record."""
     result = await db.execute(select(ExecutionRecord).where(ExecutionRecord.id == id))
@@ -543,7 +270,7 @@ async def get_execution(
 async def get_execution_attestation(
     id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("history:read"))
+    current_user: User = Depends(require_auth)
 ):
     """Export attestation bundle and verification result for an execution record.
 
@@ -824,16 +551,6 @@ class ConnectionManager:
 
 ws_manager = ConnectionManager()
 
-
-def audit(db: AsyncSession, user: User, action: str, resource_id: str = None, detail: dict = None):
-    """Append an audit entry to the current session. Caller must commit."""
-    db.add(AuditLog(
-        username=user.username,
-        action=action,
-        resource_id=resource_id,
-        detail=json.dumps(detail) if detail else None,
-    ))
-
 # --- Auth Endpoints ---
 
 # --- OAuth Device Flow (RFC 8628) ---
@@ -920,7 +637,7 @@ async def device_token_exchange(req: DeviceTokenRequest, db: AsyncSession = Depe
         raise HTTPException(400, detail={"error": "access_denied"})
 
     token = create_access_token(
-        data={"sub": user.username, "role": user.role, "tv": user.token_version, "type": "device_flow"},
+        data={"sub": user.username, "tv": user.token_version, "type": "device_flow"},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     # Consume code — one-time use
@@ -929,7 +646,7 @@ async def device_token_exchange(req: DeviceTokenRequest, db: AsyncSession = Depe
 
     audit(db, user, "device_flow:token_issued", None, {"username": user.username})
     await db.commit()
-    return {"access_token": token, "token_type": "bearer", "role": user.role}
+    return {"access_token": token, "token_type": "bearer"}
 
 @app.get("/auth/device/approve", response_class=HTMLResponse, tags=["Authentication"])
 async def device_approve_page(user_code: str = ""):
@@ -1063,16 +780,14 @@ async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequ
         )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username, "role": user.role, "tv": user.token_version},
+        data={"sub": user.username, "tv": user.token_version},
         expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer", "role": user.role,
-            "must_change_password": bool(user.must_change_password)}
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @app.get("/auth/me", tags=["Authentication"])
 async def read_users_me(current_user: User = Depends(get_current_user)):
-    return {"username": current_user.username, "role": current_user.role,
-            "must_change_password": bool(current_user.must_change_password)}
+    return {"username": current_user.username}
 
 @app.patch("/auth/me", tags=["Authentication"])
 async def update_self(req: dict, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -1081,366 +796,19 @@ async def update_self(req: dict, current_user: User = Depends(get_current_user),
     new_password = req.get("password", "").strip()
     if not new_password or len(new_password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    # Require current password unless the account has a forced-change flag set
-    if not current_user.must_change_password:
-        current_password = req.get("current_password", "")
-        if not current_password or not verify_password(current_password, current_user.password_hash):
-            raise HTTPException(status_code=400, detail="Current password is incorrect")
+    current_password = req.get("current_password", "")
+    if not current_password or not verify_password(current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
     current_user.password_hash = get_password_hash(new_password)
-    current_user.must_change_password = False
     current_user.token_version = (current_user.token_version or 0) + 1
     audit(db, current_user, "user:password_changed", detail={"username": current_user.username})
     await db.commit()
     # Issue a new token for the current session (old tokens for other sessions are now invalid)
     new_token = create_access_token(
-        data={"sub": current_user.username, "role": current_user.role, "tv": current_user.token_version},
+        data={"sub": current_user.username, "tv": current_user.token_version},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    return {"status": "ok", "must_change_password": False, "access_token": new_token}
-
-# --- User Signing Keys ---
-
-@app.post("/auth/me/signing-keys", tags=["Authentication"])
-async def create_signing_key(
-    req: UserSigningKeyCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import ed25519
-
-    key_id = str(uuid.uuid4())
-    private_key_pem_str = None
-
-    if req.public_key_pem:
-        try:
-            pub = serialization.load_pem_public_key(req.public_key_pem.encode())
-            if not isinstance(pub, ed25519.Ed25519PublicKey):
-                raise HTTPException(400, "Key must be Ed25519")
-        except HTTPException:
-            raise
-        except Exception:
-            raise HTTPException(400, "Invalid Ed25519 public key PEM")
-        public_pem = req.public_key_pem
-        encrypted_priv = None
-    else:
-        private_key = Ed25519PrivateKey.generate()
-        public_key = private_key.public_key()
-        public_pem = public_key.public_bytes(
-            serialization.Encoding.PEM,
-            serialization.PublicFormat.SubjectPublicKeyInfo
-        ).decode()
-        private_key_pem_str = private_key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption()
-        ).decode()
-        encrypted_priv = cipher_suite.encrypt(private_key_pem_str.encode()).decode()
-
-    signing_key = UserSigningKey(
-        id=key_id,
-        username=current_user.username,
-        name=req.name,
-        public_key_pem=public_pem,
-        encrypted_private_key=encrypted_priv,
-    )
-    db.add(signing_key)
-
-    sig = Signature(
-        id=str(uuid.uuid4()),
-        name=f"{current_user.username}/{req.name}",
-        public_key=public_pem,
-        uploaded_by=current_user.username,
-    )
-    db.add(sig)
-
-    audit(db, current_user, "user:signing_key_created", key_id, {"name": req.name})
-    await db.commit()
-
-    if private_key_pem_str:
-        return UserSigningKeyGeneratedResponse(
-            id=key_id, name=req.name, public_key_pem=public_pem,
-            private_key_pem=private_key_pem_str, created_at=signing_key.created_at,
-        )
-    return UserSigningKeyResponse(
-        id=key_id, name=req.name, public_key_pem=public_pem,
-        created_at=signing_key.created_at,
-    )
-
-
-@app.get("/auth/me/signing-keys", response_model=list[UserSigningKeyResponse], tags=["Authentication"])
-async def list_signing_keys(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(UserSigningKey).where(UserSigningKey.username == current_user.username)
-    )
-    return result.scalars().all()
-
-
-@app.delete("/auth/me/signing-keys/{key_id}", tags=["Authentication"])
-async def delete_signing_key(
-    key_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(UserSigningKey).where(
-            UserSigningKey.id == key_id,
-            UserSigningKey.username == current_user.username,
-        )
-    )
-    key = result.scalar_one_or_none()
-    if not key:
-        raise HTTPException(404, "Signing key not found")
-
-    sig_name = f"{current_user.username}/{key.name}"
-    sig_result = await db.execute(
-        select(Signature).where(Signature.name == sig_name)
-    )
-    sig = sig_result.scalar_one_or_none()
-    if sig:
-        await db.delete(sig)
-
-    await db.delete(key)
-    audit(db, current_user, "user:signing_key_deleted", key_id)
-    await db.commit()
-    return {"status": "deleted"}
-
-
-# --- User API Keys ---
-
-@app.post("/auth/me/api-keys", tags=["Authentication"])
-async def create_api_key(
-    req: UserApiKeyCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    import secrets as _secrets
-
-    raw_key = "mop_" + _secrets.token_hex(24)
-    key_hash = get_password_hash(raw_key)
-    key_prefix = raw_key[:12]
-
-    expires_at = None
-    if req.expires_in_days:
-        expires_at = datetime.utcnow() + timedelta(days=req.expires_in_days)
-
-    api_key = UserApiKey(
-        id=str(uuid.uuid4()),
-        username=current_user.username,
-        name=req.name,
-        key_hash=key_hash,
-        key_prefix=key_prefix,
-        expires_at=expires_at,
-    )
-    db.add(api_key)
-    audit(db, current_user, "user:api_key_created", api_key.id, {"name": req.name})
-    await db.commit()
-
-    return UserApiKeyCreatedResponse(
-        id=api_key.id, name=api_key.name, key_prefix=key_prefix,
-        raw_key=raw_key, expires_at=expires_at,
-        last_used_at=None, created_at=api_key.created_at,
-    )
-
-
-@app.get("/auth/me/api-keys", response_model=list[UserApiKeyResponse], tags=["Authentication"])
-async def list_api_keys(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(UserApiKey).where(UserApiKey.username == current_user.username)
-    )
-    return result.scalars().all()
-
-
-@app.delete("/auth/me/api-keys/{key_id}", tags=["Authentication"])
-async def revoke_api_key(
-    key_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(UserApiKey).where(
-            UserApiKey.id == key_id,
-            UserApiKey.username == current_user.username,
-        )
-    )
-    key = result.scalar_one_or_none()
-    if not key:
-        raise HTTPException(404, "API key not found")
-
-    await db.delete(key)
-    audit(db, current_user, "user:api_key_revoked", key_id)
-    await db.commit()
-    return {"status": "revoked"}
-
-
-# --- Service Principals ---
-
-@app.post("/auth/token", tags=["Authentication"])
-async def authenticate_service_principal(
-    req: ServicePrincipalTokenRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(ServicePrincipal).where(ServicePrincipal.client_id == req.client_id)
-    )
-    sp = result.scalar_one_or_none()
-
-    if not sp or not verify_password(req.client_secret, sp.client_secret_hash):
-        raise HTTPException(401, "Invalid credentials")
-
-    if not sp.is_active:
-        raise HTTPException(403, "Service principal is disabled")
-
-    if sp.expires_at and sp.expires_at < datetime.utcnow():
-        raise HTTPException(403, "Service principal has expired")
-
-    token_data = {
-        "sub": f"sp:{sp.name}",
-        "role": sp.role,
-        "type": "service_principal",
-        "sp_id": sp.id,
-        "tv": 0,
-    }
-    access_token = create_access_token(data=token_data)
-
-    sp.last_used_at = datetime.utcnow()
-
-    db.add(AuditLog(
-        username=f"sp:{sp.name}",
-        action="sp:authenticated",
-        resource_id=sp.id,
-        detail=None,
-    ))
-    await db.commit()
-
-    return {"access_token": access_token, "token_type": "bearer", "role": sp.role}
-
-
-@app.post("/admin/service-principals", tags=["Service Principals"])
-async def create_service_principal(
-    req: ServicePrincipalCreate,
-    current_user: User = Depends(require_permission("users:write")),
-    db: AsyncSession = Depends(get_db),
-):
-    import secrets as _secrets
-
-    client_id = "sp_" + uuid.uuid4().hex
-    client_secret = "mop_sp_" + _secrets.token_hex(24)
-    secret_hash = get_password_hash(client_secret)
-
-    expires_at = None
-    if req.expires_in_days:
-        expires_at = datetime.utcnow() + timedelta(days=req.expires_in_days)
-
-    sp = ServicePrincipal(
-        id=str(uuid.uuid4()),
-        name=req.name,
-        description=req.description,
-        role=req.role,
-        client_id=client_id,
-        client_secret_hash=secret_hash,
-        is_active=True,
-        created_by=current_user.username,
-        expires_at=expires_at,
-    )
-    db.add(sp)
-    audit(db, current_user, "sp:created", sp.id, {"name": sp.name, "role": sp.role})
-    await db.commit()
-
-    return ServicePrincipalCreatedResponse(
-        id=sp.id, name=sp.name, description=sp.description, role=sp.role,
-        client_id=client_id, client_secret=client_secret, is_active=True,
-        created_by=current_user.username, expires_at=expires_at,
-        created_at=sp.created_at,
-    )
-
-
-@app.get("/admin/service-principals", response_model=list[ServicePrincipalResponse], tags=["Service Principals"])
-async def list_service_principals(
-    current_user: User = Depends(require_permission("users:write")),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(ServicePrincipal))
-    return result.scalars().all()
-
-
-@app.patch("/admin/service-principals/{sp_id}", tags=["Service Principals"])
-async def update_service_principal(
-    sp_id: str,
-    req: ServicePrincipalUpdate,
-    current_user: User = Depends(require_permission("users:write")),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(ServicePrincipal).where(ServicePrincipal.id == sp_id))
-    sp = result.scalar_one_or_none()
-    if not sp:
-        raise HTTPException(404, "Service principal not found")
-
-    if req.name is not None:
-        sp.name = req.name
-    if req.description is not None:
-        sp.description = req.description
-    if req.role is not None:
-        if req.role not in ALLOWED_ROLES:
-            raise HTTPException(400, f"role must be one of {sorted(ALLOWED_ROLES)}")
-        sp.role = req.role
-    if req.is_active is not None:
-        sp.is_active = req.is_active
-
-    audit(db, current_user, "sp:updated", sp_id)
-    await db.commit()
-
-    return ServicePrincipalResponse.model_validate(sp)
-
-
-@app.delete("/admin/service-principals/{sp_id}", tags=["Service Principals"])
-async def delete_service_principal(
-    sp_id: str,
-    current_user: User = Depends(require_permission("users:write")),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(ServicePrincipal).where(ServicePrincipal.id == sp_id))
-    sp = result.scalar_one_or_none()
-    if not sp:
-        raise HTTPException(404, "Service principal not found")
-
-    await db.delete(sp)
-    audit(db, current_user, "sp:deleted", sp_id, {"name": sp.name})
-    await db.commit()
-    return {"status": "deleted"}
-
-
-@app.post("/admin/service-principals/{sp_id}/rotate-secret", tags=["Service Principals"])
-async def rotate_sp_secret(
-    sp_id: str,
-    current_user: User = Depends(require_permission("users:write")),
-    db: AsyncSession = Depends(get_db),
-):
-    import secrets as _secrets
-
-    result = await db.execute(select(ServicePrincipal).where(ServicePrincipal.id == sp_id))
-    sp = result.scalar_one_or_none()
-    if not sp:
-        raise HTTPException(404, "Service principal not found")
-
-    new_secret = "mop_sp_" + _secrets.token_hex(24)
-    sp.client_secret_hash = get_password_hash(new_secret)
-
-    audit(db, current_user, "sp:secret_rotated", sp_id, {"name": sp.name})
-    await db.commit()
-
-    return ServicePrincipalRotateResponse(
-        client_id=sp.client_id,
-        client_secret=new_secret,
-    )
-
+    return {"status": "ok", "access_token": new_token}
 
 # --- Core Endpoints ---
 
@@ -1448,12 +816,47 @@ async def rotate_sp_secret(
 async def health_check():
     return {"status": "healthy", "service": "Agent Service v0.7"}
 
+
+@app.get("/api/features", tags=["System"])
+async def get_features(request: Request):
+    ctx = getattr(request.app.state, "ee", None)
+    if ctx is None:
+        return {"audit": False, "foundry": False, "webhooks": False,
+                "triggers": False, "rbac": False, "resource_limits": False,
+                "service_principals": False, "api_keys": False}
+    return {
+        "audit": ctx.audit,
+        "foundry": ctx.foundry,
+        "webhooks": ctx.webhooks,
+        "triggers": ctx.triggers,
+        "rbac": ctx.rbac,
+        "resource_limits": ctx.resource_limits,
+        "service_principals": ctx.service_principals,
+        "api_keys": ctx.api_keys,
+    }
+
+@app.get("/api/licence", tags=["System"])
+async def get_licence(request: Request, current_user: User = Depends(require_auth)):
+    """Return licence metadata. Readable by all authenticated users."""
+    licence = getattr(request.app.state, 'licence', None)
+    if licence is None:
+        return {"edition": "community"}
+    from datetime import datetime, timezone
+    exp_dt = datetime.fromtimestamp(licence['exp'], tz=timezone.utc).isoformat()
+    return {
+        "edition": "enterprise",
+        "customer_id": licence.get("customer_id"),
+        "expires": exp_dt,
+        "features": licence.get("features", []),
+    }
+
+
 @app.get("/jobs", response_model=List[JobResponse], tags=["Jobs"])
-async def list_jobs(skip: int = 0, limit: int = 50, status: Optional[str] = None, current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
+async def list_jobs(skip: int = 0, limit: int = 50, status: Optional[str] = None, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     return await JobService.list_jobs(db, skip=skip, limit=limit, status=status)
 
 @app.get("/jobs/count", tags=["Jobs"])
-async def count_jobs(status: Optional[str] = None, current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
+async def count_jobs(status: Optional[str] = None, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     from sqlalchemy import func as sqlfunc
     query = select(sqlfunc.count()).select_from(Job).where(Job.task_type != 'system_heartbeat')
     if status and status.upper() != 'ALL':
@@ -1462,7 +865,7 @@ async def count_jobs(status: Optional[str] = None, current_user: User = Depends(
     return {"total": result.scalar()}
 
 @app.get("/api/jobs/stats", tags=["Jobs"])
-async def get_job_stats(current_user: User = Depends(require_permission("jobs:read")), db: AsyncSession = Depends(get_db)):
+async def get_job_stats(current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     """Backend Stats for Dashboard charts."""
     return await JobService.get_job_stats(db)
 
@@ -1478,7 +881,7 @@ _TERMINAL_STATUSES = {"COMPLETED", "FAILED", "DEAD_LETTER", "SECURITY_REJECTED"}
 async def dispatch_job(
     req: DispatchRequest,
     request: Request,
-    current_user: User = Depends(require_permission("jobs:write")),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """CI/CD dispatch endpoint. Creates a job from a job definition and returns a poll URL.
@@ -1541,7 +944,7 @@ async def dispatch_job(
 @app.get("/api/dispatch/{job_guid}/status", response_model=DispatchStatusResponse, tags=["CI/CD Dispatch"])
 async def get_dispatch_status(
     job_guid: str,
-    current_user: User = Depends(require_permission("jobs:read")),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """CI/CD poll endpoint. Returns structured status for a dispatched job.
@@ -1578,7 +981,7 @@ async def get_dispatch_status(
 
 
 @app.post("/jobs", response_model=JobResponse, tags=["Jobs"])
-async def create_job(job_req: JobCreate, current_user: User = Depends(require_permission("jobs:write")), db: AsyncSession = Depends(get_db)):
+async def create_job(job_req: JobCreate, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     try:
         result = await JobService.create_job(job_req, db)
         await ws_manager.broadcast("job:created", {"guid": result["guid"], "status": "PENDING", "task_type": job_req.task_type})
@@ -1587,7 +990,7 @@ async def create_job(job_req: JobCreate, current_user: User = Depends(require_pe
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.patch("/jobs/{guid}/cancel", tags=["Jobs"])
-async def cancel_job(guid: str, current_user: User = Depends(require_permission("jobs:write")), db: AsyncSession = Depends(get_db)):
+async def cancel_job(guid: str, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Job).where(Job.guid == guid))
     job = result.scalar_one_or_none()
     if not job:
@@ -1604,7 +1007,7 @@ async def cancel_job(guid: str, current_user: User = Depends(require_permission(
 @app.post("/jobs/{guid}/retry", tags=["Jobs"])
 async def retry_job(
     guid: str,
-    current_user: User = Depends(require_permission("jobs:write")),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db)
 ):
     """Resets a FAILED or DEAD_LETTER job to PENDING."""
@@ -1630,7 +1033,7 @@ async def retry_job(
 @app.get("/jobs/{guid}/executions", tags=["Jobs"])
 async def list_executions(
     guid: str,
-    current_user: User = Depends(require_permission("jobs:read")),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
@@ -1694,7 +1097,7 @@ async def report_result(guid: str, report: ResultReport, req: Request, node_id: 
     return updated
 
 @app.get("/nodes", response_model=List[NodeResponse], tags=["Nodes"])
-async def list_nodes(current_user: User = Depends(require_permission("nodes:read")), db: AsyncSession = Depends(get_db)):
+async def list_nodes(current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Node))
     nodes = result.scalars().all()
 
@@ -1739,21 +1142,17 @@ async def list_nodes(current_user: User = Depends(require_permission("nodes:read
             "tags": effective_tags,
             "is_operator_managed": op_tags is not None,
             "capabilities": json.loads(n.capabilities) if n.capabilities else None,
-            "concurrency_limit": n.concurrency_limit,
-            "job_memory_limit": n.job_memory_limit,
             "stats_history": history_map.get(n.node_id, []),
             "env_tag": n.env_tag,
         })
     return resp
 
 @app.patch("/nodes/{node_id}", tags=["Nodes"])
-async def update_node_config(node_id: str, config: NodeConfig, current_user: User = Depends(require_permission("nodes:write")), db: AsyncSession = Depends(get_db)):
+async def update_node_config(node_id: str, config: NodeUpdateRequest, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Node).where(Node.node_id == node_id))
     node = result.scalar_one_or_none()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
-    node.concurrency_limit = config.concurrency_limit
-    node.job_memory_limit = config.job_memory_limit
     if config.tags is not None:
         node.operator_tags = json.dumps(config.tags)
     if config.env_tag is not None:
@@ -1764,16 +1163,12 @@ async def update_node_config(node_id: str, config: NodeConfig, current_user: Use
     return {
         "status": "updated",
         "node_id": node_id,
-        "concurrency_limit": config.concurrency_limit,
-        "job_memory_limit": config.job_memory_limit,
         "tags": config.tags,
         "env_tag": node.env_tag,
     }
 
 @app.delete("/nodes/{node_id}", status_code=204, tags=["Nodes"])
-async def delete_node(node_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only admins can remove nodes")
+async def delete_node(node_id: str, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Node).where(Node.node_id == node_id))
     node = result.scalar_one_or_none()
     if not node:
@@ -1786,7 +1181,7 @@ async def delete_node(node_id: str, current_user: User = Depends(get_current_use
     return Response(status_code=204)
 
 @app.post("/nodes/{node_id}/revoke", tags=["Nodes"])
-async def revoke_node(node_id: str, current_user: User = Depends(require_permission("nodes:write")), db: AsyncSession = Depends(get_db)):
+async def revoke_node(node_id: str, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Node).where(Node.node_id == node_id))
     node = result.scalar_one_or_none()
     if not node:
@@ -1805,10 +1200,8 @@ async def revoke_node(node_id: str, current_user: User = Depends(require_permiss
     return {"status": "revoked", "node_id": node_id}
 
 @app.post("/api/nodes/{node_id}/clear-tamper", tags=["Nodes"])
-async def clear_node_tamper(node_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def clear_node_tamper(node_id: str, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     """Resets a node from TAMPERED to ONLINE after administrator review."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only admins can clear tamper alerts")
     
     result = await db.execute(select(Node).where(Node.node_id == node_id))
     node = result.scalar_one_or_none()
@@ -1825,57 +1218,8 @@ async def clear_node_tamper(node_id: str, current_user: User = Depends(get_curre
     audit(db, current_user, "node:clear_tamper", node_id)
     return {"status": "cleared", "node_id": node_id}
 
-@app.post("/api/nodes/{node_id}/upgrade", tags=["Nodes"])
-async def stage_node_upgrade(
-    node_id: str, 
-    capability_id: int, 
-    current_user: User = Depends(require_permission("foundry:write")), 
-    db: AsyncSession = Depends(get_db)
-):
-    """Stages a signed hot-upgrade for a specific node."""
-    # 1. Fetch Node
-    result = await db.execute(select(Node).where(Node.node_id == node_id))
-    node = result.scalar_one_or_none()
-    if not node:
-        raise HTTPException(status_code=404, detail="Node not found")
-    
-    # 2. Fetch Capability Recipe
-    cap_res = await db.execute(select(CapabilityMatrix).where(CapabilityMatrix.id == capability_id))
-    cap = cap_res.scalar_one_or_none()
-    if not cap:
-        raise HTTPException(status_code=404, detail="Capability recipe not found")
-    
-    # 3. Macro Expansion
-    recipe = cap.injection_recipe
-    artifact_url = None
-    if cap.artifact_id:
-        base_url = os.getenv("AGENT_URL", "https://localhost:8001")
-        artifact_url = f"{base_url}/api/artifacts/{cap.artifact_id}/download"
-        recipe = recipe.replace("{{ARTIFACT_URL}}", artifact_url)
-    
-    # 4. Sign the recipe
-    # We use the same signature_service used for jobs
-    signature = await SignatureService.sign_payload(recipe, db)
-    
-    # 5. Store task
-    upgrade_task = {
-        "tool_id": cap.tool_id,
-        "recipe": recipe,
-        "artifact_url": artifact_url,
-        "validation_cmd": cap.validation_cmd,
-        "signature": signature
-    }
-    
-    node.pending_upgrade = json.dumps(upgrade_task)
-    node.status = "UPGRADING"
-    
-    await db.commit()
-    audit(db, current_user, "node:upgrade_staged", node_id, {"tool_id": cap.tool_id})
-    
-    return {"status": "staged", "node_id": node_id, "tool_id": cap.tool_id}
-
 @app.post("/nodes/{node_id}/reinstate", tags=["Nodes"])
-async def reinstate_node(node_id: str, current_user: User = Depends(require_permission("nodes:write")), db: AsyncSession = Depends(get_db)):
+async def reinstate_node(node_id: str, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Node).where(Node.node_id == node_id))
     node = result.scalar_one_or_none()
     if not node:
@@ -1921,29 +1265,10 @@ async def enroll_node(req: EnrollmentRequest, request: Request, db: AsyncSession
     try:
         # 3. Sign CSR
         signed_cert = pki_service.sign_csr(req.csr_pem, req.hostname)
-        
+
         # 4. Create or Update Node with the secret binding
         node_id = req.hostname # Or derived from CSR/Certificate
         node_ip = request.client.host
-
-        # Derive authorized capabilities from template if assigned
-        expected_caps = None
-        os_family = None
-        if token_entry.template_id:
-            tmpl_res = await db.execute(select(PuppetTemplate).where(PuppetTemplate.id == token_entry.template_id))
-            tmpl = tmpl_res.scalar_one_or_none()
-            if tmpl:
-                if tmpl.status == "REVOKED":
-                    raise HTTPException(status_code=403, detail="Blueprint for this enrollment has been REVOKED")
-                os_family = tmpl.os_family
-                # Load runtime blueprint
-                rt_res = await db.execute(select(Blueprint).where(Blueprint.id == tmpl.runtime_blueprint_id))
-                rt_bp = rt_res.scalar_one_or_none()
-                if rt_bp:
-                    rt_def = json.loads(rt_bp.definition)
-                    # Tools form the authorized baseline
-                    # Format: {tool_id: "latest"}
-                    expected_caps = {tool['id']: "latest" for tool in rt_def.get("tools", [])}
 
         result = await db.execute(select(Node).where(Node.node_id == node_id))
         node = result.scalar_one_or_none()
@@ -1956,22 +1281,17 @@ async def enroll_node(req: EnrollmentRequest, request: Request, db: AsyncSession
             node.ip = node_ip
             node.last_seen = datetime.utcnow()
             node.client_cert_pem = signed_cert
-            node.base_os_family = os_family
             node.template_id = token_entry.template_id
-            if expected_caps:
-                node.expected_capabilities = json.dumps(expected_caps)
         else:
             node = Node(
                 node_id=node_id,
                 hostname=req.hostname,
                 ip=node_ip,
                 status="ONLINE",
-                base_os_family=os_family,
                 template_id=token_entry.template_id,
                 machine_id=req.machine_id,
                 node_secret_hash=req.node_secret_hash,
                 client_cert_pem=signed_cert,
-                expected_capabilities=json.dumps(expected_caps) if expected_caps else None
             )
             db.add(node)
         await db.commit()
@@ -1994,7 +1314,7 @@ import base64
 
 @app.post("/admin/generate-token", tags=["Admin"])
 @limiter.limit("10/minute")
-async def generate_token(request: Request, current_user: User = Depends(require_permission("tokens:write")), db: AsyncSession = Depends(get_db)):
+async def generate_token(request: Request, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
          
     token_str = uuid.uuid4().hex
     token_entry = Token(token=token_str)
@@ -2011,287 +1331,13 @@ async def generate_token(request: Request, current_user: User = Depends(require_
     b64_token = base64.b64encode(json.dumps(payload).encode()).decode()
     return {"token": b64_token}
 
-# --- Blueprint & Template Management ---
-
-@app.post("/api/blueprints", response_model=BlueprintResponse, status_code=201, tags=["Foundry"])
-async def create_blueprint(
-    req: BlueprintCreate,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    definition = dict(req.definition)
-
-    # Only RUNTIME blueprints need OS + dep validation
-    if req.type == 'RUNTIME':
-        tool_ids = [t.get("id") for t in definition.get("tools", []) if t.get("id")]
-        declared_os = req.os_family  # already normalized to uppercase by Pydantic
-
-        if tool_ids:
-            # === PASS 1: OS mismatch check (hard reject) ===
-            stmt = select(CapabilityMatrix).where(
-                CapabilityMatrix.is_active == True,
-                CapabilityMatrix.base_os_family == declared_os,
-                CapabilityMatrix.tool_id.in_(tool_ids)
-            )
-            result = await db.execute(stmt)
-            valid_rows = result.scalars().all()
-            valid_tool_ids = {row.tool_id for row in valid_rows}
-            incompatible = [t for t in tool_ids if t not in valid_tool_ids]
-            if incompatible:
-                raise HTTPException(status_code=422, detail={
-                    "error": "os_mismatch",
-                    "message": f"Blueprint validation failed: tools {incompatible} have no CapabilityMatrix entry for {declared_os}. Add {declared_os} support for these tools or change the OS family.",
-                    "offending_tools": incompatible
-                })
-
-            # === PASS 2: Runtime dependency check (soft reject with confirmation) ===
-            tool_set = set(tool_ids)
-            confirmed = set(req.confirmed_deps or [])
-            missing_deps: list = []
-            for row in valid_rows:
-                try:
-                    deps = json.loads(row.runtime_dependencies or "[]")
-                except Exception:
-                    deps = []
-                for dep in deps:
-                    if dep not in tool_set and dep not in confirmed:
-                        missing_deps.append(dep)
-
-            if missing_deps:
-                raise HTTPException(status_code=422, detail={
-                    "error": "deps_required",
-                    "message": "Some tools have unsatisfied runtime dependencies. Resubmit with confirmed_deps to auto-add them.",
-                    "deps_to_confirm": list(set(missing_deps))
-                })
-
-            # Auto-add confirmed deps to the tool list before saving
-            if confirmed:
-                existing_ids = {t.get("id") for t in definition.get("tools", [])}
-                extra = [{"id": dep, "version": "latest"} for dep in confirmed if dep not in existing_ids]
-                definition.setdefault("tools", []).extend(extra)
-
-    new_bp = Blueprint(
-        id=str(uuid.uuid4()),
-        type=req.type,
-        name=req.name,
-        definition=json.dumps(definition),
-        os_family=req.os_family,      # write os_family to DB column
-    )
-    db.add(new_bp)
-    await db.commit()
-    await db.refresh(new_bp)
-
-    return {
-        "id": new_bp.id,
-        "type": new_bp.type,
-        "name": new_bp.name,
-        "definition": definition,
-        "version": new_bp.version,
-        "created_at": new_bp.created_at,
-        "os_family": new_bp.os_family,
-    }
-
-@app.get("/api/blueprints", response_model=List[BlueprintResponse], tags=["Foundry"])
-async def list_blueprints(current_user: User = Depends(require_permission("foundry:read")), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Blueprint))
-    bps = result.scalars().all()
-    return [{
-        "id": bp.id,
-        "type": bp.type,
-        "name": bp.name,
-        "definition": json.loads(bp.definition),
-        "version": bp.version,
-        "created_at": bp.created_at,
-        "os_family": bp.os_family,  # NEW
-    } for bp in bps]
-
-# Legacy/Frontend Aliases
-@app.get("/foundry/definitions", tags=["Foundry"])
-async def foundry_definitions(current_user: User = Depends(require_permission("foundry:read")), db: AsyncSession = Depends(get_db)):
-    """Dashboard expects /foundry/definitions instead of /api/blueprints"""
-    return await list_blueprints(current_user, db)
-
 @app.get("/job-definitions", tags=["Job Definitions"])
-async def dashboard_job_definitions(current_user: User = Depends(require_permission("definitions:read")), db: AsyncSession = Depends(get_db)):
+async def dashboard_job_definitions(current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     """Dashboard expects /job-definitions instead of /jobs/definitions"""
     return await scheduler_service.list_job_definitions(db)
 
-@app.post("/api/templates", response_model=PuppetTemplateResponse, tags=["Foundry"])
-async def create_template(req: PuppetTemplateCreate, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
-    
-    # Verify Blueprints exist
-    rt_res = await db.execute(select(Blueprint).where(Blueprint.id == req.runtime_blueprint_id, Blueprint.type == 'RUNTIME'))
-    nw_res = await db.execute(select(Blueprint).where(Blueprint.id == req.network_blueprint_id, Blueprint.type == 'NETWORK'))
-    
-    rt_bp = rt_res.scalar_one_or_none()
-    nw_bp = nw_res.scalar_one_or_none()
-    
-    if not rt_bp or not nw_bp:
-        raise HTTPException(status_code=400, detail="Invalid Runtime or Network Blueprint ID")
-
-    # Generate Canonical ID (Simple hash of blueprint names and versions for now)
-    import hashlib
-    canonical_payload = f"{rt_bp.name}:{rt_bp.version}:{nw_bp.name}:{nw_bp.version}"
-    canonical_id = hashlib.sha256(canonical_payload.encode()).hexdigest()[:12]
-
-    new_tmpl = PuppetTemplate(
-        id=str(uuid.uuid4()),
-        friendly_name=req.friendly_name,
-        runtime_blueprint_id=req.runtime_blueprint_id,
-        network_blueprint_id=req.network_blueprint_id,
-        canonical_id=canonical_id
-    )
-    db.add(new_tmpl)
-    await db.commit()
-    await db.refresh(new_tmpl)
-    
-    return new_tmpl
-
-@app.get("/api/templates", response_model=List[PuppetTemplateResponse], tags=["Foundry"])
-async def list_templates(current_user: User = Depends(require_permission("foundry:read")), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(PuppetTemplate))
-    templates = result.scalars().all()
-    return [{
-        "id": t.id,
-        "friendly_name": t.friendly_name,
-        "runtime_blueprint_id": t.runtime_blueprint_id,
-        "network_blueprint_id": t.network_blueprint_id,
-        "canonical_id": t.canonical_id,
-        "current_image_uri": t.current_image_uri,
-        "last_built_image": t.current_image_uri,
-        "last_built_at": t.last_built_at,
-        "created_at": t.created_at,
-        "is_compliant": t.is_compliant if t.is_compliant is not None else True,
-        "status": t.status or "DRAFT",
-        "bom_captured": t.bom_captured or False,
-    } for t in templates]
-
-@app.post("/api/templates/{id}/build", response_model=ImageResponse, tags=["Foundry"])
-async def build_template(id: str, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
-    result = await foundry_service.build_template(id, db)
-    if not result.status.startswith("SUCCESS"):
-        raise HTTPException(status_code=500, detail=result.status)
-    audit(db, current_user, "template:build", id)
-    await db.commit()
-    return result
-
-@app.post("/foundry/build", tags=["Foundry"])
-async def dashboard_foundry_build(req: dict, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
-    """Dashboard expects /foundry/build with template_id in body"""
-    template_id = req.get("template_id")
-    if not template_id:
-        raise HTTPException(status_code=400, detail="Missing template_id in body")
-    return await build_template(template_id, current_user, db)
-
-@app.delete("/api/blueprints/{id}", tags=["Foundry"])
-async def delete_blueprint(id: str, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(PuppetTemplate).where(
-            (PuppetTemplate.runtime_blueprint_id == id) | (PuppetTemplate.network_blueprint_id == id)
-        )
-    )
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Blueprint is referenced by one or more templates")
-    result = await db.execute(select(Blueprint).where(Blueprint.id == id))
-    bp = result.scalar_one_or_none()
-    if not bp:
-        raise HTTPException(status_code=404, detail="Blueprint not found")
-    audit(db, current_user, "blueprint:delete", id, {"name": bp.name})
-    await db.delete(bp)
-    await db.commit()
-    return {"status": "deleted"}
-
-@app.delete("/api/templates/{id}", tags=["Foundry"])
-async def delete_template(id: str, current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(PuppetTemplate).where(PuppetTemplate.id == id))
-    tmpl = result.scalar_one_or_none()
-    if not tmpl:
-        raise HTTPException(status_code=404, detail="Template not found")
-    audit(db, current_user, "template:delete", id, {"name": tmpl.friendly_name})
-    await db.delete(tmpl)
-    await db.commit()
-    return {"status": "deleted"}
-
-# --- Image BOM & Lifecycle Management ---
-
-@app.patch("/api/templates/{id}/status", tags=["Foundry"])
-async def update_template_status(
-    id: str,
-    req: Dict[str, str],
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Update the lifecycle status of an image (ACTIVE, DEPRECATED, REVOKED)."""
-    new_status = req.get("status")
-    if new_status not in ["ACTIVE", "DEPRECATED", "REVOKED"]:
-        raise HTTPException(status_code=400, detail="Invalid status")
-    
-    result = await db.execute(select(PuppetTemplate).where(PuppetTemplate.id == id))
-    tmpl = result.scalar_one_or_none()
-    if not tmpl:
-        raise HTTPException(status_code=404, detail="Template not found")
-    
-    tmpl.status = new_status
-    audit(db, current_user, "foundry:image_status_updated", f"{id}:{new_status}")
-    await db.commit()
-    return {"id": id, "status": new_status}
-
-@app.get("/api/templates/{id}/bom", response_model=ImageBOMResponse, tags=["Foundry"])
-async def get_template_bom(
-    id: str,
-    current_user: User = Depends(require_permission("foundry:read")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get the full Bill of Materials for a specific image."""
-    result = await db.execute(select(ImageBOM).where(ImageBOM.template_id == id))
-    bom = result.scalar_one_or_none()
-    if not bom:
-        raise HTTPException(status_code=404, detail="BOM not found for this image")
-    return bom
-
-@app.get("/api/foundry/search-packages", response_model=List[PackageIndexResponse], tags=["Foundry"])
-async def search_packages(
-    q: str,
-    current_user: User = Depends(require_permission("foundry:read")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Search for images containing a specific package name/version across the fleet."""
-    result = await db.execute(
-        select(PackageIndex).where(PackageIndex.name.ilike(f"%{q}%")).limit(100)
-    )
-    return result.scalars().all()
-
-@app.get("/api/capability-matrix", response_model=List[CapabilityMatrixEntry], tags=["Foundry"])
-async def get_capability_matrix(
-    os_family: Optional[str] = Query(None),
-    include_inactive: bool = Query(False),
-    current_user: User = Depends(require_permission("foundry:read")),
-    db: AsyncSession = Depends(get_db)
-):
-    stmt = select(CapabilityMatrix)
-    if not include_inactive:
-        stmt = stmt.where(CapabilityMatrix.is_active == True)
-    if os_family:
-        stmt = stmt.where(CapabilityMatrix.base_os_family == os_family.upper())
-    result = await db.execute(stmt)
-    return result.scalars().all()
-
-# --- Foundry & Enrollment Endpoints ---
-
-@app.post("/api/images", response_model=ImageResponse, tags=["Foundry"])
-async def create_image(req: ImageBuildRequest, current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin Only")
-    return await foundry_service.build_image(req)
-
-@app.get("/api/images", response_model=List[ImageResponse], tags=["Foundry"])
-async def list_images(current_user: User = Depends(get_current_user)):
-    return await foundry_service.list_images()
-
 @app.post("/api/enrollment-tokens", tags=["Node Agent"])
-async def create_enrollment_token(req: Optional[EnrollmentTokenCreate] = None, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only admins can create enrollment tokens")
+async def create_enrollment_token(req: Optional[EnrollmentTokenCreate] = None, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
 
     token_str = uuid.uuid4().hex
     token_entry = Token(token=token_str)
@@ -2302,7 +1348,7 @@ async def create_enrollment_token(req: Optional[EnrollmentTokenCreate] = None, c
     await db.commit()
     return {"token": token_str}
 @app.post("/admin/upload-key", tags=["Admin"])
-async def upload_public_key(req: UploadKeyRequest, current_user: User = Depends(require_permission("signatures:write")), db: AsyncSession = Depends(get_db)):
+async def upload_public_key(req: UploadKeyRequest, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Config).where(Config.key == "signing_public_key"))
     row = result.scalar_one_or_none()
     if row:
@@ -2312,111 +1358,6 @@ async def upload_public_key(req: UploadKeyRequest, current_user: User = Depends(
     audit(db, current_user, "key:upload")
     await db.commit()
     return {"status": "stored"}
-
-# --- User Management Endpoints ---
-
-@app.get("/admin/users", response_model=List[UserResponse], tags=["User Management"])
-async def list_users(current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User))
-    users = result.scalars().all()
-    return [{"id": u.username, "username": u.username, "role": u.role, "created_at": u.created_at} for u in users]
-
-@app.post("/admin/users", response_model=UserResponse, status_code=201, tags=["User Management"])
-async def create_user(req: UserCreate, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.username == req.username))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Username already exists")
-    new_user = User(username=req.username, password_hash=get_password_hash(req.password), role=req.role)
-    db.add(new_user)
-    audit(db, current_user, "user:create", req.username, {"role": req.role})
-    await db.commit()
-    return {"id": new_user.username, "username": new_user.username, "role": new_user.role, "created_at": new_user.created_at}
-
-@app.delete("/admin/users/{username}", tags=["User Management"])
-async def delete_user(username: str, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
-    if username == current_user.username:
-        raise HTTPException(status_code=400, detail="Cannot delete yourself")
-    result = await db.execute(select(User).where(User.username == username))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    audit(db, current_user, "user:delete", username)
-    await db.delete(user)
-    await db.commit()
-    return {"status": "deleted", "username": username}
-
-@app.patch("/admin/users/{username}", response_model=UserResponse, tags=["User Management"])
-async def update_user_role(username: str, req: dict, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.username == username))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if "role" in req:
-        user.role = req["role"]
-    audit(db, current_user, "user:role_change", username, {"role": req.get("role")})
-    await db.commit()
-    return {"id": user.username, "username": user.username, "role": user.role, "created_at": user.created_at}
-
-# --- Role Permission Management Endpoints ---
-
-@app.get("/admin/roles/{role}/permissions", tags=["User Management"])
-async def list_role_permissions(role: str, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(RolePermission).where(RolePermission.role == role))
-    perms = result.scalars().all()
-    return [{"id": p.id, "role": p.role, "permission": p.permission} for p in perms]
-
-@app.post("/admin/roles/{role}/permissions", status_code=201, tags=["User Management"])
-async def grant_role_permission(role: str, req: PermissionGrant, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(RolePermission).where(RolePermission.role == role, RolePermission.permission == req.permission))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Permission already granted")
-    db.add(RolePermission(role=role, permission=req.permission))
-    audit(db, current_user, "permission:grant", role, {"permission": req.permission})
-    await db.commit()
-    _invalidate_perm_cache(role)
-    return {"status": "granted", "role": role, "permission": req.permission}
-
-@app.delete("/admin/roles/{role}/permissions/{permission}", tags=["User Management"])
-async def revoke_role_permission(role: str, permission: str, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(RolePermission).where(RolePermission.role == role, RolePermission.permission == permission))
-    perm = result.scalar_one_or_none()
-    if not perm:
-        raise HTTPException(status_code=404, detail="Permission not found")
-    audit(db, current_user, "permission:revoke", role, {"permission": permission})
-    await db.delete(perm)
-    await db.commit()
-    _invalidate_perm_cache(role)
-    return {"status": "revoked", "role": role, "permission": permission}
-
-@app.patch("/admin/users/{username}/reset-password", tags=["User Management"])
-async def admin_reset_password(username: str, req: dict, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
-    """Admin sets a new password for any user."""
-    result = await db.execute(select(User).where(User.username == username))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    new_password = req.get("password", "").strip()
-    if not new_password or len(new_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    user.password_hash = get_password_hash(new_password)
-    user.token_version = (user.token_version or 0) + 1  # invalidate all existing sessions
-    audit(db, current_user, "user:password_reset", detail={"target": username, "by": current_user.username})
-    await db.commit()
-    return {"status": "ok"}
-
-@app.patch("/admin/users/{username}/force-password-change", tags=["User Management"])
-async def admin_force_password_change(username: str, req: dict, current_user: User = Depends(require_permission("users:write")), db: AsyncSession = Depends(get_db)):
-    """Set or clear the must_change_password flag for a user."""
-    result = await db.execute(select(User).where(User.username == username))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    enabled = bool(req.get("enabled", True))
-    user.must_change_password = enabled
-    action = "user:force_password_change_set" if enabled else "user:force_password_change_cleared"
-    audit(db, current_user, action, detail={"target": username})
-    await db.commit()
-    return {"status": "ok", "must_change_password": enabled}
 
 @app.get("/config/public-key", tags=["System"])
 async def get_public_key(x_join_token: str = Header(None), db: AsyncSession = Depends(get_db)):
@@ -2438,15 +1379,15 @@ async def get_network_mounts(
     user: Optional[User] = Depends(get_current_user_optional),
     x_join_token: Optional[str] = Header(None)
 ):
-    is_admin = user and user.role == "admin"
+    is_authed = user is not None
     is_valid_token = False
-    
+
     if x_join_token:
          result = await db.execute(select(Token).where(Token.token == x_join_token))
          if result.scalar_one_or_none():
              is_valid_token = True
-             
-    if not (is_admin or is_valid_token):
+
+    if not (is_authed or is_valid_token):
          raise HTTPException(status_code=403, detail="Not Authorized")
 
     result = await db.execute(select(Config).where(Config.key == "global_network_mounts"))
@@ -2460,9 +1401,7 @@ async def get_network_mounts(
         return []
 
 @app.post("/config/mounts", tags=["System"])
-async def update_network_mounts(config: MountsConfig, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin Only")
+async def update_network_mounts(config: MountsConfig, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     
     for m in config.mounts:
         if not m.name.replace("_", "").isalnum():
@@ -2483,15 +1422,15 @@ async def update_network_mounts(config: MountsConfig, current_user: User = Depen
 # --- Signature Registry API ---
 
 @app.post("/signatures", response_model=SignatureResponse, tags=["Signatures"])
-async def upload_signature(sig: SignatureCreate, current_user: User = Depends(require_permission("signatures:write")), db: AsyncSession = Depends(get_db)):
+async def upload_signature(sig: SignatureCreate, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     return await SignatureService.upload_signature(sig, current_user, db)
 
 @app.get("/signatures", response_model=List[SignatureResponse], tags=["Signatures"])
-async def list_signatures(current_user: User = Depends(require_permission("signatures:read")), db: AsyncSession = Depends(get_db)):
+async def list_signatures(current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     return await SignatureService.list_signatures(db)
 
 @app.delete("/signatures/{id}", tags=["Signatures"])
-async def delete_signature(id: str, current_user: User = Depends(require_permission("signatures:write")), db: AsyncSession = Depends(get_db)):
+async def delete_signature(id: str, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     success = await SignatureService.delete_signature(id, db)
     if not success:
         raise HTTPException(status_code=404, detail="Signature not found")
@@ -2502,15 +1441,15 @@ async def delete_signature(id: str, current_user: User = Depends(require_permiss
 # --- Job Definitions API ---
 
 @app.post("/jobs/definitions", response_model=JobDefinitionResponse, tags=["Job Definitions"])
-async def create_job_definition(def_req: JobDefinitionCreate, current_user: User = Depends(require_permission("definitions:write")), db: AsyncSession = Depends(get_db)):
+async def create_job_definition(def_req: JobDefinitionCreate, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     return await scheduler_service.create_job_definition(def_req, current_user, db)
 
 @app.get("/jobs/definitions", response_model=List[JobDefinitionResponse], tags=["Job Definitions"])
-async def list_job_definitions(current_user: User = Depends(require_permission("definitions:read")), db: AsyncSession = Depends(get_db)):
+async def list_job_definitions(current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     return await scheduler_service.list_job_definitions(db)
 
 @app.delete("/jobs/definitions/{id}", tags=["Job Definitions"])
-async def delete_job_definition(id: str, current_user: User = Depends(require_permission("definitions:write")), db: AsyncSession = Depends(get_db)):
+async def delete_job_definition(id: str, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(ScheduledJob).where(ScheduledJob.id == id))
     job_def = result.scalar_one_or_none()
     if not job_def:
@@ -2524,7 +1463,7 @@ async def delete_job_definition(id: str, current_user: User = Depends(require_pe
     return {"status": "deleted"}
 
 @app.patch("/jobs/definitions/{id}/toggle", tags=["Job Definitions"])
-async def toggle_job_definition(id: str, current_user: User = Depends(require_permission("definitions:write")), db: AsyncSession = Depends(get_db)):
+async def toggle_job_definition(id: str, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(ScheduledJob).where(ScheduledJob.id == id))
     job_def = result.scalar_one_or_none()
     if not job_def:
@@ -2535,13 +1474,13 @@ async def toggle_job_definition(id: str, current_user: User = Depends(require_pe
     return {"id": id, "is_active": job_def.is_active}
 
 @app.get("/jobs/definitions/{id}", response_model=JobDefinitionResponse, tags=["Job Definitions"])
-async def get_job_definition(id: str, current_user: User = Depends(require_permission("definitions:read")), db: AsyncSession = Depends(get_db)):
+async def get_job_definition(id: str, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     return await scheduler_service.get_job_definition(id, db)
 
 @app.post("/api/jobs/push", response_model=JobDefinitionResponse, status_code=201, tags=["Job Definitions"])
 async def push_job_definition(
     req: JobPushRequest,
-    current_user: User = Depends(require_permission("definitions:write")),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """RFC-compliant push endpoint: creates DRAFT or updates existing job with dual JWT+Ed25519 verification."""
@@ -2600,188 +1539,8 @@ async def push_job_definition(
     return JobDefinitionResponse.model_validate(job)
 
 @app.patch("/jobs/definitions/{id}", response_model=JobDefinitionResponse, tags=["Job Definitions"])
-async def update_job_definition(id: str, update_req: JobDefinitionUpdate, current_user: User = Depends(require_permission("definitions:write")), db: AsyncSession = Depends(get_db)):
-    # Admin-only REVOKE gate (GOV-CLI-01)
-    if update_req.status == "REVOKED" and current_user.role != "admin":
-        raise HTTPException(403, detail="Only admin can set a job to REVOKED status")
-
+async def update_job_definition(id: str, update_req: JobDefinitionUpdate, current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     return await scheduler_service.update_job_definition(id, update_req, current_user, db)
-
-# --- Artifact Vault API ---
-
-@app.post("/api/artifacts", response_model=ArtifactResponse, tags=["Artifacts"])
-async def upload_artifact(
-    file: UploadFile = File(...),
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Upload a binary artifact to the secure vault."""
-    return await vault_service.store_artifact(file, db)
-
-@app.get("/api/artifacts", response_model=List[ArtifactResponse], tags=["Artifacts"])
-async def list_artifacts(
-    current_user: User = Depends(require_permission("foundry:read")),
-    db: AsyncSession = Depends(get_db)
-):
-    """List all stored artifacts."""
-    return await vault_service.list_artifacts(db)
-
-@app.get("/api/artifacts/{id}/download", tags=["Artifacts"])
-async def download_artifact(
-    id: str,
-    current_user: User = Depends(require_permission("foundry:read")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Stream an artifact download from the vault."""
-    result = await db.execute(select(Artifact).where(Artifact.id == id))
-    artifact = result.scalar_one_or_none()
-    if not artifact:
-        raise HTTPException(status_code=404, detail="Artifact not found")
-    
-    path = vault_service.get_artifact_path(id)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="File missing on disk")
-    
-    def iterfile():
-        with open(path, mode="rb") as f:
-            yield from f
-
-    return StreamingResponse(
-        iterfile(), 
-        media_type=artifact.content_type,
-        headers={"Content-Disposition": f"attachment; filename={artifact.filename}"}
-    )
-
-@app.delete("/api/artifacts/{id}", tags=["Artifacts"])
-async def delete_artifact(
-    id: str,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Permanently remove an artifact."""
-    success = await vault_service.delete_artifact(id, db)
-    if not success:
-        raise HTTPException(status_code=404, detail="Artifact not found")
-    return {"status": "deleted"}
-
-# --- Approved OS API ---
-
-@app.get("/api/approved-os", response_model=List[ApprovedOSResponse], tags=["Foundry"])
-async def list_approved_os(
-    current_user: User = Depends(require_permission("foundry:read")),
-    db: AsyncSession = Depends(get_db)
-):
-    """List all pre-approved base OS images."""
-    result = await db.execute(select(ApprovedOS).order_by(ApprovedOS.name))
-    return result.scalars().all()
-
-@app.post("/api/approved-os", response_model=ApprovedOSResponse, tags=["Foundry"])
-async def create_approved_os(
-    req: ApprovedOSResponse, 
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Register a new approved base OS image."""
-    new_os = ApprovedOS(name=req.name, image_uri=req.image_uri, os_family=req.os_family)
-    db.add(new_os)
-    await db.commit()
-    await db.refresh(new_os)
-    return new_os
-
-@app.delete("/api/approved-os/{id}", tags=["Foundry"])
-async def delete_approved_os(
-    id: int,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Remove a base image from the approved list."""
-    result = await db.execute(select(ApprovedOS).where(ApprovedOS.id == id))
-    os_entry = result.scalar_one_or_none()
-    if not os_entry:
-        raise HTTPException(status_code=404, detail="OS entry not found")
-    await db.delete(os_entry)
-    await db.commit()
-    return {"status": "deleted"}
-
-# --- Dynamic Capability Matrix API ---
-
-@app.post("/api/capability-matrix", response_model=CapabilityMatrixEntry, tags=["Foundry"])
-async def create_capability(
-    req: CapabilityMatrixEntry,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Register a new tool capability recipe."""
-    new_cap = CapabilityMatrix(
-        base_os_family=req.base_os_family,
-        tool_id=req.tool_id,
-        injection_recipe=req.injection_recipe,
-        validation_cmd=req.validation_cmd,
-        artifact_id=req.artifact_id,
-        runtime_dependencies=json.dumps(req.runtime_dependencies),
-        is_active=req.is_active if req.is_active is not None else True,
-    )
-    db.add(new_cap)
-    await db.commit()
-    await db.refresh(new_cap)
-    return new_cap
-
-@app.patch("/api/capability-matrix/{id}", response_model=CapabilityMatrixEntry, tags=["Foundry"])
-async def update_capability(
-    id: int,
-    req: CapabilityMatrixUpdate,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Partially update an existing tool recipe."""
-    result = await db.execute(select(CapabilityMatrix).where(CapabilityMatrix.id == id))
-    cap = result.scalar_one_or_none()
-    if not cap:
-        raise HTTPException(status_code=404, detail="Capability not found")
-
-    if req.base_os_family is not None:
-        cap.base_os_family = req.base_os_family
-    if req.tool_id is not None:
-        cap.tool_id = req.tool_id
-    if req.injection_recipe is not None:
-        cap.injection_recipe = req.injection_recipe
-    if req.validation_cmd is not None:
-        cap.validation_cmd = req.validation_cmd
-    if req.artifact_id is not None:
-        cap.artifact_id = req.artifact_id
-    if req.runtime_dependencies is not None:
-        cap.runtime_dependencies = json.dumps(req.runtime_dependencies)
-    if req.is_active is not None:
-        cap.is_active = req.is_active
-
-    await db.commit()
-    await db.refresh(cap)
-    return cap
-
-@app.delete("/api/capability-matrix/{id}", tags=["Foundry"])
-async def delete_capability(
-    id: int,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Soft-delete a tool recipe (sets is_active=False). Returns referencing blueprints."""
-    result = await db.execute(select(CapabilityMatrix).where(CapabilityMatrix.id == id))
-    cap = result.scalar_one_or_none()
-    if not cap:
-        raise HTTPException(status_code=404, detail="Capability not found")
-    # Find referencing blueprints by scanning definition JSON for tool_id
-    all_bps = (await db.execute(select(Blueprint))).scalars().all()
-    referencing = []
-    for bp in all_bps:
-        try:
-            defn = json.loads(bp.definition)
-            if cap.tool_id in [t.get("id") for t in defn.get("tools", [])]:
-                referencing.append({"id": bp.id, "name": bp.name})
-        except Exception:
-            pass
-    cap.is_active = False
-    await db.commit()
-    return {"status": "deactivated", "referencing_blueprints": referencing}
 
 # --- Installer & Doc Endpoints ---
 
@@ -2798,7 +1557,7 @@ async def get_installer():
     return Response(content=content, media_type="text/plain", headers={"Content-Disposition": "attachment; filename=install_node.ps1"})
 
 @app.get("/api/docs", tags=["System"])
-async def list_docs(current_user: User = Depends(require_permission("jobs:read"))):
+async def list_docs(current_user: User = Depends(require_auth)):
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     docs_dir = os.path.join(base_dir, "docs")
     if not os.path.exists(docs_dir):
@@ -2822,7 +1581,7 @@ async def list_docs(current_user: User = Depends(require_permission("jobs:read")
     return files
 
 @app.get("/api/docs/{filename}", tags=["System"])
-async def get_doc_content(filename: str, current_user: User = Depends(require_permission("jobs:read"))):
+async def get_doc_content(filename: str, current_user: User = Depends(require_auth)):
     filename = os.path.basename(filename)
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     docs_dir = os.path.join(base_dir, "docs")
@@ -2846,10 +1605,11 @@ async def get_doc_content(filename: str, current_user: User = Depends(require_pe
 # --- WebSocket Live Feed ---
 
 @app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket, token: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def websocket_endpoint(ws: WebSocket, token: Optional[str] = None):
     """Live event feed. Requires a valid JWT passed as ?token=<jwt> query param."""
     await ws.accept()
-    # Validate token
+    # Validate token using a short-lived session so we don't hold a pool slot
+    # for the entire WebSocket lifetime (which exhausts the connection pool).
     authed = False
     if token:
         try:
@@ -2858,10 +1618,11 @@ async def websocket_endpoint(ws: WebSocket, token: Optional[str] = None, db: Asy
             payload = _jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             username = payload.get("sub")
             if username:
-                result = await db.execute(select(User).where(User.username == username))
-                user = result.scalar_one_or_none()
-                if user and payload.get("tv", 0) == user.token_version:
-                    authed = True
+                async with AsyncSessionLocal() as _db:
+                    result = await _db.execute(select(User).where(User.username == username))
+                    user = result.scalar_one_or_none()
+                    if user and payload.get("tv", 0) == user.token_version:
+                        authed = True
         except Exception:
             pass
     if not authed:
@@ -2876,52 +1637,6 @@ async def websocket_endpoint(ws: WebSocket, token: Optional[str] = None, db: Asy
     except WebSocketDisconnect:
         ws_manager.disconnect(ws)
 
-# --- Audit Log Endpoint ---
-
-@app.get("/admin/audit-log", tags=["Audit Log"])
-async def get_audit_log(
-    limit: int = 200,
-    current_user: User = Depends(require_permission("users:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    result = await db.execute(
-        select(AuditLog).order_by(desc(AuditLog.timestamp)).limit(limit)
-    )
-    rows = result.scalars().all()
-    return [
-        {
-            "id": r.id,
-            "timestamp": r.timestamp.isoformat(),
-            "username": r.username,
-            "action": r.action,
-            "resource_id": r.resource_id,
-            "detail": json.loads(r.detail) if r.detail else None,
-        }
-        for r in rows
-    ]
-
-# --- Base Image Staleness Endpoints ---
-
-@app.post("/admin/mark-base-updated", tags=["Admin"])
-async def mark_base_updated(current_user: User = Depends(require_permission("foundry:write")), db: AsyncSession = Depends(get_db)):
-    """Records the current timestamp as the last time the base node image was updated."""
-    now = datetime.utcnow().isoformat()
-    result = await db.execute(select(Config).where(Config.key == "base_node_image_updated_at"))
-    row = result.scalar_one_or_none()
-    if row:
-        row.value = now
-    else:
-        db.add(Config(key="base_node_image_updated_at", value=now))
-    audit(db, current_user, "base_image:marked_updated")
-    await db.commit()
-    return {"base_node_image_updated_at": now}
-
-@app.get("/admin/base-image-updated", tags=["Admin"])
-async def get_base_image_updated(current_user: User = Depends(require_permission("foundry:read")), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Config).where(Config.key == "base_node_image_updated_at"))
-    row = result.scalar_one_or_none()
-    return {"base_node_image_updated_at": row.value if row else None}
-
 # --- CRL Endpoint ---
 
 @app.get("/system/crl.pem", tags=["System"])
@@ -2933,275 +1648,20 @@ async def get_crl(db: AsyncSession = Depends(get_db)):
     crl_pem = pki_service.ca_authority.generate_crl(serials)
     return Response(content=crl_pem, media_type="application/x-pem-file")
 
-# --- Smelter Registry API ---
-
-@app.get("/api/smelter/ingredients", response_model=List[ApprovedIngredientResponse], tags=["Smelter Registry"])
-async def list_smelter_ingredients(
-    os_family: Optional[str] = None,
-    current_user: User = Depends(require_permission("foundry:read")),
-    db: AsyncSession = Depends(get_db)
-):
-    """List all approved ingredients in the Smelter Catalog (Admin/Operator)."""
-    return await SmelterService.list_ingredients(db, os_family)
-
-@app.post("/api/smelter/ingredients", response_model=ApprovedIngredientResponse, tags=["Smelter Registry"])
-async def add_smelter_ingredient(
-    ingredient: ApprovedIngredientCreate,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Add a new vetted ingredient to the Smelter Catalog (Admin Only)."""
-    item = await SmelterService.add_ingredient(db, ingredient)
-    audit(db, current_user, "smelter:ingredient_added", item.name)
-    return item
-
-@app.delete("/api/smelter/ingredients/{id}", tags=["Smelter Registry"])
-async def remove_smelter_ingredient(
-    id: str,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Soft-delete an ingredient from the Smelter Catalog (sets is_active=False, preserves mirror files)."""
-    res = await db.execute(select(ApprovedIngredient).where(ApprovedIngredient.id == id))
-    ing = res.scalar_one_or_none()
-    if not ing:
-        raise HTTPException(status_code=404, detail="Ingredient not found")
-    ing.is_active = False
-    await db.commit()
-    audit(db, current_user, "smelter:ingredient_deactivated", id)
-    await db.commit()
-    return {"status": "deactivated", "id": id}
-
-@app.get("/api/smelter/config", tags=["Smelter Registry"])
-async def get_smelter_config(
-    current_user: User = Depends(require_permission("foundry:read")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get the current Smelter enforcement mode (STRICT vs WARNING)."""
-    result = await db.execute(select(Config).where(Config.key == "smelter_enforcement_mode"))
-    cfg = result.scalar_one_or_none()
-    return {"smelter_enforcement_mode": cfg.value if cfg else "WARNING"}
-
-@app.patch("/api/smelter/config", tags=["Smelter Registry"])
-async def update_smelter_config(
-    req: Dict[str, str],
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Update the Smelter enforcement mode (STRICT vs WARNING)."""
-    mode = req.get("smelter_enforcement_mode")
-    if mode not in ["STRICT", "WARNING"]:
-        raise HTTPException(status_code=400, detail="Mode must be STRICT or WARNING")
-    
-    result = await db.execute(select(Config).where(Config.key == "smelter_enforcement_mode"))
-    cfg = result.scalar_one_or_none()
-    if cfg:
-        cfg.value = mode
-    else:
-        db.add(Config(key="smelter_enforcement_mode", value=mode))
-    
-    audit(db, current_user, "smelter:config_updated", mode)
-    await db.commit()
-    return {"smelter_enforcement_mode": mode}
-
-@app.get("/api/smelter/mirror-health", tags=["Smelter Registry"])
-async def get_smelter_mirror_health(
-    current_user: User = Depends(require_permission("foundry:read"))
-):
-    """Get metrics for the local package mirrors (Disk usage, sidecar status)."""
-    mirror_path = os.getenv("MIRROR_DATA_PATH", "/app/mirror_data")
-    stats = {"pypi_online": False, "apt_online": False, "disk_used_gb": 0, "disk_total_gb": 0}
-    
-    # 1. Disk Usage
-    if os.path.exists(mirror_path):
-        usage = shutil.disk_usage(mirror_path)
-        stats["disk_used_gb"] = round(usage.used / (1024**3), 2)
-        stats["disk_total_gb"] = round(usage.total / (1024**3), 2)
-    
-    # 2. Sidecar Heartbeats (simple socket check)
-    def check_port(host, port):
-        try:
-            with socket.create_connection((host, port), timeout=1):
-                return True
-        except:
-            return False
-
-    stats["pypi_online"] = check_port("pypi", 8080)
-    stats["apt_online"] = check_port("mirror", 80)
-
-    return stats
-
-@app.get("/api/admin/mirror-config", tags=["Smelter Registry"])
-async def get_mirror_config(
-    current_user: User = Depends(require_permission("foundry:read")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Read mirror source URLs from Config DB (falls back to env vars if not set)."""
-    pypi_res = await db.execute(select(Config).where(Config.key == "PYPI_MIRROR_URL"))
-    pypi_cfg = pypi_res.scalar_one_or_none()
-    apt_res = await db.execute(select(Config).where(Config.key == "APT_MIRROR_URL"))
-    apt_cfg = apt_res.scalar_one_or_none()
-    return {
-        "pypi_mirror_url": pypi_cfg.value if pypi_cfg else os.getenv("PYPI_MIRROR_URL", "http://pypi:8080/simple"),
-        "apt_mirror_url": apt_cfg.value if apt_cfg else os.getenv("APT_MIRROR_URL", "http://mirror/apt"),
-    }
-
-
-@app.put("/api/admin/mirror-config", tags=["Smelter Registry"])
-async def update_mirror_config(
-    req: MirrorConfigUpdate,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Upsert mirror source URLs to Config DB."""
-    if req.pypi_mirror_url is not None:
-        pypi_res = await db.execute(select(Config).where(Config.key == "PYPI_MIRROR_URL"))
-        pypi_cfg = pypi_res.scalar_one_or_none()
-        if pypi_cfg:
-            pypi_cfg.value = req.pypi_mirror_url
-        else:
-            db.add(Config(key="PYPI_MIRROR_URL", value=req.pypi_mirror_url))
-    if req.apt_mirror_url is not None:
-        apt_res = await db.execute(select(Config).where(Config.key == "APT_MIRROR_URL"))
-        apt_cfg = apt_res.scalar_one_or_none()
-        if apt_cfg:
-            apt_cfg.value = req.apt_mirror_url
-        else:
-            db.add(Config(key="APT_MIRROR_URL", value=req.apt_mirror_url))
-    await db.commit()
-    audit(db, current_user, "mirror:config_updated", f"pypi={req.pypi_mirror_url}, apt={req.apt_mirror_url}")
-    await db.commit()
-    return {"status": "updated"}
-
-@app.post("/api/smelter/ingredients/{id}/upload", tags=["Smelter Registry"])
-async def upload_smelter_package(
-    id: str,
-    file: UploadFile = File(...),
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Manually upload a package (.whl, .deb) to the local mirror."""
-    res = await db.execute(select(ApprovedIngredient).where(ApprovedIngredient.id == id))
-    ing = res.scalar_one_or_none()
-    if not ing:
-        raise HTTPException(status_code=404, detail="Ingredient not found")
-    
-    target_dir = os.path.join(os.getenv("MIRROR_DATA_PATH", "/app/mirror_data"), "apt" if file.filename.endswith(".deb") else "pypi")
-    os.makedirs(target_dir, exist_ok=True)
-    
-    file_path = os.path.join(target_dir, file.filename)
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    
-    ing.mirror_status = "MIRRORED"
-    ing.mirror_path = target_dir
-    await db.commit()
-    
-    audit(db, current_user, "smelter:package_uploaded", f"{ing.name}:{file.filename}")
-    return {"status": "MIRRORED", "filename": file.filename}
-
-@app.post("/api/smelter/scan", tags=["Smelter Registry"])
-async def trigger_smelter_scan(
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Manually trigger a vulnerability scan of the Smelter Catalog (Admin Only)."""
-    summary = await SmelterService.scan_vulnerabilities(db)
-    audit(db, current_user, "smelter:scan_triggered", json.dumps(summary))
-    return summary
-
-# --- Trigger API (Automation) ---
-
-@app.post("/api/trigger/{slug}", tags=["Headless Automation"])
-async def fire_automation_trigger(
-    slug: str,
-    request: Request,
-    x_mop_trigger_key: str = Header(...),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Headless endpoint for CI/CD pipelines to fire a job trigger.
-    
-    - **slug**: The unique URL slug for the trigger.
-    - **X-MOP-Trigger-Key**: The secret token associated with this trigger.
-    - **Body**: (Optional) JSON object containing variables to inject into the job payload.
-    """
-    payload_data = {}
-    try:
-        # Optional JSON body for variable injection
-        if await request.body():
-            payload_data = await request.json()
-    except:
-        pass
-        
-    return await trigger_service.fire_trigger(slug, x_mop_trigger_key, payload_data, db)
-
-@app.get("/api/admin/triggers", response_model=List[TriggerResponse], tags=["Headless Automation"])
-async def list_automation_triggers(
-    current_user: User = Depends(require_permission("foundry:read")),
-    db: AsyncSession = Depends(get_db)
-):
-    """List all registered automation triggers (Admin Only)."""
-    return await trigger_service.list_triggers(db)
-
-@app.post("/api/admin/triggers", response_model=TriggerResponse, tags=["Headless Automation"])
-async def register_automation_trigger(
-    req: TriggerCreate,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Create a new URL slug and token for a specific job definition (Admin Only)."""
-    return await trigger_service.create_trigger(req.name, req.slug, req.job_definition_id, db)
-
-@app.delete("/api/admin/triggers/{id}", tags=["Headless Automation"])
-async def remove_automation_trigger(
-    id: str,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Delete an automation trigger (Admin Only)."""
-    success = await trigger_service.delete_trigger(id, db)
-    if not success:
-        raise HTTPException(status_code=404, detail="Trigger not found")
-    return {"status": "deleted"}
-
-@app.patch("/api/admin/triggers/{id}", response_model=TriggerResponse, tags=["Headless Automation"])
-async def update_automation_trigger(
-    id: str,
-    req: TriggerUpdate,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Toggle is_active or update name on an automation trigger (Admin Only)."""
-    return await trigger_service.update_trigger(id, req.is_active, db)
-
-@app.post("/api/admin/triggers/{id}/regenerate-token", response_model=TriggerResponse, tags=["Headless Automation"])
-async def regenerate_trigger_token(
-    id: str,
-    current_user: User = Depends(require_permission("foundry:write")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Rotate the secret token for an automation trigger (Admin Only)."""
-    return await trigger_service.regenerate_token(id, db)
-
 # --- Signal API (Reactive Orchestration) ---
 
 @app.post("/api/signals/{name}", tags=["Headless Automation"])
 async def fire_signal(
     name: str,
     req: Optional[SignalFire] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Fire a named signal to unblock dependent jobs.
-    
-    Authenticated via Bearer Token (User) or API Key (Service Principal).
+
+    Authenticated via Bearer Token.
     """
-    # Check permission
-    # For now, allow operators and admins
-    if current_user.role not in ["admin", "operator"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions to fire signals")
 
     # Upsert signal
     result = await db.execute(select(Signal).where(Signal.name == name))
@@ -3226,7 +1686,7 @@ async def fire_signal(
 
 @app.get("/api/signals", response_model=List[SignalResponse], tags=["Headless Automation"])
 async def list_signals(
-    current_user: User = Depends(require_permission("foundry:read")),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db)
 ):
     """List all currently active signals (Admin Only)."""
@@ -3245,7 +1705,7 @@ async def list_signals(
 @app.delete("/api/signals/{name}", tags=["Headless Automation"])
 async def clear_signal(
     name: str,
-    current_user: User = Depends(require_permission("foundry:write")),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db)
 ):
     """Clear a signal from the system (Admin Only)."""

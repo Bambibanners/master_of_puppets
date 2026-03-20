@@ -7,10 +7,10 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Union, Dict
 from packaging.version import Version, InvalidVersion
 from sqlalchemy import select, desc, func, delete, or_, and_
-from ..db import Job, Node, NodeStats, ExecutionRecord, AsyncSession, Config, Signal, PuppetTemplate
+from ..db import Job, Node, NodeStats, ExecutionRecord, AsyncSession, Config, Signal
 from ..models import (
-    ResultReport, JobResponse, JobCreate, WorkResponse, PollResponse, 
-    NodeConfig, HeartbeatPayload
+    ResultReport, JobResponse, JobCreate, WorkResponse, PollResponse,
+    HeartbeatPayload
 )
 from ..security import mask_secrets, encrypt_secrets, decrypt_secrets
 from .alert_service import AlertService
@@ -20,18 +20,6 @@ from . import attestation_service
 logger = logging.getLogger(__name__)
 
 MAX_OUTPUT_BYTES = 1_048_576  # 1 MB
-
-
-def parse_bytes(s: str) -> int:
-    """Convert memory string like '300m', '2g', '1024k' to bytes."""
-    s = s.strip().lower()
-    if s.endswith('g'):
-        return int(s[:-1]) * 1024 ** 3
-    elif s.endswith('m'):
-        return int(s[:-1]) * 1024 ** 2
-    elif s.endswith('k'):
-        return int(s[:-1]) * 1024
-    return int(s)
 
 
 class JobService:
@@ -138,8 +126,6 @@ class JobService:
             payload=json.dumps(encrypted_payload),
             target_tags=json.dumps(job_req.target_tags) if job_req.target_tags else None,
             capability_requirements=json.dumps(job_req.capability_requirements) if job_req.capability_requirements else None,
-            memory_limit=job_req.memory_limit,
-            cpu_limit=job_req.cpu_limit,
             depends_on=depends_on_json,
             env_tag=job_req.env_tag,
             max_retries=job_req.max_retries,
@@ -176,47 +162,24 @@ class JobService:
         result = await db.execute(select(Node).where(Node.node_id == node_id))
         node = result.scalar_one_or_none()
         
-        # Default Config
+        # Default concurrency limit
         concurrency = 5
-        memory = "512m"
-        
+
         if node:
             # Security TDA-04: Quarantine check
             if node.status == "TAMPERED":
-                logger.error(f"🛑 Rejecting work request from TAMPERED node {node_id}")
-                node_config = NodeConfig(
-                    concurrency_limit=0, # Disable execution
-                    job_memory_limit=node.job_memory_limit,
-                    tags=JobService._get_effective_tags(node)
-                )
-                return PollResponse(job=None, config=node_config)
+                logger.error(f"Rejecting work request from TAMPERED node {node_id}")
+                return PollResponse(job=None)
 
-            concurrency = node.concurrency_limit
-            memory = node.job_memory_limit
             node.last_seen = datetime.utcnow()
             if node.ip != node_ip:
                  node.ip = node_ip
-
-            # Image Lifecycle Governance (Phase 15)
-            if node.template_id:
-                tmpl_res = await db.execute(select(PuppetTemplate).where(PuppetTemplate.id == node.template_id))
-                tmpl = tmpl_res.scalar_one_or_none()
-                if tmpl and tmpl.status == "REVOKED":
-                    logger.error(f"🛑 Blocking work pull for node {node_id} - image {tmpl.friendly_name} is REVOKED")
-                    node_config = NodeConfig(
-                        concurrency_limit=0, # Stop execution
-                        job_memory_limit=node.job_memory_limit,
-                        tags=JobService._get_effective_tags(node)
-                    )
-                    return PollResponse(job=None, config=node_config)
         else:
             node = Node(
-                node_id=node_id, 
-                hostname=node_id, 
-                ip=node_ip, 
-                status="ONLINE", 
-                concurrency_limit=concurrency,
-                job_memory_limit=memory
+                node_id=node_id,
+                hostname=node_id,
+                ip=node_ip,
+                status="ONLINE",
             )
             db.add(node)
         
@@ -224,11 +187,7 @@ class JobService:
         
         # Push operator env_tag to node so it adopts and reports it in heartbeats.
         # None = never managed (node uses own env var). "" = explicitly cleared. "X" = set to X.
-        node_config = NodeConfig(
-            concurrency_limit=concurrency,
-            job_memory_limit=memory,
-            env_tag=node.env_tag if node.operator_env_tag and node.env_tag else ("" if node.operator_env_tag else None),
-        )
+        current_env_tag = node.env_tag if node.operator_env_tag and node.env_tag else ("" if node.operator_env_tag else None)
 
         # ZOMBIE REAPER: reclaim ASSIGNED jobs on this node that exceeded their timeout
         zombie_timeout_minutes = await JobService._get_zombie_timeout(db)
@@ -290,7 +249,7 @@ class JobService:
         active_count = result.scalar()
         
         if active_count >= concurrency:
-            return PollResponse(job=None, config=node_config)
+            return PollResponse(job=None, env_tag=current_env_tag)
         
         # 3. Find highest priority PENDING or eligible RETRYING job matching criteria
         result = await db.execute(
@@ -341,14 +300,6 @@ class JobService:
                 if node_env_tag != candidate.env_tag.upper():
                     continue
 
-            # Check Memory Limit
-            if candidate.memory_limit and node.job_memory_limit:
-                try:
-                    if parse_bytes(candidate.memory_limit) > parse_bytes(node.job_memory_limit):
-                        continue
-                except Exception:
-                    pass
-
             # Check Capabilities
             if candidate.capability_requirements:
                 try:
@@ -379,7 +330,7 @@ class JobService:
             break
         
         if not selected_job:
-            return PollResponse(job=None, config=node_config)
+            return PollResponse(job=None, env_tag=current_env_tag)
             
         selected_job.status = 'ASSIGNED'
         selected_job.node_id = node_id
@@ -398,14 +349,12 @@ class JobService:
             guid=selected_job.guid,
             task_type=selected_job.task_type,
             payload=payload,
-            memory_limit=selected_job.memory_limit,
-            cpu_limit=selected_job.cpu_limit,
             max_retries=selected_job.max_retries,
             backoff_multiplier=selected_job.backoff_multiplier,
             timeout_minutes=selected_job.timeout_minutes,
             started_at=selected_job.started_at,
         )
-        return PollResponse(job=work_resp, config=node_config)
+        return PollResponse(job=work_resp, env_tag=current_env_tag)
 
     @staticmethod
     async def receive_heartbeat(node_id: str, node_ip: str, hb: HeartbeatPayload, db: AsyncSession) -> dict:
