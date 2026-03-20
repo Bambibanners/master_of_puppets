@@ -8,6 +8,7 @@
 - ✅ **v9.0 — Enterprise Documentation** — Phases 20–28 (shipped 2026-03-17)
 - ✅ **v10.0 — Axiom Commercial Release** — Phases 29–33 (shipped 2026-03-19)
 - ✅ **v11.0 — CE/EE Split Completion** — Phases 34–37 (shipped 2026-03-20)
+- 🚧 **v11.1 — Stack Validation** — Phases 38–45 (in progress)
 
 ## Phases
 
@@ -77,9 +78,116 @@ Archive: `.planning/milestones/v11.0-ROADMAP.md`
 
 </details>
 
+### 🚧 v11.1 — Stack Validation (In Progress)
+
+**Milestone Goal:** Adversarial end-to-end validation of the full Axiom CE/EE stack from a clean install — CE/EE split verification, 4 LXC environment-tagged nodes, exhaustive job testing, Foundry/Smelter deep pass, and a gap report feeding v12.0+.
+
+- [ ] **Phase 38: Clean Teardown + Fresh CE Install** — Teardown scripts (soft/hard), CE cold-start verification, admin re-seed safety
+- [ ] **Phase 39: EE Test Keypair + Dev Install** — Ed25519 test keypair, editable EE install with patched key, licence lifecycle edge cases
+- [ ] **Phase 40: LXC Node Provisioning** — 4 Incus containers (DEV/TEST/PROD/STAGING), per-node enrollment, env-tag verification, revoke/re-enroll cycle
+- [ ] **Phase 41: CE Validation Pass** — EE stubs return 402, CE table count assertion, basic job dispatch on CE
+- [ ] **Phase 42: EE Validation Pass** — CE+EE combined install, 28-table assertion, licence gating, admin endpoint RBAC
+- [ ] **Phase 43: Job Test Matrix** — 9 job scenarios: fast/slow/memory/concurrent/env-routing/promotion/crash/bad-sig/revoked-definition
+- [ ] **Phase 44: Foundry + Smelter Deep Pass** — Full wizard flow, STRICT/WARNING modes, build failure edge case, air-gap mirror, build dir cleanup
+- [ ] **Phase 45: Gap Report Synthesis + Critical Fixes** — Living gap report, inline critical patches with regression tests, prioritised v12.0+ backlog
+
 ## Phase Details
 
+### Phase 38: Clean Teardown + Fresh CE Install
+**Goal**: A known-clean CE stack exists, verified from cold start, with teardown scripts that are safe to run repeatedly
+**Depends on**: Nothing (first phase of v11.1)
+**Requirements**: INST-01, INST-02, INST-03, INST-04
+**Success Criteria** (what must be TRUE):
+  1. Soft teardown script stops containers and clears DB data without touching Root CA or node `secrets/` dirs — safe to run between test runs
+  2. Hard teardown script removes all named Docker volumes AND all LXC node `secrets/` dirs in a single atomic operation — no defunct CA certs left on nodes
+  3. After hard teardown + CE cold start, `docker exec` confirms exactly 13 CE tables exist and `GET /api/features` returns all false
+  4. `GET /api/licence` returns `{"edition": "community"}` on CE-only install
+  5. Admin re-seed: changing `ADMIN_PASSWORD` env var on a stack where admin already exists does NOT overwrite the DB password
+**Plans**: TBD
+
+### Phase 39: EE Test Keypair + Dev Install
+**Goal**: A local Ed25519 test keypair is in place and the EE plugin is running with the test public key, enabling all licence lifecycle tests without a Cython rebuild
+**Depends on**: Nothing (runs in parallel with Phase 38)
+**Requirements**: EEDEV-01, EEDEV-02, EEDEV-03, EEDEV-04, EEDEV-05
+**Success Criteria** (what must be TRUE):
+  1. Test Ed25519 keypair (public + private) exists in `mop_validation/secrets/` and is NOT the production keypair
+  2. `axiom-ee` installs as an editable source package (`pip install -e`) with `_LICENCE_PUBLIC_KEY_BYTES` patched to the test public key — no Cython compilation required
+  3. A signed test licence is generated; after injecting `AXIOM_LICENCE_KEY` and restarting, `GET /api/licence` returns correct `customer_id`, `exp`, and `features` values
+  4. After injecting an expired test licence and restarting, `GET /api/features` returns all false and `GET /api/licence` shows expired state
+  5. When `AXIOM_LICENCE_KEY` is absent entirely, the stack starts without crashing and `GET /api/features` returns all false (CE-degraded mode)
+**Plans**: TBD
+
+### Phase 40: LXC Node Provisioning
+**Goal**: Four environment-tagged LXC nodes are enrolled, heartbeating, and ready for all job and Foundry validation tests
+**Depends on**: Phase 38 (stack must be healthy; JOIN_TOKEN endpoint must be live)
+**Requirements**: NODE-01, NODE-02, NODE-03, NODE-04, NODE-05
+**Success Criteria** (what must be TRUE):
+  1. Four Incus containers (`axiom-node-dev`, `axiom-node-test`, `axiom-node-prod`, `axiom-node-staging`) are running with correct `OPERATOR_TAGS=env:DEV/TEST/PROD/STAGING` respectively
+  2. Each node received a unique per-node JOIN_TOKEN (not shared); all 4 complete mTLS enrollment without token collision errors
+  3. `GET /api/nodes` shows 4 nodes with correct `env_tag` values and `HEALTHY` status
+  4. `AGENT_URL` on each LXC node is set to the `incusbr0` bridge host IP (discovered dynamically, not hardcoded as `172.17.0.1`)
+  5. Revoking a node causes it to receive HTTP 403 on `/work/pull`; re-enrolling with a fresh token restores `HEALTHY` heartbeat status
+**Plans**: TBD
+
+### Phase 41: CE Validation Pass
+**Goal**: The CE install is confirmed clean — correct stub behaviour, correct table isolation, and a verified job execution baseline — before EE is layered on
+**Depends on**: Phase 38 (clean CE stack), Phase 40 (enrolled nodes)
+**Requirements**: CEV-01, CEV-02, CEV-03
+**Success Criteria** (what must be TRUE):
+  1. All 7 EE routes return HTTP 402 (not 404, not 500) on a CE-only install with 4 nodes active
+  2. After hard teardown + CE reinstall, `information_schema` query confirms exactly 13 tables — zero EE table leakage
+  3. A signed job script submitted to a DEV-tagged node executes successfully, stdout is captured, and the execution record is visible in the dashboard history
+**Plans**: TBD
+
+### Phase 42: EE Validation Pass
+**Goal**: The CE+EE combined install is confirmed working — all feature flags true, correct table count, EE routes responding, and licence lifecycle edge cases verified
+**Depends on**: Phase 39 (test keypair), Phase 41 (clean CE baseline)
+**Requirements**: EEV-01, EEV-02, EEV-03
+**Success Criteria** (what must be TRUE):
+  1. After CE+EE install with valid test licence, `GET /api/features` returns all true and `GET /api/licence` returns `{"edition": "enterprise"}` — this assertion is the gate for all subsequent EE tests
+  2. Database contains exactly 28 tables (13 CE + 15 EE); EE routes return real responses, not 402
+  3. Licence gating is startup-only: swapping to an expired licence at runtime leaves features true until restart, then false after restart
+  4. `GET /api/licence` returns full licence detail for admin; operator and viewer roles receive HTTP 403
+**Plans**: TBD
+
+### Phase 43: Job Test Matrix
+**Goal**: All 9 job scenarios — covering normal execution, edge cases, and failure modes — are exercised against the full EE stack with 4 LXC nodes
+**Depends on**: Phase 42 (confirmed EE stack), Phase 40 (4 enrolled nodes)
+**Requirements**: JOB-01, JOB-02, JOB-03, JOB-04, JOB-05, JOB-06, JOB-07, JOB-08, JOB-09
+**Success Criteria** (what must be TRUE):
+  1. Fast job (< 5s) and slow job (90s sleep) both complete with stdout captured in execution history; slow job shows node as live in heartbeat during execution
+  2. Five concurrent jobs submitted to the same node all complete — no duplicate execution of the same job GUID on two nodes
+  3. Env-tag routing is strictly enforced: a DEV-tagged job never executes on the PROD node; a cross-tag submission where no eligible node exists returns an appropriate response from the orchestrator
+  4. A job configured with `sys.exit(1)` produces `FAILED` status, triggers retry up to `max_retries`, and all attempts appear in execution history with correct `attempt_number` values
+  5. A job submitted with a bad Ed25519 signature is rejected by the node before execution; no execution record is created for the actual script run; a revoked job definition is blocked at the orchestrator and never reaches any node
+**Plans**: TBD
+
+### Phase 44: Foundry + Smelter Deep Pass
+**Goal**: Foundry and Smelter are verified end-to-end — wizard flow, CVE enforcement, build failure handling, air-gap mirror, and known gap documentation
+**Depends on**: Phase 42 (EE stack confirmed)
+**Requirements**: FOUNDRY-01, FOUNDRY-02, FOUNDRY-03, FOUNDRY-04, FOUNDRY-05, FOUNDRY-06
+**Success Criteria** (what must be TRUE):
+  1. Full wizard flow completes: runtime blueprint → network blueprint → Foundry build → image tag visible in Docker → node deployed from Foundry-built image and enrolled
+  2. Smelter STRICT mode blocks a blueprint containing a known-CVE ingredient (`cryptography<40.0.0`) from being used in a build; the API returns a non-200 response with a clear error
+  3. A build triggered with a bad base image tag returns HTTP 500 with error detail — not a silent 200
+  4. Air-gap mirror test: with outbound internet blocked via `iptables` on the build container, a blueprint using the local PyPI mirror installs its ingredient successfully from the mirror; `curl https://pypi.org/` fails from inside the container during the test, confirming isolation
+  5. Smelter WARNING mode: a moderate-risk ingredient proceeds through a build but the audit log records the warning; build dir cleanup result (pass or fail) is documented as a finding for MIN-07
+**Plans**: TBD
+
+### Phase 45: Gap Report Synthesis + Critical Fixes
+**Goal**: All findings from Phases 38–44 are synthesised into a prioritised gap report; critical bugs are patched with regression tests; the v12.0+ backlog is seeded
+**Depends on**: Phase 43 (job matrix complete), Phase 44 (Foundry pass complete)
+**Requirements**: GAP-01, GAP-02, GAP-03
+**Success Criteria** (what must be TRUE):
+  1. `mop_validation/reports/v11.1-gap-report.md` exists and contains every finding from all phases, each with severity (critical/major/minor), area, reproduction steps, and v12.0+ fix candidate
+  2. All findings rated critical are patched inline during this phase; each patch has an accompanying regression test that fails before the fix and passes after
+  3. The final gap report includes a prioritised backlog section ready to seed v12.0+ milestone planning, with deferred items cross-referenced to existing known gaps (MIN-06, MIN-07, MIN-08, WARN-08)
+**Plans**: TBD
+
 ## Progress
+
+**Execution Order:**
+38 → (39 in parallel with 38) → 40 → 41 → 42 → (43 and 44 in parallel) → 45
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -109,6 +217,14 @@ Archive: `.planning/milestones/v11.0-ROADMAP.md`
 | 35. Private EE Repo + Plugin Wiring | v11.0 | 5/5 | Complete | 2026-03-20 |
 | 36. Cython .so Build Pipeline | v11.0 | 3/3 | Complete | 2026-03-20 |
 | 37. Licence Validation + Docs + Docker Hub | v11.0 | 3/3 | Complete | 2026-03-20 |
+| 38. Clean Teardown + Fresh CE Install | v11.1 | 0/TBD | Not started | - |
+| 39. EE Test Keypair + Dev Install | v11.1 | 0/TBD | Not started | - |
+| 40. LXC Node Provisioning | v11.1 | 0/TBD | Not started | - |
+| 41. CE Validation Pass | v11.1 | 0/TBD | Not started | - |
+| 42. EE Validation Pass | v11.1 | 0/TBD | Not started | - |
+| 43. Job Test Matrix | v11.1 | 0/TBD | Not started | - |
+| 44. Foundry + Smelter Deep Pass | v11.1 | 0/TBD | Not started | - |
+| 45. Gap Report Synthesis + Critical Fixes | v11.1 | 0/TBD | Not started | - |
 
 ---
 
