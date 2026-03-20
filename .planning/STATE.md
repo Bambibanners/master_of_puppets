@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v11.1
 milestone_name: — Stack Validation
 status: planning
-stopped_at: "Checkpoint: 40-03 Task 2 human-verify — run provisioner against live stack"
-last_updated: "2026-03-20T22:42:37.855Z"
+stopped_at: Completed 40-03-PLAN.md — all 4 LXC nodes ONLINE
+last_updated: "2026-03-20T23:04:31.861Z"
 last_activity: 2026-03-20 — Roadmap created for v11.1 (Phases 38–45)
 progress:
   total_phases: 8
@@ -50,6 +50,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 39-ee-test-keypair-dev-install P02 | 3m | 2 tasks | 4 files |
 | Phase 40-lxc-node-provisioning P02 | 3m | 1 tasks | 1 files |
 | Phase 40-lxc-node-provisioning P01 | 3 | 2 tasks | 3 files |
+| Phase 40-lxc-node-provisioning P03 | 21m | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 40]: EXECUTION_MODE=docker hardcoded in LXC compose template — LXC nodes have nested Docker via security.nesting=true, not DinD direct mode
 - [Phase 40]: Token generation loop runs fully before provisioning loop — all secrets/nodes/*.env exist before any container starts
 - [Phase 40]: POST /auth/login uses OAuth2PasswordRequestForm — provisioner must send data= (form-encoded), not json=
+- [Phase 40]: Incus image source is images:ubuntu/24.04 — the ubuntu: remote is not configured; images: remote is always available
+- [Phase 40]: Health check endpoint is /nodes (not /api/nodes); nodes register as ONLINE (not HEALTHY)
 
 ### Pending Todos
 
@@ -88,7 +91,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T22:42:37.853Z
-Stopped at: Checkpoint: 40-03 Task 2 human-verify — run provisioner against live stack
+Last session: 2026-03-20T23:04:31.859Z
+Stopped at: Completed 40-03-PLAN.md — all 4 LXC nodes ONLINE
 Next action: `/gsd:plan-phase 38`
 Resume file: None
