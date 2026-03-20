@@ -1605,10 +1605,11 @@ async def get_doc_content(filename: str, current_user: User = Depends(require_au
 # --- WebSocket Live Feed ---
 
 @app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket, token: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def websocket_endpoint(ws: WebSocket, token: Optional[str] = None):
     """Live event feed. Requires a valid JWT passed as ?token=<jwt> query param."""
     await ws.accept()
-    # Validate token
+    # Validate token using a short-lived session so we don't hold a pool slot
+    # for the entire WebSocket lifetime (which exhausts the connection pool).
     authed = False
     if token:
         try:
@@ -1617,10 +1618,11 @@ async def websocket_endpoint(ws: WebSocket, token: Optional[str] = None, db: Asy
             payload = _jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             username = payload.get("sub")
             if username:
-                result = await db.execute(select(User).where(User.username == username))
-                user = result.scalar_one_or_none()
-                if user and payload.get("tv", 0) == user.token_version:
-                    authed = True
+                async with AsyncSessionLocal() as _db:
+                    result = await _db.execute(select(User).where(User.username == username))
+                    user = result.scalar_one_or_none()
+                    if user and payload.get("tv", 0) == user.token_version:
+                        authed = True
         except Exception:
             pass
     if not authed:
