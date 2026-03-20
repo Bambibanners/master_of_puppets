@@ -9,10 +9,10 @@ Requirements for the Stack Validation milestone — adversarial end-to-end valid
 
 ### Install & Teardown
 
-- [ ] **INST-01**: A soft teardown script preserves the Root CA and node `secrets/` dirs — only stops containers and clears DB data
-- [ ] **INST-02**: A hard teardown script runs `docker compose down -v --remove-orphans` AND clears all LXC node `secrets/` dirs — true clean slate
-- [ ] **INST-03**: Fresh CE install from cold start produces exactly 13 CE tables, `GET /api/features` all false, and a correctly seeded admin account
-- [ ] **INST-04**: Admin password re-seed behaviour verified: if admin already exists, `ADMIN_PASSWORD` env var change does NOT overwrite DB password (existing deployment safety)
+- [x] **INST-01**: A soft teardown script preserves the Root CA and node `secrets/` dirs — only stops containers and clears DB data
+- [x] **INST-02**: A hard teardown script runs `docker compose down -v --remove-orphans` AND clears all LXC node `secrets/` dirs — true clean slate
+- [x] **INST-03**: Fresh CE install from cold start produces exactly 13 CE tables, `GET /api/features` all false, and a correctly seeded admin account
+- [x] **INST-04**: Admin password re-seed behaviour verified: if admin already exists, `ADMIN_PASSWORD` env var change does NOT overwrite DB password (existing deployment safety)
 
 ### EE Test Infrastructure
 
@@ -95,10 +95,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INST-01 | Phase 38 | Pending |
-| INST-02 | Phase 38 | Pending |
-| INST-03 | Phase 38 | Pending |
-| INST-04 | Phase 38 | Pending |
+| INST-01 | Phase 38 | Complete |
+| INST-02 | Phase 38 | Complete |
+| INST-03 | Phase 38 | Complete |
+| INST-04 | Phase 38 | Complete |
 | EEDEV-01 | Phase 39 | Pending |
 | EEDEV-02 | Phase 39 | Pending |
 | EEDEV-03 | Phase 39 | Pending |

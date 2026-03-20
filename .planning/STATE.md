@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v11.1
 milestone_name: — Stack Validation
 status: planning
-stopped_at: Completed 38-01-PLAN.md (teardown scripts)
-last_updated: "2026-03-20T19:10:47.727Z"
+stopped_at: Completed 38-02-PLAN.md
+last_updated: "2026-03-20T19:11:10.070Z"
 last_activity: 2026-03-20 — Roadmap created for v11.1 (Phases 38–45)
 progress:
   total_phases: 8
@@ -45,6 +45,7 @@ Progress: [░░░░░░░░░░] 0%
 |-------|-------|-------|----------|
 | — | — | — | — |
 | Phase 38-clean-teardown-fresh-ce-install P01 | 1 | 2 tasks | 2 files |
+| Phase 38-clean-teardown-fresh-ce-install P02 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -56,6 +57,9 @@ Progress: [░░░░░░░░░░] 0%
 - [All concurrent tests]: Postgres required. SQLite write locking breaks under 4-node concurrent polling.
 - [Phase 38]: Soft teardown uses docker compose down (no -v) + explicit pgdata volume rm — only safe way to preserve certs-volume Root CA between runs
 - [Phase 38]: Hard teardown omits global set -e so a stopped LXC node does not abort the script — best-effort per node with [WARN] output
+- [Phase 38]: SECRETS_ENV points to MOP_DIR/secrets.env (not mop_validation/secrets.env) — shared credential store between stack and tests
+- [Phase 38]: verify_ce_install.py table count excludes apscheduler_jobs — APScheduler internal table is not a CE schema table
+- [Phase 38]: INST-04 manual steps embedded as INST_04_MANUAL_TEST_STEPS module constant — accessible via grep/editor without running script
 
 ### Pending Todos
 
@@ -69,7 +73,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T19:10:47.725Z
-Stopped at: Completed 38-01-PLAN.md (teardown scripts)
+Last session: 2026-03-20T19:11:10.068Z
+Stopped at: Completed 38-02-PLAN.md
 Next action: `/gsd:plan-phase 38`
 Resume file: None
