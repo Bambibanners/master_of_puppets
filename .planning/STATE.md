@@ -4,7 +4,7 @@ milestone: v11.1
 milestone_name: — Stack Validation
 status: planning
 stopped_at: Completed 39-02-PLAN.md — EE licence generator + install verifier
-last_updated: "2026-03-20T21:16:18.929Z"
+last_updated: "2026-03-20T21:47:42.239Z"
 last_activity: 2026-03-20 — Roadmap created for v11.1 (Phases 38–45)
 progress:
   total_phases: 8
