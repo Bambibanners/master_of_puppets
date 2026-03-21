@@ -558,6 +558,7 @@ class Node:
         cpu_limit = job.get("cpu_limit")
         timeout_minutes = job.get("timeout_minutes")
         timeout_secs = (timeout_minutes * 60) if timeout_minutes else 30
+        max_retries = job.get("max_retries", 0)
 
         print(f"[{self.node_id}] Executing Job {guid} [{task_type}]")
 
@@ -671,7 +672,8 @@ class Node:
                                          script_hash=script_hash,
                                          stdout_hash=stdout_hash,
                                          stderr_hash=stderr_hash,
-                                         started_at=started_at_iso)
+                                         started_at=started_at_iso,
+                                         retriable=(exit_code != 0 and max_retries > 0))
                 
             except Exception as e:
                  print(f"[{self.node_id}] Runtime Execution Failed: {e}")
@@ -685,7 +687,7 @@ class Node:
     async def report_result(self, guid: str, success: bool, result: Dict,
                             output_log=None, exit_code=None, security_rejected=False,
                             script_hash=None, stdout_hash=None, stderr_hash=None,
-                            started_at=None):
+                            started_at=None, retriable=None):
         try:
             # Build attestation bundle if all required fields are available
             attestation_bundle, attestation_signature = None, None
@@ -713,6 +715,7 @@ class Node:
                         "output_log": output_log,
                         "exit_code": exit_code,
                         "security_rejected": security_rejected,
+                        "retriable": retriable,
                         "script_hash": script_hash,
                         "attestation_bundle": attestation_bundle,
                         "attestation_signature": attestation_signature,
