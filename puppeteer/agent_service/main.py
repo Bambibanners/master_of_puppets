@@ -838,7 +838,7 @@ async def get_features(request: Request):
 @app.get("/api/licence", tags=["System"])
 async def get_licence(request: Request, current_user: User = Depends(require_auth)):
     """Return licence metadata. Admin only."""
-    if current_user.role != "admin":
+    if getattr(current_user, "role", None) != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     licence = getattr(request.app.state, 'licence', None)
     if licence is None:
