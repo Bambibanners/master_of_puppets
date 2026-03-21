@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v11.1
 milestone_name: — Stack Validation
 status: planning
-stopped_at: Completed 43-03-PLAN.md
-last_updated: "2026-03-21T20:19:32.007Z"
+stopped_at: Completed 43-04-PLAN.md
+last_updated: "2026-03-21T20:26:51.992Z"
 last_activity: 2026-03-20 — Roadmap created for v11.1 (Phases 38–45)
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 17
-  completed_plans: 15
+  completed_plans: 16
   percent: 0
 ---
 
@@ -59,6 +59,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 43-job-test-matrix P01 | 3min | 3 tasks | 2 files |
 | Phase 43-job-test-matrix P02 | 4min | 3 tasks | 3 files |
 | Phase 43-job-test-matrix P03 | 6m | 3 tasks | 3 files |
+| Phase 43-job-test-matrix P04 | 6min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase Phase 43]: JOB-03 [INFO] gap notices document direct mode silently ignoring memory_limit — deliberate documentation, not test failures
 - [Phase Phase 43]: JOB-06 signature pre-flight uses SKIP (exit 0) not FAIL — signatures are environment-dependent prerequisites, consistent with node online pre-flight pattern
 - [Phase Phase 43]: JOB-05 node_id absence from ExecutionRecord documented as [INFO] not [FAIL] — job completed correctly, attribution is observability gap not routing failure
+- [Phase 43]: JOB-07 attempt_number assertion adaptive: detect min value dynamically (works for 0-based and 1-based indexing)
+- [Phase 43]: JOB-08 postgres container discovered dynamically via docker ps --filter name=postgres (not hardcoded to puppeteer-postgres-1)
 
 ### Pending Todos
 
@@ -120,7 +123,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T20:19:32.005Z
-Stopped at: Completed 43-03-PLAN.md
+Last session: 2026-03-21T20:26:51.990Z
+Stopped at: Completed 43-04-PLAN.md
 Next action: `/gsd:plan-phase 38`
 Resume file: None
