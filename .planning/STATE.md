@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v11.1
 milestone_name: — Stack Validation
 status: planning
-stopped_at: Phase 41 context gathered
-last_updated: "2026-03-21T09:55:36.523Z"
+stopped_at: Completed 41-01-PLAN.md (verify_ce_stubs.py + verify_ce_tables.py)
+last_updated: "2026-03-21T15:22:20.027Z"
 last_activity: 2026-03-20 — Roadmap created for v11.1 (Phases 38–45)
 progress:
   total_phases: 8
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 8
   percent: 0
 ---
 
@@ -51,6 +51,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 40-lxc-node-provisioning P02 | 3m | 1 tasks | 1 files |
 | Phase 40-lxc-node-provisioning P01 | 3 | 2 tasks | 3 files |
 | Phase 40-lxc-node-provisioning P03 | 21m | 2 tasks | 1 files |
+| Phase 41-ce-validation-pass P01 | 3m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,9 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 40]: POST /auth/login uses OAuth2PasswordRequestForm — provisioner must send data= (form-encoded), not json=
 - [Phase 40]: Incus image source is images:ubuntu/24.04 — the ubuntu: remote is not configured; images: remote is always available
 - [Phase 40]: Health check endpoint is /nodes (not /api/nodes); nodes register as ONLINE (not HEALTHY)
+- [Phase 41]: CEV-01 uses admin JWT to decouple auth-layer 403 from EE-gate 402 — stub assertion is unambiguous
+- [Phase 41]: CEV-02 is non-destructive by design — operator runs teardown_hard.sh first, script only asserts table count result
+- [Phase 41]: 7 hardcoded EE stub routes (one per domain) sourced from ee/interfaces/*.py — explicit list fails clearly on route changes
 
 ### Pending Todos
 
@@ -91,7 +95,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T09:55:36.521Z
-Stopped at: Phase 41 context gathered
+Last session: 2026-03-21T15:22:20.024Z
+Stopped at: Completed 41-01-PLAN.md (verify_ce_stubs.py + verify_ce_tables.py)
 Next action: `/gsd:plan-phase 38`
-Resume file: .planning/phases/41-ce-validation-pass/41-CONTEXT.md
+Resume file: None
