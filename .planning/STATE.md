@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v11.1
 milestone_name: — Stack Validation
 status: planning
-stopped_at: Phase 43 context gathered
-last_updated: "2026-03-21T19:45:12.718Z"
+stopped_at: Completed 43-01-PLAN.md
+last_updated: "2026-03-21T20:05:18.617Z"
 last_activity: 2026-03-20 — Roadmap created for v11.1 (Phases 38–45)
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 17
+  completed_plans: 13
   percent: 0
 ---
 
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 41-ce-validation-pass P03 | 30min | 3 tasks | 1 files |
 | Phase 42-ee-validation-pass P01 | 14m | 2 tasks | 3 files |
 | Phase 42-ee-validation-pass P02 | 11m | 2 tasks | 2 files |
+| Phase 43-job-test-matrix P01 | 3min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 42]: EE image rebuild via FROM axiom-test-agent:latest + COPY approach — devpi root/dev index unavailable after CE validation teardown wiped volumes
 - [Phase 42]: CE main.py is responsible for licence expiry gating — EEPlugin.register() (compiled Cython .so) unconditionally mounts EE routers; expiry enforcement must live in the CE control layer
 - [Phase 42]: app.state.licence must be parsed from AXIOM_LICENCE_KEY in lifespan() before load_ee_plugins() — EE plugin only sets EEContext feature flags, not licence metadata that GET /api/licence reads
+- [Phase 43]: HTTP 409 (Conflict) used for REVOKED job definition dispatch in dispatch_job() — semantically correct for resource-in-conflicting-state
+- [Phase 43]: HTTP 422 (Unprocessable Entity) used for no-eligible-node in create_job() — matches FastAPI validation error convention; conditional on env_tag being truthy
 
 ### Pending Todos
 
@@ -110,7 +113,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T19:45:12.716Z
-Stopped at: Phase 43 context gathered
+Last session: 2026-03-21T20:05:18.615Z
+Stopped at: Completed 43-01-PLAN.md
 Next action: `/gsd:plan-phase 38`
-Resume file: .planning/phases/43-job-test-matrix/43-CONTEXT.md
+Resume file: None
