@@ -90,7 +90,27 @@ class JobService:
     async def create_job(job_req: JobCreate, db: AsyncSession) -> dict:
         """Received from Model Service or Authorized User."""
         guid = str(uuid.uuid4())
-        
+
+        # Validate that at least one ONLINE node can serve this env_tag
+        if job_req.env_tag:
+            from fastapi import HTTPException
+            result = await db.execute(
+                select(Node).where(
+                    Node.status == "ONLINE",
+                    Node.env_tag == job_req.env_tag,
+                )
+            )
+            eligible = result.scalars().first()
+            if eligible is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "error": "no_eligible_node",
+                        "env_tag": job_req.env_tag,
+                        "message": f"No ONLINE node with env_tag='{job_req.env_tag}' available.",
+                    },
+                )
+
         # Encrypt secrets before storing
         encrypted_payload = encrypt_secrets(job_req.payload)
         
