@@ -87,7 +87,7 @@ Archive: `.planning/milestones/v11.0-ROADMAP.md`
 - [x] **Phase 40: LXC Node Provisioning** — 4 Incus containers (DEV/TEST/PROD/STAGING), per-node enrollment, env-tag verification, revoke/re-enroll cycle (completed 2026-03-20)
 - [x] **Phase 41: CE Validation Pass** — EE stubs return 402, CE table count assertion, basic job dispatch on CE (completed 2026-03-21)
 - [x] **Phase 42: EE Validation Pass** — CE+EE combined install, 28-table assertion, licence gating, admin endpoint RBAC (completed 2026-03-21)
-- [ ] **Phase 43: Job Test Matrix** — 9 job scenarios: fast/slow/memory/concurrent/env-routing/promotion/crash/bad-sig/revoked-definition
+- [x] **Phase 43: Job Test Matrix** — 9 job scenarios: fast/slow/memory/concurrent/env-routing/promotion/crash/bad-sig/revoked-definition (completed 2026-03-21)
 - [ ] **Phase 44: Foundry + Smelter Deep Pass** — Full wizard flow, STRICT/WARNING modes, build failure edge case, air-gap mirror, build dir cleanup
 - [ ] **Phase 45: Gap Report Synthesis + Critical Fixes** — Living gap report, inline critical patches with regression tests, prioritised v12.0+ backlog
 
@@ -244,7 +244,7 @@ Plans:
 | 40. LXC Node Provisioning | 3/3 | Complete    | 2026-03-21 | - |
 | 41. CE Validation Pass | 3/3 | Complete    | 2026-03-21 | - |
 | 42. EE Validation Pass | 2/2 | Complete    | 2026-03-21 | - |
-| 43. Job Test Matrix | 4/5 | In Progress|  | - |
+| 43. Job Test Matrix | 5/5 | Complete   | 2026-03-21 | - |
 | 44. Foundry + Smelter Deep Pass | v11.1 | 0/TBD | Not started | - |
 | 45. Gap Report Synthesis + Critical Fixes | v11.1 | 0/TBD | Not started | - |
 
