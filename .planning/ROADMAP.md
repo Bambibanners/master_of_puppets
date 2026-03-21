@@ -146,7 +146,10 @@ Plans:
   1. All 7 EE routes return HTTP 402 (not 404, not 500) on a CE-only install with 4 nodes active
   2. After hard teardown + CE reinstall, `information_schema` query confirms exactly 13 tables — zero EE table leakage
   3. A signed job script submitted to a DEV-tagged node executes successfully, stdout is captured, and the execution record is visible in the dashboard history
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 41-01-PLAN.md — verify_ce_stubs.py (CEV-01) + verify_ce_tables.py (CEV-02)
+- [ ] 41-02-PLAN.md — verify_ce_job.py: end-to-end signed job execution (CEV-03)
 
 ### Phase 42: EE Validation Pass
 **Goal**: The CE+EE combined install is confirmed working — all feature flags true, correct table count, EE routes responding, and licence lifecycle edge cases verified
