@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v11.1
 milestone_name: — Stack Validation
 status: planning
-stopped_at: Phase 42 context gathered
-last_updated: "2026-03-21T18:13:30.274Z"
+stopped_at: Completed 42-01-PLAN.md
+last_updated: "2026-03-21T18:52:50.993Z"
 last_activity: 2026-03-20 — Roadmap created for v11.1 (Phases 38–45)
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 12
+  completed_plans: 11
   percent: 0
 ---
 
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 41-ce-validation-pass P01 | 3m | 2 tasks | 2 files |
 | Phase 41-ce-validation-pass P02 | 13m | 1 tasks | 1 files |
 | Phase 41-ce-validation-pass P03 | 30min | 3 tasks | 1 files |
+| Phase 42-ee-validation-pass P01 | 14m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,9 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 41]: master-of-puppets-node:latest must be loaded into LXC docker daemon separately from host docker
 - [Phase Phase 41]: CE-only build uses default ARG EE_INSTALL= (empty) — no extra arg needed, omission is the CE signal
 - [Phase Phase 41]: down -v required for CEV-02 — down without -v preserves pgdata and EE tables, making count assertion fail
+- [Phase 42]: Used getattr(current_user, 'role', None) != 'admin' instead of direct role access — CE User model lacks role column without migration, consistent with deps.py require_permission pattern
+- [Phase 42]: Added role column back to CE db.py User model (server_default='admin') — EE users router reads u.role directly on CE User, stripped in bbcb209 but not re-added by EE plugin startup
+- [Phase 42]: EE image rebuild via FROM axiom-test-agent:latest + COPY approach — devpi root/dev index unavailable after CE validation teardown wiped volumes
 
 ### Pending Todos
 
@@ -103,7 +107,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T18:13:30.272Z
-Stopped at: Phase 42 context gathered
+Last session: 2026-03-21T18:52:50.991Z
+Stopped at: Completed 42-01-PLAN.md
 Next action: `/gsd:plan-phase 38`
-Resume file: .planning/phases/42-ee-validation-pass/42-CONTEXT.md
+Resume file: None
