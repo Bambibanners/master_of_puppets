@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v11.1
 milestone_name: — Stack Validation
 status: planning
-stopped_at: Completed 43-02-PLAN.md
-last_updated: "2026-03-21T20:11:40.207Z"
+stopped_at: Completed 43-03-PLAN.md
+last_updated: "2026-03-21T20:19:32.007Z"
 last_activity: 2026-03-20 — Roadmap created for v11.1 (Phases 38–45)
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 17
-  completed_plans: 14
+  completed_plans: 15
   percent: 0
 ---
 
@@ -58,6 +58,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 42-ee-validation-pass P02 | 11m | 2 tasks | 2 files |
 | Phase 43-job-test-matrix P01 | 3min | 3 tasks | 2 files |
 | Phase 43-job-test-matrix P02 | 4min | 3 tasks | 3 files |
+| Phase 43-job-test-matrix P03 | 6m | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -104,6 +105,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase Phase 43]: Scripts skip gracefully (exit 0) when no DEV node is ONLINE — prevents CI breakage when nodes not yet provisioned
 - [Phase Phase 43]: JOB-02 uses 120s poll timeout (not 30s) because job sleeps 90s — 30s would produce false FAIL on working system
 - [Phase Phase 43]: JOB-03 [INFO] gap notices document direct mode silently ignoring memory_limit — deliberate documentation, not test failures
+- [Phase Phase 43]: JOB-06 signature pre-flight uses SKIP (exit 0) not FAIL — signatures are environment-dependent prerequisites, consistent with node online pre-flight pattern
+- [Phase Phase 43]: JOB-05 node_id absence from ExecutionRecord documented as [INFO] not [FAIL] — job completed correctly, attribution is observability gap not routing failure
 
 ### Pending Todos
 
@@ -117,7 +120,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T20:11:40.205Z
-Stopped at: Completed 43-02-PLAN.md
+Last session: 2026-03-21T20:19:32.005Z
+Stopped at: Completed 43-03-PLAN.md
 Next action: `/gsd:plan-phase 38`
 Resume file: None
