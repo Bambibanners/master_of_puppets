@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v11.1
 milestone_name: — Stack Validation
 status: planning
-stopped_at: Completed 43-01-PLAN.md
-last_updated: "2026-03-21T20:05:18.617Z"
+stopped_at: Completed 43-02-PLAN.md
+last_updated: "2026-03-21T20:11:40.207Z"
 last_activity: 2026-03-20 — Roadmap created for v11.1 (Phases 38–45)
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 17
-  completed_plans: 13
+  completed_plans: 14
   percent: 0
 ---
 
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 42-ee-validation-pass P01 | 14m | 2 tasks | 3 files |
 | Phase 42-ee-validation-pass P02 | 11m | 2 tasks | 2 files |
 | Phase 43-job-test-matrix P01 | 3min | 3 tasks | 2 files |
+| Phase 43-job-test-matrix P02 | 4min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,9 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 42]: app.state.licence must be parsed from AXIOM_LICENCE_KEY in lifespan() before load_ee_plugins() — EE plugin only sets EEContext feature flags, not licence metadata that GET /api/licence reads
 - [Phase 43]: HTTP 409 (Conflict) used for REVOKED job definition dispatch in dispatch_job() — semantically correct for resource-in-conflicting-state
 - [Phase 43]: HTTP 422 (Unprocessable Entity) used for no-eligible-node in create_job() — matches FastAPI validation error convention; conditional on env_tag being truthy
+- [Phase Phase 43]: Scripts skip gracefully (exit 0) when no DEV node is ONLINE — prevents CI breakage when nodes not yet provisioned
+- [Phase Phase 43]: JOB-02 uses 120s poll timeout (not 30s) because job sleeps 90s — 30s would produce false FAIL on working system
+- [Phase Phase 43]: JOB-03 [INFO] gap notices document direct mode silently ignoring memory_limit — deliberate documentation, not test failures
 
 ### Pending Todos
 
@@ -113,7 +117,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T20:05:18.615Z
-Stopped at: Completed 43-01-PLAN.md
+Last session: 2026-03-21T20:11:40.205Z
+Stopped at: Completed 43-02-PLAN.md
 Next action: `/gsd:plan-phase 38`
 Resume file: None

@@ -44,9 +44,9 @@ Requirements for the Stack Validation milestone — adversarial end-to-end valid
 
 ### Job Test Matrix
 
-- [ ] **JOB-01**: Fast job (< 5s): executes, stdout captured, visible in execution history dashboard
-- [ ] **JOB-02**: Slow job (90s sleep): runs to completion without premature timeout; live in node heartbeat during execution
-- [ ] **JOB-03**: Memory-heavy job (allocate 512MB in Python): executes successfully in `direct` mode — resource limit not enforced (documented as known gap, not a failure)
+- [x] **JOB-01**: Fast job (< 5s): executes, stdout captured, visible in execution history dashboard
+- [x] **JOB-02**: Slow job (90s sleep): runs to completion without premature timeout; live in node heartbeat during execution
+- [x] **JOB-03**: Memory-heavy job (allocate 512MB in Python): executes successfully in `direct` mode — resource limit not enforced (documented as known gap, not a failure)
 - [ ] **JOB-04**: Concurrent jobs (5 simultaneous submitted to same node): all 5 complete, no duplicate execution of same job GUID on two nodes
 - [x] **JOB-05**: Env-tag routing: DEV-tagged job only executes on `axiom-node-dev`; PROD-tagged job only on `axiom-node-prod`; cross-tag submission returns no eligible node
 - [ ] **JOB-06**: Env promotion chain: same job script submitted to DEV → TEST → PROD in sequence, each execution captured separately in history
@@ -115,9 +115,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EEV-01 | Phase 42 | Complete |
 | EEV-02 | Phase 42 | Complete |
 | EEV-03 | Phase 42 | Complete |
-| JOB-01 | Phase 43 | Pending |
-| JOB-02 | Phase 43 | Pending |
-| JOB-03 | Phase 43 | Pending |
+| JOB-01 | Phase 43 | Complete |
+| JOB-02 | Phase 43 | Complete |
+| JOB-03 | Phase 43 | Complete |
 | JOB-04 | Phase 43 | Pending |
 | JOB-05 | Phase 43 | Complete |
 | JOB-06 | Phase 43 | Pending |
